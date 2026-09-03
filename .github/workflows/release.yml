@@ -1,0 +1,85 @@
+name: Build & Release Portable App
+
+on:
+  push:
+    tags:
+      - 'v*' # Kích hoạt khi bạn đẩy tag dạng: v1.0.0, v1.0.1,...
+  workflow_dispatch: # Cho phép bấm nút "Run workflow" thủ công trên GitHub
+    inputs:
+      version:
+        description: 'Tên phiên bản (VD: v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+# Cấp quyền ghi để action có thể tạo Release và tải file lên
+permissions:
+  contents: write
+
+jobs:
+  build-portable-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node dependencies
+        run: npm install
+
+      # Tự động chuyển đổi icon.png ở root thành các kích cỡ & icon.ico cho Windows
+      - name: Generate App Icons
+        run: npm run tauri icon icon.png
+
+      # Build bản release độc lập (bỏ qua bước đóng gói NSIS/MSI)
+      - name: Build Portable Executable
+        run: npm run tauri -- build --no-bundle
+
+      # Đổi tên file cho rõ ràng và tạo thêm bản nén .zip
+      - name: Prepare Release Artifacts
+        shell: pwsh
+        run: |
+          if (Test-Path "src-tauri/target/release/Markdown Live.exe") {
+            Copy-Item "src-tauri/target/release/Markdown Live.exe" -Destination "Markdown-Live-Portable.exe"
+          } elseif (Test-Path "src-tauri/target/release/markdown-live.exe") {
+            Copy-Item "src-tauri/target/release/markdown-live.exe" -Destination "Markdown-Live-Portable.exe"
+          } else {
+            Write-Error "Không tìm thấy file .exe đầu ra trong target/release!"
+            exit 1
+          }
+
+          # Nén thêm bản .zip dự phòng cho người dùng
+          Compress-Archive -Path "Markdown-Live-Portable.exe" -DestinationPath "Markdown-Live-Portable.zip"
+
+      # Xác định tag phiên bản (nếu chạy thủ công thì lấy input, nếu push tag thì lấy ref)
+      - name: Determine Release Tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Đẩy file trực tiếp sang mục GitHub Releases
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: Markdown Live ${{ steps.release_tag.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: |
+            Markdown-Live-Portable.exe
+            Markdown-Live-Portable.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

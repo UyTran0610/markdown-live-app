@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="src-tauri/icons/icon.png" width="120" height="120" alt="Markdown Live Icon" />
+<img src="icon.png" width="120" height="120" alt="Markdown Live Icon" />
 
 # Markdown Live
 
@@ -58,6 +58,7 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 ## Ảnh chụp màn hình
 
 ![Giao diện chính - Light mode](images/light-mode.png)
+
 ![Giao diện chính - Dark mode](images/dark-mode.png)
 
 ---

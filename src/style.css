@@ -1,0 +1,620 @@
+/* Base Styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* ==========================================================================
+   Theme Tokens (Light mặc định + Dark override qua [data-theme="dark"])
+   ========================================================================== */
+:root {
+    color-scheme: light;
+
+    --bg-body: #f6f8fa;
+    --text-primary: #24292f;
+    --text-secondary: #57606a;
+    --text-muted: #8c959f;
+    --border-color: #d0d7de;
+
+    --header-bg: #1f2328;
+    --header-text: #ffffff;
+    --logo-icon: #4f46e5;
+
+    --btn-bg: #374151;
+    --btn-text: #f3f4f6;
+    --btn-hover-bg: #4b5563;
+    
+    --btn-active-bg: #4f46e5;
+    --btn-active-text: #ffffff;
+    --btn-primary-bg: #4f46e5;
+    --btn-primary-hover-bg: #4338ca;
+
+    --pane-bg: #ffffff;
+    --pane-header-bg: #f6f8fa;
+    --pane-header-text: #57606a;
+
+    --editor-bg: #fafafa;
+    --editor-caret: #24292f;
+    --editor-placeholder: #9aa4af;
+    --editor-selection: rgba(79, 70, 229, 0.3);
+
+    --toast-bg: #24292f;
+    --toast-text: #ffffff;
+
+    /* Tô màu cú pháp trong Editor */
+    --md-header-marker: #8c959f;
+    --md-header-12: #0969da;
+    --md-header-34: #0550ae;
+    --md-header-56: #1f6feb;
+    --md-bold: #24292f;
+    --md-italic: #24292f;
+    --md-bolditalic: #24292f;
+    --md-strikethrough: #6e7781;
+    --md-code-inline-text: #cf222e;
+    --md-code-inline-bg: rgba(175, 184, 193, 0.2);
+    --md-fence-marker: #8c959f;
+    --md-fence-lang: #8250df;
+    --md-code-block: #57606a;
+    --md-quote-marker: #1a7f37;
+    --md-quote-text: #57606a;
+    --md-list-marker: #9a6700;
+    --md-link-marker: #8c959f;
+    --md-link-text: #0969da;
+    --md-link-url: #1a7f37;
+    --md-hr: #8c959f;
+    --md-table-pipe: #8c959f;
+    --md-math: #8250df;
+
+    /* Cú pháp mở rộng mới */
+    --md-escape: #cf222e;
+    --md-ref-id: #0969da;
+    --md-ref-title: #1a7f37;
+    --md-autolink: #0969da;
+    --md-task-checked: #1a7f37;
+    --md-task-unchecked: #8c959f;
+    --md-footnote: #8250df;
+
+    /* GFM Alerts / Callouts (Preview) */
+    --alert-note-color: #0969da;
+    --alert-note-bg: rgba(9, 105, 218, 0.05);
+    --alert-tip-color: #1a7f37;
+    --alert-tip-bg: rgba(26, 127, 55, 0.05);
+    --alert-important-color: #8250df;
+    --alert-important-bg: rgba(130, 80, 223, 0.05);
+    --alert-warning-color: #9a6700;
+    --alert-warning-bg: rgba(154, 103, 0, 0.05);
+    --alert-caution-color: #d1242f;
+    --alert-caution-bg: rgba(209, 36, 47, 0.05);
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg-body: #0d1117;
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --border-color: #30363d;
+
+    --header-bg: #161b22;
+    --header-text: #f0f6fc;
+    --logo-icon: #818cf8;
+
+    --btn-bg: #21262d;
+    --btn-text: #e6edf3;
+    --btn-hover-bg: #30363d;
+    
+    --btn-active-bg: #6366f1;
+    --btn-active-text: #ffffff;
+    --btn-primary-bg: #6366f1;
+    --btn-primary-hover-bg: #4f46e5;
+
+    --pane-bg: #0d1117;
+    --pane-header-bg: #161b22;
+    --pane-header-text: #8b949e;
+
+    --editor-bg: #0d1117;
+    --editor-caret: #c9d1d9;
+    --editor-placeholder: #6e7681;
+    --editor-selection: rgba(99, 102, 241, 0.35);
+
+    --toast-bg: #30363d;
+    --toast-text: #f0f6fc;
+
+    --md-header-marker: #8b949e;
+    --md-header-12: #58a6ff;
+    --md-header-34: #79c0ff;
+    --md-header-56: #a5d6ff;
+    --md-bold: #c9d1d9;
+    --md-italic: #c9d1d9;
+    --md-bolditalic: #c9d1d9;
+    --md-strikethrough: #8b949e;
+    --md-code-inline-text: #ff7b72;
+    --md-code-inline-bg: rgba(110, 118, 129, 0.4);
+    --md-fence-marker: #8b949e;
+    --md-fence-lang: #d2a8ff;
+    --md-code-block: #8b949e;
+    --md-quote-marker: #3fb950;
+    --md-quote-text: #8b949e;
+    --md-list-marker: #d29922;
+    --md-link-marker: #8b949e;
+    --md-link-text: #58a6ff;
+    --md-link-url: #3fb950;
+    --md-hr: #8b949e;
+    --md-table-pipe: #8b949e;
+    --md-math: #d2a8ff;
+
+    --md-escape: #ff7b72;
+    --md-ref-id: #58a6ff;
+    --md-ref-title: #3fb950;
+    --md-autolink: #58a6ff;
+    --md-task-checked: #3fb950;
+    --md-task-unchecked: #6e7681;
+    --md-footnote: #d2a8ff;
+
+    --alert-note-color: #58a6ff;
+    --alert-note-bg: rgba(56, 139, 253, 0.15);
+    --alert-tip-color: #3fb950;
+    --alert-tip-bg: rgba(63, 185, 80, 0.15);
+    --alert-important-color: #d2a8ff;
+    --alert-important-bg: rgba(163, 113, 247, 0.15);
+    --alert-warning-color: #d29922;
+    --alert-warning-bg: rgba(210, 153, 34, 0.15);
+    --alert-caution-color: #f85149;
+    --alert-caution-bg: rgba(248, 81, 73, 0.15);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: var(--bg-body);
+    color: var(--text-primary);
+    transition: background-color 0.2s, color 0.2s;
+}
+
+/* Header & Toolbar */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    height: 60px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: background-color 0.2s;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-icon {
+    color: var(--logo-icon);
+}
+
+.logo h1 {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.toolbar {
+    display: flex;
+    gap: 10px;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: var(--btn-bg);
+    color: var(--btn-text);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.btn:hover {
+    background-color: var(--btn-hover-bg);
+}
+
+.btn.active {
+    background-color: var(--btn-active-bg);
+    color: var(--btn-active-text);
+}
+
+.btn i,
+.btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Nút chuyển đổi giao diện Sáng / Tối */
+#btn-theme .icon-moon {
+    display: none;
+}
+
+[data-theme="dark"] #btn-theme .icon-sun {
+    display: none;
+}
+
+[data-theme="dark"] #btn-theme .icon-moon {
+    display: inline-flex;
+}
+
+/* Workspace Layout */
+.workspace {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+}
+
+.pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: var(--pane-bg);
+    transition: background-color 0.2s;
+}
+
+.editor-pane {
+    border-right: 1px solid var(--border-color);
+}
+
+.pane-header {
+    background-color: var(--pane-header-bg);
+    padding: 8px 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--pane-header-text);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Editor Styling */
+.editor-container {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background-color: var(--editor-bg);
+    transition: background-color 0.2s;
+}
+
+#markdown-input,
+#editor-highlight {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    padding: 20px;
+    border: none;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1rem;
+    line-height: 1.6;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+#markdown-input {
+    z-index: 2;
+    resize: none;
+    outline: none;
+    color: transparent;
+    caret-color: var(--editor-caret);
+    background-color: transparent;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+#markdown-input::placeholder {
+    color: var(--editor-placeholder);
+}
+
+#markdown-input::selection {
+    background-color: var(--editor-selection);
+}
+
+#editor-highlight {
+    z-index: 1;
+    overflow: hidden;
+    scrollbar-gutter: stable;
+    pointer-events: none;
+    user-select: none;
+    color: var(--text-primary);
+}
+
+#editor-highlight code {
+    display: block;
+    margin: 0;
+    padding: 0;
+    font: inherit;
+    white-space: inherit;
+    word-wrap: inherit;
+    overflow-wrap: inherit;
+    background: none;
+}
+
+/* ==========================================================================
+   Tô màu cú pháp Markdown trong Editor (Syntax Highlighting)
+   ========================================================================== */
+.md-header-marker { color: var(--md-header-marker); font-weight: 600; }
+.md-header { font-weight: 700; }
+.md-header-1, .md-header-2 { color: var(--md-header-12); }
+.md-header-3, .md-header-4 { color: var(--md-header-34); }
+.md-header-5, .md-header-6 { color: var(--md-header-56); }
+
+.md-bold { color: var(--md-bold); font-weight: 700; }
+.md-italic { color: var(--md-italic); font-style: italic; }
+.md-bolditalic { color: var(--md-bolditalic); font-weight: 700; font-style: italic; }
+.md-strikethrough { color: var(--md-strikethrough); text-decoration: line-through; }
+
+.md-code-inline {
+    color: var(--md-code-inline-text);
+    background-color: var(--md-code-inline-bg);
+    border-radius: 3px;
+}
+
+.md-fence-marker { color: var(--md-fence-marker); font-weight: 600; }
+.md-fence-lang { color: var(--md-fence-lang); font-weight: 600; }
+.md-code-block { color: var(--md-code-block); }
+
+.md-quote-marker { color: var(--md-quote-marker); font-weight: 700; }
+.md-quote-text { color: var(--md-quote-text); font-style: italic; }
+.md-alert-tag { font-weight: 700; font-style: normal; }
+
+.md-list-marker { color: var(--md-list-marker); font-weight: 700; }
+
+.md-link-marker { color: var(--md-link-marker); }
+.md-link-text { color: var(--md-link-text); }
+.md-link-url { color: var(--md-link-url); text-decoration: underline; }
+
+.md-hr { color: var(--md-hr); font-weight: 700; }
+.md-table-pipe { color: var(--md-table-pipe); }
+.md-math { color: var(--md-math); }
+
+/* Class màu cho cú pháp mới */
+.md-escape { color: var(--md-escape); font-weight: 600; }
+.md-ref-id { color: var(--md-ref-id); font-weight: 600; }
+.md-ref-title { color: var(--md-ref-title); font-style: italic; }
+.md-autolink { color: var(--md-autolink); text-decoration: underline; }
+.md-task-checkbox { font-weight: 700; font-family: monospace; }
+.md-task-checked { color: var(--md-task-checked); }
+.md-task-unchecked { color: var(--md-task-unchecked); }
+.md-footnote-marker, .md-footnote-id { color: var(--md-footnote); font-weight: 600; }
+.md-footnote-ref { color: var(--md-footnote); }
+
+/* Preview Styling */
+#preview-output {
+    flex: 1;
+    padding: 20px 30px;
+    overflow-y: auto;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--toast-bg);
+    color: var(--toast-text);
+    padding: 10px 20px;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    font-size: 0.9rem;
+    transition: opacity 0.3s, transform 0.3s, background-color 0.2s, color 0.2s;
+    z-index: 1000;
+}
+
+.toast.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
+
+/* Responsive (Chuyển sang dạng dọc trên màn hình nhỏ) */
+@media (max-width: 768px) {
+    .logo h1 {
+        display: none;
+    }
+    .workspace {
+        flex-direction: column;
+    }
+    .editor-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        height: 50%;
+    }
+    .preview-pane {
+        height: 50%;
+    }
+    .btn span {
+        display: none;
+    }
+
+    .app-header {
+        padding: 8px 12px;
+    }
+    .toolbar {
+        gap: 5px;
+    }
+    .btn {
+        padding: 10px 12px;
+        border-radius: 5px;
+        gap: 0;
+    }
+    .btn i,
+    .btn svg {
+        width: 19px;
+        height: 19px;
+    }
+}
+
+/* ==========================================================================
+   GFM Alerts / Callouts (Phong cách GitHub)
+   ========================================================================== */
+.markdown-alert {
+    padding: 12px 16px !important;
+    margin-bottom: 16px !important;
+    border-left: 0.25em solid !important;
+    border-radius: 0 6px 6px 0 !important;
+}
+
+.markdown-alert-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    margin-bottom: 6px !important;
+}
+
+.markdown-alert-title i, .markdown-alert-title svg {
+    width: 16px !important;
+    height: 16px !important;
+    stroke-width: 2.25;
+}
+
+.markdown-alert p:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* Alert Themes */
+.markdown-alert-note {
+    background-color: var(--alert-note-bg) !important;
+    border-left-color: var(--alert-note-color) !important;
+}
+.markdown-alert-note .markdown-alert-title {
+    color: var(--alert-note-color) !important;
+}
+
+.markdown-alert-tip {
+    background-color: var(--alert-tip-bg) !important;
+    border-left-color: var(--alert-tip-color) !important;
+}
+.markdown-alert-tip .markdown-alert-title {
+    color: var(--alert-tip-color) !important;
+}
+
+.markdown-alert-important {
+    background-color: var(--alert-important-bg) !important;
+    border-left-color: var(--alert-important-color) !important;
+}
+.markdown-alert-important .markdown-alert-title {
+    color: var(--alert-important-color) !important;
+}
+
+.markdown-alert-warning {
+    background-color: var(--alert-warning-bg) !important;
+    border-left-color: var(--alert-warning-color) !important;
+}
+.markdown-alert-warning .markdown-alert-title {
+    color: var(--alert-warning-color) !important;
+}
+
+.markdown-alert-caution {
+    background-color: var(--alert-caution-bg) !important;
+    border-left-color: var(--alert-caution-color) !important;
+}
+.markdown-alert-caution .markdown-alert-title {
+    color: var(--alert-caution-color) !important;
+}
+
+/* Canh giữa biểu đồ Mermaid */
+.mermaid {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    background: transparent !important;
+    border: none !important;
+}
+
+/* ==========================================================================
+   Quy tắc In & Xuất PDF với văn bản vector chọn được (Selectable Text)
+   ========================================================================== */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 15mm;
+    }
+
+    html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+        color: #24292f !important;
+    }
+
+    .app-header,
+    .editor-pane,
+    .pane-header,
+    .toast {
+        display: none !important;
+    }
+
+    .workspace {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    .preview-pane {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: transparent !important;
+        border: none !important;
+    }
+
+    #preview-output {
+        padding: 0 !important;
+        overflow: visible !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Ngăn ngắt trang xấu giữa chừng các khối nội dung quan trọng */
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        break-after: avoid;
+    }
+
+    pre, blockquote, table, img, svg, .mermaid, .markdown-alert, tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+}
+
+/* ==========================================================================
+   Sửa lỗi hiển thị Task List (Ẩn dấu bullet • và căn lề checkbox)
+   ========================================================================== */
+.markdown-body li:has(> input[type="checkbox"]) {
+    list-style-type: none;
+    margin-left: -1.2em;
+}
+
+.markdown-body li > input[type="checkbox"] {
+    margin: 0 0.4em 0.2em 0;
+    vertical-align: middle;
+    cursor: pointer;
+}

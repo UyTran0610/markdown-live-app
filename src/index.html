@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>Markdown Live</title>
+    <link id="theme-markdown-css" rel="stylesheet" href="vendor/github-markdown-light.css">
+    <link id="theme-hljs-css" rel="stylesheet" href="vendor/hljs-github.min.css">
+    <script>
+        // Xác định theme (sáng/tối) sớm nhất có thể để tránh hiệu ứng nháy sai giao diện.
+        // Ưu tiên lựa chọn đã lưu của người dùng, nếu không có thì theo theme của thiết bị.
+        (function () {
+            var theme = 'light';
+            try {
+                var stored = localStorage.getItem('markdown-live-theme');
+                if (stored === 'light' || stored === 'dark') {
+                    theme = stored;
+                } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    theme = 'dark';
+                }
+            } catch (e) {}
+
+            document.documentElement.setAttribute('data-theme', theme);
+
+            if (theme === 'dark') {
+                var mdLink = document.getElementById('theme-markdown-css');
+                var hljsLink = document.getElementById('theme-hljs-css');
+                if (mdLink) mdLink.href = 'vendor/github-markdown-dark.css';
+                if (hljsLink) hljsLink.href = 'vendor/hljs-github-dark.min.css';
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="vendor/katex.min.css">  
+    <link rel="stylesheet" href="style.css"> 
+    <script src="vendor/lucide.min.js"></script>
+    <script src="vendor/marked.umd.js"></script>
+    <script src="vendor/purify.min.js"></script>
+    <script src="vendor/highlight.min.js"></script>
+    <script src="vendor/mermaid.min.js"></script>
+    <script src="vendor/katex.min.js"></script>
+    <script src="vendor/marked-katex-extension.umd.js"></script>
+</head>
+<body>
+
+    <!-- Header / Toolbar -->
+    <header class="app-header">
+        <div class="logo">
+            <!-- <i data-lucide="file-text" class="logo-icon"></i>
+            <h1>Markdown Live</h1> -->
+        </div>
+        <div class="toolbar">
+            <button id="btn-sync" class="btn active" title="Đồng bộ cuộn trang">
+                <i data-lucide="arrow-up-down"></i>
+                <span>Sync Scroll</span>
+            </button>
+            <button id="btn-reset" class="btn" title="Khôi phục lại ví dụ mặc định">
+                <i data-lucide="rotate-ccw"></i>
+                <span>Reset</span>
+            </button>
+            <button id="btn-copy" class="btn" title="Sao chép nội dung Markdown">
+                <i data-lucide="copy"></i>
+                <span>Copy</span>
+            </button>
+            <button id="btn-pdf" class="btn" title="Xuất file PDF (Selectable Text)">
+                <i data-lucide="download"></i>
+                <span>Export PDF</span>
+            </button>
+            <button id="btn-theme" class="btn" title="Chuyển đổi giao diện Sáng / Tối">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+                <span>Theme</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        <!-- Editor Column -->
+        <section class="pane editor-pane">
+            <div class="pane-header">
+                <span>EDITOR</span>
+                <span id="char-counter" class="counter">0 ký tự</span>
+            </div>
+            <div class="editor-container">
+                <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"><code id="editor-highlight-code"></code></pre>
+                <textarea id="markdown-input" spellcheck="false" placeholder="Nhập Markdown tại đây..."></textarea>
+            </div>
+        </section>
+
+        <!-- Preview Column -->
+        <section class="pane preview-pane">
+            <div class="pane-header">PREVIEW</div>
+            <div id="preview-output" class="markdown-body"></div>
+        </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">Thông báo ở đây</div>
+
+    <!-- Custom Script -->
+    <script src="script.js"></script>
+</body>
+</html>

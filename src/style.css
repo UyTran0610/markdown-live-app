@@ -269,6 +269,9 @@ body {
     overflow: hidden;
     background: var(--pane-bg);
     transition: background-color 0.2s;
+    /* Cách ly layout/paint của từng pane: khi Preview thay đổi DOM liên tục,
+       trình duyệt không cần tính lại layout/paint của phần còn lại của trang. */
+    contain: layout style paint;
 }
 
 .editor-pane {
@@ -305,9 +308,15 @@ body {
     height: 100%;
     padding: 20px;
     border: none;
-    font-family: 'Courier New', Courier, monospace;
+    /* Font monospace hiện đại: các họ font này đảm bảo độ rộng ký tự (advance width)
+       giống hệt nhau giữa chữ thường và chữ đậm (font-weight khác nhau), tránh lệch
+       vị trí giữa lớp textarea (trong suốt) và lớp tô màu bên dưới khi có đoạn in đậm. */
+    font-family: ui-monospace, "Cascadia Mono", "Consolas", "Liberation Mono", "SFMono-Regular", Menlo, monospace;
     font-size: 1rem;
     line-height: 1.6;
+    font-variant-ligatures: none;
+    font-kerning: none;
+    letter-spacing: normal;
     tab-size: 4;
     -moz-tab-size: 4;
     white-space: pre-wrap;

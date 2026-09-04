@@ -33,13 +33,15 @@
     </script>
     <link rel="stylesheet" href="vendor/katex.min.css">  
     <link rel="stylesheet" href="style.css"> 
-    <script src="vendor/lucide.min.js"></script>
-    <script src="vendor/marked.umd.js"></script>
-    <script src="vendor/purify.min.js"></script>
-    <script src="vendor/highlight.min.js"></script>
-    <script src="vendor/mermaid.min.js"></script>
-    <script src="vendor/katex.min.js"></script>
-    <script src="vendor/marked-katex-extension.umd.js"></script>
+    <!-- defer: cho phép trình duyệt parse/paint xong phần HTML bên dưới trước,
+         các thư viện vẫn thực thi đúng theo thứ tự khai báo, trước sự kiện DOMContentLoaded -->
+    <script src="vendor/lucide.min.js" defer></script>
+    <script src="vendor/marked.umd.js" defer></script>
+    <script src="vendor/purify.min.js" defer></script>
+    <script src="vendor/highlight.min.js" defer></script>
+    <script src="vendor/mermaid.min.js" defer></script>
+    <script src="vendor/katex.min.js" defer></script>
+    <script src="vendor/marked-katex-extension.umd.js" defer></script>
 </head>
 <body>
 
@@ -99,6 +101,6 @@
     <div id="toast" class="toast hidden">Thông báo ở đây</div>
 
     <!-- Custom Script -->
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>

@@ -36,8 +36,8 @@ jobs:
         run: npm install
 
       # Tự động chuyển đổi icon.png ở root thành các kích cỡ & icon.ico cho Windows
-      - name: Generate App Icons
-        run: npm run tauri icon icon.png
+      # - name: Generate App Icons
+      #   run: npm run tauri icon icon.png
 
       # Build bản release độc lập (bỏ qua bước đóng gói NSIS/MSI)
       - name: Build Portable Executable

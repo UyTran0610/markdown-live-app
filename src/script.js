@@ -120,6 +120,20 @@ let isSyncScrollEnabled = true;
 let activeScrollSource = null;
 let mermaidTimeout = null;
 
+// Cache kết quả vẽ Mermaid theo đúng nội dung mã nguồn: nếu 1 khối biểu đồ không
+// thay đổi giữa 2 lần render, ta dùng lại SVG đã vẽ thay vì bắt mermaid.run() tính lại
+// từ đầu (thao tác tốn 50-200ms/biểu đồ). Cache sẽ bị xoá mỗi khi đổi theme vì màu
+// sắc SVG đã vẽ gắn liền với theme lúc vẽ.
+const mermaidCache = new Map();
+const MERMAID_CACHE_LIMIT = 60;
+function cacheMermaidResult(code, html) {
+    if (mermaidCache.has(code)) mermaidCache.delete(code);
+    mermaidCache.set(code, html);
+    if (mermaidCache.size > MERMAID_CACHE_LIMIT) {
+        mermaidCache.delete(mermaidCache.keys().next().value);
+    }
+}
+
 // ==========================================================================
 // CHUYỂN ĐỔI GIAO DIỆN SÁNG / TỐI (Light / Dark Theme)
 // ==========================================================================
@@ -162,6 +176,8 @@ if (btnTheme) {
     btnTheme.addEventListener('click', () => {
         const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
         applyTheme(nextTheme, true);
+        // Xoá cache Mermaid vì SVG cũ mang màu của theme trước, không dùng lại được
+        mermaidCache.clear();
         // Vẽ lại Preview để cập nhật màu Highlight.js / Mermaid theo theme mới
         if (typeof renderMarkdown === 'function') renderMarkdown();
         showToast(nextTheme === 'dark' ? "Đã chuyển sang giao diện Tối" : "Đã chuyển sang giao diện Sáng");
@@ -179,6 +195,7 @@ if (window.matchMedia) {
 
         if (!hasManualPreference) {
             applyTheme(event.matches ? 'dark' : 'light', false);
+            mermaidCache.clear();
             if (typeof renderMarkdown === 'function') renderMarkdown();
         }
     });
@@ -394,6 +411,17 @@ function updateEditorHighlight() {
     editorHighlightCode.innerHTML = highlightMarkdown(markdownInput.value) + '\n';
 }
 
+// Gộp nhiều lệnh gọi liên tiếp (do gõ nhanh) thành 1 lần tô màu duy nhất mỗi khung hình,
+// tránh chặn (block) luồng chính ngay trong handler của sự kiện 'input' -> giảm độ trễ gõ phím.
+let editorHighlightRAF = null;
+function scheduleEditorHighlight() {
+    if (editorHighlightRAF !== null) return;
+    editorHighlightRAF = requestAnimationFrame(() => {
+        editorHighlightRAF = null;
+        updateEditorHighlight();
+    });
+}
+
 // Hàm hiển thị thông báo Toast
 function showToast(message) {
     toast.textContent = message;
@@ -506,28 +534,50 @@ function renderMarkdown() {
     // 5. Xử lý các khối code Mermaid và vẽ biểu đồ
     if (typeof mermaid !== 'undefined') {
         const mermaidBlocks = previewOutput.querySelectorAll('pre code.language-mermaid');
+        // Chỉ những khối có nội dung THỰC SỰ mới (chưa có trong cache) mới cần mermaid.run() vẽ lại;
+        // khối trùng nội dung với lần render trước sẽ dùng ngay SVG đã lưu, không tốn CPU tính toán lại.
+        const nodesToRender = [];
+        const codeByNode = new Map();
+
         mermaidBlocks.forEach((block) => {
             const code = block.textContent;
             const pre = block.parentElement;
-            
+
             const newPre = document.createElement('pre');
             newPre.className = 'mermaid';
-            newPre.textContent = code;
+
+            const cachedSvg = mermaidCache.get(code);
+            if (cachedSvg) {
+                newPre.innerHTML = cachedSvg;
+                newPre.dataset.mermaidCached = 'true';
+            } else {
+                newPre.textContent = code;
+                nodesToRender.push(newPre);
+                codeByNode.set(newPre, code);
+            }
+
             pre.replaceWith(newPre);
         });
 
         clearTimeout(mermaidTimeout);
-        mermaidTimeout = setTimeout(() => {
-            const nodes = previewOutput.querySelectorAll('.mermaid');
-            if (nodes.length > 0) {
+        if (nodesToRender.length > 0) {
+            mermaidTimeout = setTimeout(() => {
                 mermaid.run({
-                    nodes: nodes,
+                    nodes: nodesToRender,
                     suppressErrors: true
+                }).then(() => {
+                    // Lưu lại SVG vừa vẽ để tái sử dụng cho các lần render sau
+                    nodesToRender.forEach((node) => {
+                        const code = codeByNode.get(node);
+                        if (code && node.innerHTML) {
+                            cacheMermaidResult(code, node.innerHTML);
+                        }
+                    });
                 }).catch(err => {
                     console.warn("Mermaid render error (đang soạn thảo sơ đồ chưa hoàn thiện):", err);
                 });
-            }
-        }, 300);
+            }, 300);
+        }
     }
 
     // 6. Cập nhật và vẽ lại tất cả icon từ Lucide
@@ -600,7 +650,7 @@ const editorHistory = {
 // Đồng bộ giao diện sau khi thực hiện thao tác chỉnh sửa văn bản
 function syncEditorAfterChange() {
     charCounter.textContent = `${markdownInput.value.length} ký tự`;
-    updateEditorHighlight();
+    scheduleEditorHighlight();
     debouncedRender();
 }
 
@@ -1010,7 +1060,7 @@ const debouncedRender = debounce(renderMarkdown, 300);
 // Sự kiện nhập liệu trong Editor
 markdownInput.addEventListener('input', (e) => {
     charCounter.textContent = `${markdownInput.value.length} ký tự`;
-    updateEditorHighlight();
+    scheduleEditorHighlight();
     debouncedRender();
 
     // Tự động lưu snapshot vào lịch sử Undo/Redo khi người dùng gõ
@@ -1043,12 +1093,32 @@ previewOutput.addEventListener('mouseenter', () => activeScrollSource = previewO
 markdownInput.addEventListener('touchstart', () => activeScrollSource = markdownInput, { passive: true });
 previewOutput.addEventListener('touchstart', () => activeScrollSource = previewOutput, { passive: true });
 
+// Gộp các lần xử lý scroll-sync theo khung hình (rAF) để tránh đọc liên tục
+// scrollHeight/scrollTop (buộc trình duyệt tính lại layout) trên từng sự kiện scroll dồn dập.
+let editorScrollTicking = false;
+let previewScrollTicking = false;
+
 markdownInput.addEventListener('scroll', () => {
-    handleScroll(markdownInput, previewOutput);
+    // Lớp tô màu cú pháp phải bám sát tuyệt đối theo pixel nên đồng bộ ngay, không qua rAF
     editorHighlight.scrollTop = markdownInput.scrollTop;
     editorHighlight.scrollLeft = markdownInput.scrollLeft;
+
+    if (editorScrollTicking) return;
+    editorScrollTicking = true;
+    requestAnimationFrame(() => {
+        editorScrollTicking = false;
+        handleScroll(markdownInput, previewOutput);
+    });
 });
-previewOutput.addEventListener('scroll', () => handleScroll(previewOutput, markdownInput));
+
+previewOutput.addEventListener('scroll', () => {
+    if (previewScrollTicking) return;
+    previewScrollTicking = true;
+    requestAnimationFrame(() => {
+        previewScrollTicking = false;
+        handleScroll(previewOutput, markdownInput);
+    });
+});
 
 // Đảm bảo tất cả liên kết khi nhấp vào trong vùng Preview luôn mở tab mới
 previewOutput.addEventListener('click', (e) => {

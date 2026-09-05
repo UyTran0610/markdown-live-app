@@ -114,6 +114,8 @@ const toast = document.getElementById('toast');
 const markdownThemeLink = document.getElementById('theme-markdown-css');
 const hljsThemeLink = document.getElementById('theme-hljs-css');
 const THEME_STORAGE_KEY = 'markdown-live-theme';
+// Key lưu nội dung Editor vào bộ nhớ tạm (localStorage) để giữ lại sau khi tắt/mở lại app
+const CONTENT_STORAGE_KEY = 'markdown-live-content';
 
 // Khởi tạo trạng thái ứng dụng
 let isSyncScrollEnabled = true;
@@ -1031,9 +1033,9 @@ markdownInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Hàm gán lại dữ liệu mặc định
-function loadDefaultContent() {
-    markdownInput.value = defaultMarkdown;
+// Hàm áp dụng một đoạn văn bản bất kỳ vào Editor (dùng chung cho nạp mặc định / nạp dữ liệu đã lưu)
+function applyContent(text) {
+    markdownInput.value = text;
     editorHistory.stack = [];
     editorHistory.index = -1;
     editorHistory.saveCurrentState(markdownInput);
@@ -1042,6 +1044,40 @@ function loadDefaultContent() {
     markdownInput.scrollTop = 0;
     previewOutput.scrollTop = 0;
     editorHighlight.scrollTop = 0;
+}
+
+// Hàm gán lại dữ liệu mặc định (dùng cho nút Reset)
+function loadDefaultContent() {
+    applyContent(defaultMarkdown);
+    // Ghi đè luôn bộ nhớ tạm để nếu người dùng thoát app ngay sau khi Reset,
+    // lần mở lại sau vẫn thấy bản mẫu chứ không phải nội dung cũ đã bị xoá.
+    saveContentToStorage();
+}
+
+// Hàm lưu nội dung hiện tại của Editor vào bộ nhớ tạm (localStorage)
+function saveContentToStorage() {
+    try {
+        localStorage.setItem(CONTENT_STORAGE_KEY, markdownInput.value);
+    } catch (e) {
+        // Bỏ qua nếu localStorage bị chặn (vd. hết dung lượng, chế độ riêng tư)
+    }
+}
+
+// Hàm nạp nội dung khi khởi động ứng dụng: ưu tiên bản đã lưu trong bộ nhớ tạm,
+// nếu chưa có gì được lưu (lần đầu mở app) thì dùng văn bản mẫu mặc định.
+function loadInitialContent() {
+    let savedContent = null;
+    try {
+        savedContent = localStorage.getItem(CONTENT_STORAGE_KEY);
+    } catch (e) {
+        // Bỏ qua nếu localStorage bị chặn
+    }
+
+    if (savedContent) {
+        applyContent(savedContent);
+    } else {
+        applyContent(defaultMarkdown);
+    }
 }
 
 // Hàm hoãn xử lý (Debounce) giúp tránh giật lag khi gõ văn bản
@@ -1056,12 +1092,15 @@ function debounce(func, delay = 300) {
 }
 
 const debouncedRender = debounce(renderMarkdown, 300);
+// Tự động lưu nội dung Editor vào bộ nhớ tạm sau khi người dùng ngừng gõ 400ms
+const debouncedSaveContent = debounce(saveContentToStorage, 400);
 
 // Sự kiện nhập liệu trong Editor
 markdownInput.addEventListener('input', (e) => {
     charCounter.textContent = `${markdownInput.value.length} ký tự`;
     scheduleEditorHighlight();
     debouncedRender();
+    debouncedSaveContent();
 
     // Tự động lưu snapshot vào lịch sử Undo/Redo khi người dùng gõ
     clearTimeout(editorHistory.typingTimer);
@@ -1182,7 +1221,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     lucide.createIcons();
-    loadDefaultContent();
+    loadInitialContent();
+});
+
+// Lưu ngay lập tức (không debounce) khi cửa sổ chuẩn bị đóng lại,
+// để không bị mất vài trăm mili-giây nội dung gõ cuối cùng.
+window.addEventListener('beforeunload', saveContentToStorage);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        saveContentToStorage();
+    }
 });
 
 window.renderMarkdown = renderMarkdown;

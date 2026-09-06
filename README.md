@@ -82,6 +82,26 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 
 Bản thực thi portable cho Windows (`.exe`) được build tự động qua GitHub Actions mỗi khi có tag phát hành mới. Tải bản mới nhất tại trang **[Releases](https://github.com/uytran0610/markdown-live-app/releases)**, không cần cài đặt gì thêm — chỉ cần chạy file `Markdown-Live-Portable.exe`.
 
+> [!WARNING]
+> **Windows SmartScreen có thể chặn ứng dụng khi mở lần đầu**
+>
+> Vì đây là ứng dụng mã nguồn mở, miễn phí và **chưa được ký chứng chỉ số** (loại chứng chỉ code-signing trả phí hàng năm), Windows Defender SmartScreen có thể hiển thị cảnh báo **"Windows protected your PC"** khi bạn chạy file lần đầu, với dòng **Publisher: Unknown publisher**. Đây là cảnh báo mặc định áp dụng cho mọi ứng dụng chưa ký số, không đồng nghĩa file chứa mã độc. Bạn có thể chọn **một trong hai** cách dưới đây để tiếp tục chạy ứng dụng.
+
+**Bỏ qua cảnh báo SmartScreen**
+
+1. Trong hộp thoại **"Windows protected your PC"**, nếu chưa thấy nút **Run anyway**, nhấp vào **More info** (Thông tin thêm) để hiện nút này ra.
+2. Nhấn **Run anyway** (Vẫn chạy) để mở ứng dụng bình thường.
+
+**Gỡ thuộc tính chặn của file (Nếu nhấp đúp không mở ứng dụng)**
+
+1. Nhấp chuột phải vào file `Markdown-Live-Portable.exe` → chọn **Properties**.
+2. Ở tab **General**, cuộn xuống cuối cùng, mục **Security**. Nếu thấy dòng chữ: *"This file came from another computer and might be blocked to help protect this computer."*
+3. Tích chọn ô **Unblock** → nhấn **Apply** → **OK**.
+4. Nhấp đúp mở lại file `.exe`, ứng dụng sẽ khởi động bình thường.
+
+> [!NOTE]
+> Nếu muốn kiểm tra file trước khi chạy, bạn có thể quét bằng phần mềm diệt virus đang dùng, hoặc tải file lên [VirusTotal](https://www.virustotal.com/) để đối chiếu kết quả từ nhiều engine bảo mật khác nhau.
+
 ### Chạy từ mã nguồn (dành cho lập trình viên)
 
 **Yêu cầu hệ thống:**

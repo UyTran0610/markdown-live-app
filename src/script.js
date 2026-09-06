@@ -523,10 +523,12 @@ function renderMarkdown() {
     previewOutput.innerHTML = cleanHtml;
     charCounter.textContent = `${rawText.length} ký tự`;
 
-    // Khôi phục ngay vị trí cuộn đã lưu, giới hạn trong phạm vi có thể cuộn của nội dung mới
-    // (nội dung mới có thể ngắn/dài hơn nội dung cũ nên cần chặn giá trị tối đa hợp lệ).
-    const maxPreviewScrollTop = Math.max(previewOutput.scrollHeight - previewOutput.clientHeight, 0);
-    previewOutput.scrollTop = Math.min(previousPreviewScrollTop, maxPreviewScrollTop);
+    // LƯU Ý: KHÔNG khôi phục scrollTop ngay ở đây. Các bước bên dưới (GFM alerts, hljs,
+    // mermaid, lucide icons) vẫn có thể làm thay đổi chiều cao nội dung; nếu khôi phục
+    // scrollTop ngay bây giờ rồi các bước đó chèn thêm chiều cao ở phía TRÊN vị trí đang
+    // xem, preview sẽ bị đẩy lệch và trông như "cuộn dần lên" sau mỗi lần gõ phím.
+    // Ta chỉ khôi phục scrollTop MỘT LẦN duy nhất, sau khi mọi thay đổi đồng bộ về
+    // chiều cao đã hoàn tất (xem lệnh gọi restorePreviewScrollTop() ở cuối hàm này).
 
     // 3. Chuyển đổi các khối blockquote đặc biệt thành GFM Alerts
     processGFMAlerts();
@@ -572,6 +574,11 @@ function renderMarkdown() {
         clearTimeout(mermaidTimeout);
         if (nodesToRender.length > 0) {
             mermaidTimeout = setTimeout(() => {
+                // Mermaid có thể phóng to chiều cao rất nhiều so với khối code chữ ban đầu.
+                // Ghi lại scrollTop NGAY TRƯỚC lúc thay thế nội dung để khôi phục lại đúng
+                // vị trí đang xem sau khi biểu đồ được vẽ xong (tránh preview bị "nhảy"/trôi lên).
+                const scrollTopBeforeMermaid = previewOutput.scrollTop;
+
                 mermaid.run({
                     nodes: nodesToRender,
                     suppressErrors: true
@@ -583,6 +590,7 @@ function renderMarkdown() {
                             cacheMermaidResult(code, node.innerHTML);
                         }
                     });
+                    restorePreviewScrollTop(scrollTopBeforeMermaid);
                 }).catch(err => {
                     console.warn("Mermaid render error (đang soạn thảo sơ đồ chưa hoàn thiện):", err);
                 });
@@ -594,6 +602,18 @@ function renderMarkdown() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+
+    // Khôi phục vị trí cuộn đã lưu từ đầu hàm, giới hạn trong phạm vi có thể cuộn của
+    // nội dung mới. Đặt ở đây (SAU khi GFM alerts, hljs, mermaid-từ-cache và lucide icon
+    // đã chạy xong) để những thay đổi chiều cao đồng bộ ở trên không làm preview bị lệch.
+    restorePreviewScrollTop(previousPreviewScrollTop);
+}
+
+// Khôi phục scrollTop của Preview về đúng giá trị mong muốn, giới hạn trong phạm vi
+// có thể cuộn thực tế của nội dung hiện tại (nội dung có thể đã ngắn/dài hơn trước).
+function restorePreviewScrollTop(desiredScrollTop) {
+    const maxPreviewScrollTop = Math.max(previewOutput.scrollHeight - previewOutput.clientHeight, 0);
+    previewOutput.scrollTop = Math.min(desiredScrollTop, maxPreviewScrollTop);
 }
 
 // ==========================================================================

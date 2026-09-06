@@ -505,6 +505,9 @@ if (typeof DOMPurify !== 'undefined') {
 // Cập nhật kết quả Preview từ Markdown sang HTML (Đảm bảo an toàn XSS)
 function renderMarkdown() {
     const rawText = markdownInput.value;
+
+    // Lưu lại vị trí cuộn hiện tại của Preview TRƯỚC khi thay nội dung.
+    const previousPreviewScrollTop = previewOutput.scrollTop;
     
     // 1. Chuyển đổi Markdown sang HTML
     const dirtyHtml = marked.parse(rawText);
@@ -519,6 +522,11 @@ function renderMarkdown() {
 
     previewOutput.innerHTML = cleanHtml;
     charCounter.textContent = `${rawText.length} ký tự`;
+
+    // Khôi phục ngay vị trí cuộn đã lưu, giới hạn trong phạm vi có thể cuộn của nội dung mới
+    // (nội dung mới có thể ngắn/dài hơn nội dung cũ nên cần chặn giá trị tối đa hợp lệ).
+    const maxPreviewScrollTop = Math.max(previewOutput.scrollHeight - previewOutput.clientHeight, 0);
+    previewOutput.scrollTop = Math.min(previousPreviewScrollTop, maxPreviewScrollTop);
 
     // 3. Chuyển đổi các khối blockquote đặc biệt thành GFM Alerts
     processGFMAlerts();

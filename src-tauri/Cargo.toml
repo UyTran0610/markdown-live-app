@@ -1,8 +1,8 @@
 [package]
 name = "markdown-live"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.1.1"
+description = "Trình soạn thảo Markdown hai chiều thời gian thực (Offline-first)"
+authors = ["Uy Tran"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -24,3 +24,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-clipboard-manager = "2"
 
+[package.metadata.winres]
+FileDescription = "Trình soạn thảo Markdown hai chiều thời gian thực"
+CompanyName = "Uy Tran"
+ProductName = "Markdown Live"
+LegalCopyright = "Copyright © 2026 Uy Tran. Released under the MIT License."

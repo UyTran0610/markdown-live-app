@@ -624,10 +624,11 @@ const editorHistory = {
 
     undo(el) {
         if (this.index <= 0 && this.stack.length <= 1) return;
-        // Nếu nội dung hiện tại chưa kịp lưu vào lịch sử, lưu lại trước khi lùi
+        // Nếu nội dung hiện tại chưa kịp lưu vào lịch sử, lưu lại trước khi lùi.
+        // Lưu ý: push() đã tự tăng this.index khi thêm state mới, nên KHÔNG được
+        // giảm index thêm ở đây nữa - nếu không Undo sẽ lùi tới 2 bước thay vì 1.
         if (this.stack[this.index] && this.stack[this.index].val !== el.value) {
             this.push(el.value, el.selectionStart, el.selectionEnd);
-            this.index--;
         }
         if (this.index > 0) {
             this.index--;
@@ -824,7 +825,14 @@ function wrapOrToggleFormat(wrapper, placeholder = '') {
     if (selStart >= wLen && selEnd + wLen <= val.length) {
         const before = val.substring(selStart - wLen, selStart);
         const after = val.substring(selEnd, selEnd + wLen);
-        if (before === wrapper && after === wrapper) {
+        // Đảm bảo cặp ký hiệu vừa tìm thấy không phải là MỘT PHẦN của một cặp dài hơn
+        // (vd: 1 dấu "*" đứng liền trong cặp "**" của bold không được coi là wrapper "*" của italic).
+        // Cách làm: xem thêm 1 ký tự nằm ngay ngoài "before"/"after" - nếu ký tự đó
+        // cũng trùng với wrapper thì nghĩa là chuỗi dấu thực tế dài hơn wrapper đang xét.
+        const extraBefore = selStart - wLen - 1 >= 0 ? val[selStart - wLen - 1] : '';
+        const extraAfter = selEnd + wLen < val.length ? val[selEnd + wLen] : '';
+        const isPartOfLongerWrapper = extraBefore === wrapper[wrapper.length - 1] || extraAfter === wrapper[0];
+        if (before === wrapper && after === wrapper && !isPartOfLongerWrapper) {
             const newText = val.substring(0, selStart - wLen) + selected + val.substring(selEnd + wLen);
             applyEditorChange(newText, selStart - wLen, selStart - wLen + selected.length);
             return;
@@ -854,8 +862,10 @@ function handleEditorLink() {
     if (selStart === selEnd) {
         const insert = '[liên kết](url)';
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
-        // Bôi đen sẵn chữ "url" để người dùng dán link vào
-        applyEditorChange(newText, selStart + 10, selStart + 13);
+        // Bôi đen sẵn chữ "url" để người dùng dán link vào.
+        // "[liên kết](url)" -> chữ "url" nằm ở index 11-14 (không phải 10-13:
+        // vị trí đó trước đây lệch 1 ký tự, khiến vùng bôi đen lại là "(ur").
+        applyEditorChange(newText, selStart + 11, selStart + 14);
     } else {
         const insert = `[${selected}](url)`;
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);

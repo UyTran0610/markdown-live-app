@@ -4,7 +4,9 @@
   "identifier": "com.uytran.markdownlive",
   "build": {
     "frontendDist": "../src",
-    "devUrl": null
+    "devUrl": null,
+    "beforeDevCommand": "node ../scripts/sync-version.js",
+    "beforeBuildCommand": "node ../scripts/sync-version.js"
   },
   "app": {
     "withGlobalTauri": true,

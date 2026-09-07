@@ -11,7 +11,7 @@ on:
         required: true
         default: 'v1.0.0'
 
-# Cấp quyền ghi để action có thể tạo Release và tải file lên
+# Cấp quyền ghi để action có thể tạo Release, tải file lên, và commit lại version bump
 permissions:
   contents: write
 
@@ -31,6 +31,42 @@ jobs:
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      # Xác định tag phiên bản (nếu chạy thủ công thì lấy input, nếu push tag thì lấy ref)
+      # Đồng thời tách ra bản "sạch" không có tiền tố v để ghi vào tauri.conf.json / Cargo.toml
+      - name: Determine Release Tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RAW="${{ inputs.version }}"
+          else
+            RAW="${{ github.ref_name }}"
+          fi
+          echo "tag=$RAW" >> $GITHUB_OUTPUT
+          echo "version=${RAW#v}" >> $GITHUB_OUTPUT
+
+      # Ghi số phiên bản vừa xác định vào tauri.conf.json và Cargo.toml,
+      # đồng thời tự cache-busting (?v=...) các asset trong index.html theo version mới
+      - name: Sync version into project files
+        shell: bash
+        run: node scripts/sync-version.js --set "${{ steps.release_tag.outputs.version }}"
+
+      # Chỉ commit lại khi chạy thủ công (workflow_dispatch) vì lúc đó đang đứng trên 1 branch thật.
+      # Khi trigger bằng tag push thì bỏ qua (tag không phải branch để push ngược lại được).
+      - name: Commit version bump back to repo
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src/index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: bump version to ${{ steps.release_tag.outputs.version }} [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "Version không đổi, bỏ qua commit."
+          fi
 
       - name: Install Node dependencies
         run: npm install
@@ -58,17 +94,6 @@ jobs:
 
           # Nén thêm bản .zip dự phòng cho người dùng
           Compress-Archive -Path "Markdown-Live-Portable.exe" -DestinationPath "Markdown-Live-Portable.zip"
-
-      # Xác định tag phiên bản (nếu chạy thủ công thì lấy input, nếu push tag thì lấy ref)
-      - name: Determine Release Tag
-        id: release_tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          fi
 
       # Đẩy file trực tiếp sang mục GitHub Releases
       - name: Publish to GitHub Releases

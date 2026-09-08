@@ -5,8 +5,8 @@
   "build": {
     "frontendDist": "../src",
     "devUrl": null,
-    "beforeDevCommand": "node ../scripts/sync-version.js",
-    "beforeBuildCommand": "node ../scripts/sync-version.js"
+    "beforeDevCommand": "node scripts/sync-version.js",
+    "beforeBuildCommand": "node scripts/sync-version.js"
   },
   "app": {
     "withGlobalTauri": true,

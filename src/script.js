@@ -122,6 +122,13 @@ let isSyncScrollEnabled = true;
 let activeScrollSource = null;
 let mermaidTimeout = null;
 
+// Đếm số thứ tự mỗi lần renderMarkdown() được gọi. Việc vẽ Mermaid là bất đồng bộ
+// (setTimeout + Promise), nên nếu người dùng gõ tiếp trong lúc nó đang chạy, một lượt
+// render MỚI có thể hoàn tất và khôi phục đúng scrollTop TRƯỚC KHI lượt render CŨ (đã lỗi
+// thời) vẽ xong và tự ý ghi đè scrollTop bằng giá trị cũ của nó. renderVersion giúp lượt
+// render cũ nhận ra mình đã lỗi thời để bỏ qua việc khôi phục scroll, tránh cộng dồn sai lệch.
+let renderVersion = 0;
+
 // Cache kết quả vẽ Mermaid theo đúng nội dung mã nguồn: nếu 1 khối biểu đồ không
 // thay đổi giữa 2 lần render, ta dùng lại SVG đã vẽ thay vì bắt mermaid.run() tính lại
 // từ đầu (thao tác tốn 50-200ms/biểu đồ). Cache sẽ bị xoá mỗi khi đổi theme vì màu
@@ -504,6 +511,9 @@ if (typeof DOMPurify !== 'undefined') {
 
 // Cập nhật kết quả Preview từ Markdown sang HTML (Đảm bảo an toàn XSS)
 function renderMarkdown() {
+    // Đánh dấu phiên bản của lượt render này (xem giải thích ở khai báo renderVersion).
+    const myRenderVersion = ++renderVersion;
+
     const rawText = markdownInput.value;
 
     // Lưu lại vị trí cuộn hiện tại của Preview TRƯỚC khi thay nội dung.
@@ -590,6 +600,13 @@ function renderMarkdown() {
                             cacheMermaidResult(code, node.innerHTML);
                         }
                     });
+                    // Nếu đã có một lượt renderMarkdown() MỚI hơn chạy trong lúc Mermaid
+                    // đang vẽ (ví dụ người dùng gõ tiếp), thì lượt render hiện tại đã lỗi
+                    // thời: các node vừa vẽ không còn nằm trong DOM hiển thị nữa, và
+                    // scrollTopBeforeMermaid cũng không còn phản ánh đúng vị trí hiện tại
+                    // của Preview. Bỏ qua việc khôi phục scroll trong trường hợp này để
+                    // tránh ghi đè lên vị trí cuộn đúng mà lượt render mới hơn đã thiết lập.
+                    if (myRenderVersion !== renderVersion) return;
                     restorePreviewScrollTop(scrollTopBeforeMermaid);
                 }).catch(err => {
                     console.warn("Mermaid render error (đang soạn thảo sơ đồ chưa hoàn thiện):", err);

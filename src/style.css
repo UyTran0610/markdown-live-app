@@ -335,6 +335,11 @@ body {
     background-color: transparent;
     overflow-y: auto;
     scrollbar-gutter: stable;
+    /* Tắt Scroll Anchoring của trình duyệt: khi nội dung/scrollHeight thay đổi liên tục
+       (mỗi lần gõ phím), trình duyệt sẽ tự ý điều chỉnh thêm scrollTop để "giữ nguyên"
+       vị trí của một anchor node nào đó - điều chỉnh ngầm này CỘNG DỒN với việc khôi
+       phục scrollTop thủ công trong script.js, gây hiện tượng trôi/cuộn dần theo thời gian. */
+    overflow-anchor: none;
 }
 
 #markdown-input::placeholder {
@@ -352,6 +357,7 @@ body {
     pointer-events: none;
     user-select: none;
     color: var(--text-primary);
+    overflow-anchor: none;
 }
 
 #editor-highlight code {
@@ -419,6 +425,14 @@ body {
     flex: 1;
     padding: 20px 30px;
     overflow-y: auto;
+    /* Quan trọng: previewOutput.innerHTML được thay mới toàn bộ mỗi lần render (kèm theo
+       hljs, GFM alerts, icon Lucide được chèn/thay thế). script.js đã tự lưu và khôi phục
+       scrollTop một cách chính xác (xem renderMarkdown()/restorePreviewScrollTop()), nhưng
+       nếu để mặc định, trình duyệt sẽ áp dụng thêm cơ chế Scroll Anchoring của riêng nó lên
+       trên kết quả đó ở cuối mỗi khung hình. Hai cơ chế cộng dồn với nhau qua từng lần gõ
+       phím chính là nguyên nhân khiến Preview "trôi" dần lên trên. Tắt hẳn để script.js là
+       nơi duy nhất quyết định vị trí cuộn. */
+    overflow-anchor: none;
 }
 
 /* Toast Notification */

@@ -24,27 +24,16 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 
 ## Mục lục
 
-- [Tổng quan kiến trúc](#tổng-quan-kiến-trúc)
 - [Tính năng kỹ thuật](#tính-năng-kỹ-thuật)
 - [Ảnh chụp màn hình](#ảnh-chụp-màn-hình)
-- [Công nghệ sử dụng](#công-nghệ-sử-dụng)
 - [Bắt đầu nhanh](#bắt-đầu-nhanh)
 - [Cách sử dụng](#cách-sử-dụng)
 - [Hướng dẫn xuất PDF](#hướng-dẫn-xuất-pdf)
+- [Tổng quan kiến trúc](#tổng-quan-kiến-trúc)
+- [Công nghệ sử dụng](#công-nghệ-sử-dụng)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
 - [Đóng góp](#đóng-góp)
 - [Giấy phép](#giấy-phép)
-
----
-
-## Tổng quan kiến trúc
-
-Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng bộ nhớ và tốc độ phản hồi. Ứng dụng sử dụng kiến trúc hybrid:
-- **Core Runtime:** Tauri v2 (Rust backend) đảm bảo kích thước binary nhỏ gọn, quản lý clipboard native và API hệ thống với mức tiêu hao tài nguyên thấp.
-- **Frontend Layer:** Hoàn toàn bằng Vanilla JavaScript/HTML5/CSS3. Không sử dụng Single Page Application (SPA) framework nặng nề, toàn bộ dependencies thư viện được lưu trữ cục bộ (`vendor/`), không phụ thuộc mạng CDN ngoài.
-
-> [!NOTE]
-> Ứng dụng chạy hoàn toàn offline. Mọi quá trình parse Markdown, biên dịch công thức Toán học KaTeX và vẽ biểu đồ Mermaid đều được thực thi trực tiếp tại Webview client-side.
 
 ---
 
@@ -66,19 +55,6 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 ![Giao diện chính - Light mode](images/light-mode.png)
 
 ![Giao diện chính - Dark mode](images/dark-mode.png)
-
----
-
-## Công nghệ sử dụng
-
-| Phân hệ | Công nghệ / Thư viện | Vai trò |
-| :--- | :--- | :--- |
-| **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener Plugin |
-| **Markdown Parser**| Marked.js + DOMPurify | Phân tích cú pháp Markdown và lọc XSS an toàn |
-| **Mathematics** | KaTeX + marked-katex-extension | Xử lý công thức Toán học TeX/LaTeX |
-| **Diagram Engine** | Mermaid.js | Render biểu đồ từ cú pháp khai báo |
-| **Code Engine** | Highlight.js | Tô màu cú pháp khối mã lệnh |
-| **Iconography** | Lucide Icons | Hệ thống icon giao diện người dùng |
 
 ---
 
@@ -173,6 +149,30 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 > Để bản in hoặc file xuất PDF giữ nguyên toàn bộ nền màu, định dạng Alert Callouts và khối mã nguồn:
 > 1. Trong hộp thoại in của hệ thống (Print Dialog), mở rộng danh mục **More settings (Cài đặt khác)**.
 > 2. Bật tùy chọn **Background graphics (Đồ họa nền)**.
+
+---
+
+## Tổng quan kiến trúc
+
+Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng bộ nhớ và tốc độ phản hồi. Ứng dụng sử dụng kiến trúc hybrid:
+- **Core Runtime:** Tauri v2 (Rust backend) đảm bảo kích thước binary nhỏ gọn, quản lý clipboard native và API hệ thống với mức tiêu hao tài nguyên thấp.
+- **Frontend Layer:** Hoàn toàn bằng Vanilla JavaScript/HTML5/CSS3. Không sử dụng Single Page Application (SPA) framework nặng nề, toàn bộ dependencies thư viện được lưu trữ cục bộ (`vendor/`), không phụ thuộc mạng CDN ngoài.
+
+> [!NOTE]
+> Ứng dụng chạy hoàn toàn offline. Mọi quá trình parse Markdown, biên dịch công thức Toán học KaTeX và vẽ biểu đồ Mermaid đều được thực thi trực tiếp tại Webview client-side.
+
+---
+
+## Công nghệ sử dụng
+
+| Phân hệ | Công nghệ / Thư viện | Vai trò |
+| :--- | :--- | :--- |
+| **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener Plugin |
+| **Markdown Parser**| Marked.js + DOMPurify | Phân tích cú pháp Markdown và lọc XSS an toàn |
+| **Mathematics** | KaTeX + marked-katex-extension | Xử lý công thức Toán học TeX/LaTeX |
+| **Diagram Engine** | Mermaid.js | Render biểu đồ từ cú pháp khai báo |
+| **Code Engine** | Highlight.js | Tô màu cú pháp khối mã lệnh |
+| **Iconography** | Lucide Icons | Hệ thống icon giao diện người dùng |
 
 ---
 

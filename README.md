@@ -24,27 +24,16 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 
 ## Table of Contents
 
-- [Architecture Overview](#architecture-overview)
 - [Technical Features](#technical-features)
 - [Screenshots](#screenshots)
-- [Tech Stack](#tech-stack)
 - [Quick Start](#quick-start)
 - [How to Use](#how-to-use)
 - [PDF Export Guide](#pdf-export-guide)
+- [Architecture Overview](#architecture-overview)
+- [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
-
----
-
-## Architecture Overview
-
-Markdown Live is engineered with memory efficiency and near-instant responsiveness in mind. The application adopts a hybrid architecture:
-- **Core Runtime:** Tauri v2 (Rust backend) guarantees a compact binary footprint, native clipboard management, and low-overhead system API integrations.
-- **Frontend Layer:** Built entirely with Vanilla JavaScript/HTML5/CSS3. Without heavy Single Page Application (SPA) frameworks, all dependencies are bundled locally (`vendor/`) without relying on external CDNs.
-
-> [!NOTE]
-> The application runs completely offline. All Markdown parsing, KaTeX mathematical typesetting, and Mermaid diagram rendering are executed locally within the client-side Webview.
 
 ---
 
@@ -66,19 +55,6 @@ Markdown Live is engineered with memory efficiency and near-instant responsivene
 ![Main Interface - Light mode](images/light-mode.png)
 
 ![Main Interface - Dark mode](images/dark-mode.png)
-
----
-
-## Tech Stack
-
-| Component | Technology / Library | Role |
-| :--- | :--- | :--- |
-| **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener Plugin |
-| **Markdown Parser**| Marked.js + DOMPurify | Markdown parsing and secure XSS sanitization |
-| **Mathematics** | KaTeX + marked-katex-extension | TeX/LaTeX mathematical formula typesetting |
-| **Diagram Engine** | Mermaid.js | Declarative diagram rendering |
-| **Code Engine** | Highlight.js | Code block syntax highlighting |
-| **Iconography** | Lucide Icons | User interface icon system |
 
 ---
 
@@ -173,6 +149,30 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 > To ensure printed documents or exported PDF files retain background colors, Alert Callouts, and code block styles:
 > 1. In the system Print Dialog, expand the **More settings** dropdown.
 > 2. Enable the **Background graphics** checkbox.
+
+---
+
+## Architecture Overview
+
+Markdown Live is engineered with memory efficiency and near-instant responsiveness in mind. The application adopts a hybrid architecture:
+- **Core Runtime:** Tauri v2 (Rust backend) guarantees a compact binary footprint, native clipboard management, and low-overhead system API integrations.
+- **Frontend Layer:** Built entirely with Vanilla JavaScript/HTML5/CSS3. Without heavy Single Page Application (SPA) frameworks, all dependencies are bundled locally (`vendor/`) without relying on external CDNs.
+
+> [!NOTE]
+> The application runs completely offline. All Markdown parsing, KaTeX mathematical typesetting, and Mermaid diagram rendering are executed locally within the client-side Webview.
+
+---
+
+## Tech Stack
+
+| Component | Technology / Library | Role |
+| :--- | :--- | :--- |
+| **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener Plugin |
+| **Markdown Parser**| Marked.js + DOMPurify | Markdown parsing and secure XSS sanitization |
+| **Mathematics** | KaTeX + marked-katex-extension | TeX/LaTeX mathematical formula typesetting |
+| **Diagram Engine** | Mermaid.js | Declarative diagram rendering |
+| **Code Engine** | Highlight.js | Code block syntax highlighting |
+| **Iconography** | Lucide Icons | User interface icon system |
 
 ---
 

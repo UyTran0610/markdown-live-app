@@ -181,11 +181,11 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 20px;
+    padding: 6px 16px;
     background-color: var(--header-bg);
     color: var(--header-text);
-    height: 60px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    height: 44px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     transition: background-color 0.2s;
 }
 
@@ -200,24 +200,24 @@ body {
 }
 
 .logo h1 {
-    font-size: 1.2rem;
+    font-size: 1.05rem;
     font-weight: 600;
 }
 
 .toolbar {
     display: flex;
-    gap: 10px;
+    gap: 6px;
 }
 
 /* Buttons */
 .btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 7px 13px;
-    font-size: 0.82rem;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
     font-weight: 500;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--btn-bg);
@@ -238,8 +238,8 @@ body {
 
 .btn i,
 .btn svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
 }
 
 /* Nút chuyển đổi giao diện Sáng / Tối */
@@ -259,7 +259,7 @@ body {
 .workspace {
     display: flex;
     flex: 1;
-    height: calc(100vh - 60px);
+    height: calc(100vh - 44px);
     overflow: hidden;
 }
 
@@ -282,12 +282,15 @@ body {
 
 .pane-header {
     background-color: var(--pane-header-bg);
-    padding: 8px 16px;
-    font-size: 0.75rem;
+    padding: 4px 16px;
+    font-size: 0.72rem;
+    line-height: 1.4;
     font-weight: 600;
+    letter-spacing: 0.04em;
     color: var(--pane-header-text);
     border-bottom: 1px solid var(--border-color);
     display: flex;
+    align-items: center;
     justify-content: space-between;
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 }
@@ -477,20 +480,21 @@ body {
     }
 
     .app-header {
-        padding: 8px 12px;
+        padding: 4px 10px;
+        height: 42px;
     }
     .toolbar {
-        gap: 5px;
+        gap: 4px;
     }
     .btn {
-        padding: 10px 12px;
+        padding: 6px 8px;
         border-radius: 5px;
         gap: 0;
     }
     .btn i,
     .btn svg {
-        width: 19px;
-        height: 19px;
+        width: 16px;
+        height: 16px;
     }
 }
 

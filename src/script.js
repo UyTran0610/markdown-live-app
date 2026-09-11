@@ -284,12 +284,20 @@ function highlightInline(text) {
     text = text.replace(/(\*\*\*|___)([^*_\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-bolditalic">${d}${c}${d}</span>`));
 
-    // 11. In đậm: **text** hoặc __text__
-    text = text.replace(/(\*\*|__)([^*_\n]+?)\1/g, (m, d, c) =>
+    // 11. In đậm: **text** (cho phép _ bên trong)
+    text = text.replace(/(\*\*)([^*\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-bold">${d}${c}${d}</span>`));
 
-    // 12. In nghiêng: *text* hoặc _text_
-    text = text.replace(/(\*|_)([^*_\n]+?)\1/g, (m, d, c) =>
+    // 11b. In đậm: __text__ (cho phép * bên trong, yêu cầu word boundary)
+    text = text.replace(/\b(__)([^_\n]+?)\1\b/g, (m, d, c) =>
+        protect(`<span class="md-bold">${d}${c}${d}</span>`));
+
+    // 12. In nghiêng: *text* (cho phép _ bên trong)
+    text = text.replace(/(\*)([^*\n]+?)\1/g, (m, d, c) =>
+        protect(`<span class="md-italic">${d}${c}${d}</span>`));
+
+    // 12b. In nghiêng: _text_ (cho phép * bên trong, yêu cầu word boundary)
+    text = text.replace(/\b(_)([^_\n]+?)\1\b/g, (m, d, c) =>
         protect(`<span class="md-italic">${d}${c}${d}</span>`));
 
     // 13. Gạch ngang giữa chữ: ~~text~~
@@ -365,8 +373,26 @@ function highlightMarkdownLine(line) {
 
     // Dòng thuộc bảng biểu (chứa dấu |)
     if (line.includes('|')) {
-        const escapedWithPipes = escapeHtml(line).replace(/\|/g, '<span class="md-table-pipe">|</span>');
-        return highlightInline(escapedWithPipes);
+        // Bug 5: Tokenize inline code first to preserve pipes inside code
+        const codeStore = [];
+        let escapedLine = escapeHtml(line);
+        
+        // Protect inline code containing pipes
+        escapedLine = escapedLine.replace(/(`+)([^`]+?)\1/g, (m, ticks, content) => {
+            const token = `\u0000CODE_${codeStore.length}\u0000`;
+            codeStore.push(`${ticks}${content}${ticks}`);
+            return token;
+        });
+        
+        // Now safe to highlight table pipes
+        escapedLine = escapedLine.replace(/\|/g, '<span class="md-table-pipe">|</span>');
+        
+        // Restore inline code tokens
+        escapedLine = escapedLine.replace(/\u0000CODE_(\d+)\u0000/g, (m, idx) => {
+            return `<span class="md-code-inline">${codeStore[Number(idx)]}</span>`;
+        });
+        
+        return highlightInline(escapedLine);
     }
 
     // Dòng văn bản thông thường (paragraph)
@@ -616,8 +642,9 @@ function renderMarkdown() {
     }
 
     // 6. Cập nhật và vẽ lại tất cả icon từ Lucide
+    // Bug 8: Scope to preview container only to avoid scanning entire DOM
     if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+        lucide.createIcons({ root: previewOutput });
     }
 
     // Khôi phục vị trí cuộn đã lưu từ đầu hàm, giới hạn trong phạm vi có thể cuộn của
@@ -1060,6 +1087,14 @@ markdownInput.addEventListener('keydown', (e) => {
     };
 
     if (selStart === selEnd && autoClosePairs[key]) {
+        // Bug 6: Don't auto-close single quote after word characters (contractions)
+        if (key === "'") {
+            const charBefore = selStart > 0 ? val[selStart - 1] : '';
+            // Skip auto-close if preceded by alphanumeric (e.g., don't, it's, user's)
+            if (/\w/.test(charBefore)) {
+                return; // Let the quote be typed normally
+            }
+        }
         e.preventDefault();
         const openChar = key;
         const closeChar = autoClosePairs[key];
@@ -1184,6 +1219,16 @@ function handleScroll(source, target) {
 markdownInput.addEventListener('mouseenter', () => activeScrollSource = markdownInput);
 previewOutput.addEventListener('mouseenter', () => activeScrollSource = previewOutput);
 
+// Bug 7: Also update activeScrollSource on focus, wheel, and keydown for keyboard navigation
+markdownInput.addEventListener('focus', () => activeScrollSource = markdownInput);
+previewOutput.addEventListener('focus', () => activeScrollSource = previewOutput);
+
+markdownInput.addEventListener('wheel', () => activeScrollSource = markdownInput, { passive: true });
+previewOutput.addEventListener('wheel', () => activeScrollSource = previewOutput, { passive: true });
+
+markdownInput.addEventListener('keydown', () => activeScrollSource = markdownInput);
+previewOutput.addEventListener('keydown', () => activeScrollSource = previewOutput);
+
 markdownInput.addEventListener('touchstart', () => activeScrollSource = markdownInput, { passive: true });
 previewOutput.addEventListener('touchstart', () => activeScrollSource = previewOutput, { passive: true });
 
@@ -1214,15 +1259,27 @@ previewOutput.addEventListener('scroll', () => {
     });
 });
 
-// Đảm bảo tất cả liên kết khi nhấp vào trong vùng Preview luôn mở tab mới
-previewOutput.addEventListener('click', (e) => {
+// Bug 1: Intercept external link clicks and open in system browser
+// This prevents WebView navigation issues in desktop apps
+previewOutput.addEventListener('click', async (e) => {
     const link = e.target.closest('a');
     if (link && link.getAttribute('href')) {
         const href = link.getAttribute('href');
         // Bỏ qua các liên kết neo nội bộ (ví dụ: #muc-luc)
         if (!href.startsWith('#')) {
-            link.setAttribute('target', '_blank');
-            link.setAttribute('rel', 'noopener noreferrer nofollow');
+            e.preventDefault();
+            
+            // Use Tauri opener plugin in desktop app, fallback to window.open
+            if (window.__TAURI__ && window.__TAURI__.opener) {
+                try {
+                    await window.__TAURI__.opener.openUrl(href);
+                } catch (err) {
+                    console.warn('Failed to open URL via Tauri opener:', err);
+                    window.open(href, '_blank', 'noopener,noreferrer');
+                }
+            } else {
+                window.open(href, '_blank', 'noopener,noreferrer');
+            }
         }
     }
 });

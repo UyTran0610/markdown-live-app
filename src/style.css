@@ -276,6 +276,16 @@ body {
     contain: layout style paint;
 }
 
+/* Fix Bug 2: Reset contain during print to avoid single-page truncation */
+@media print {
+    .pane,
+    #preview-pane,
+    .workspace {
+        contain: none !important;
+        overflow: visible !important;
+    }
+}
+
 .editor-pane {
     border-right: 1px solid var(--border-color);
 }
@@ -355,12 +365,18 @@ body {
 
 #editor-highlight {
     z-index: 1;
-    overflow: hidden;
+    overflow-y: auto;
     scrollbar-gutter: stable;
     pointer-events: none;
     user-select: none;
     color: var(--text-primary);
     overflow-anchor: none;
+}
+
+/* Hide scrollbar on editor highlight to match textarea appearance */
+#editor-highlight::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 #editor-highlight code {

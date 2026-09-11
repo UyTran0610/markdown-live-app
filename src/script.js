@@ -373,7 +373,7 @@ function highlightMarkdownLine(line) {
 
     // Dòng thuộc bảng biểu (chứa dấu |)
     if (line.includes('|')) {
-        // Bug 5: Tokenize inline code first to preserve pipes inside code
+        // Tokenize inline code first to preserve pipes inside code
         const codeStore = [];
         let escapedLine = escapeHtml(line);
         
@@ -642,7 +642,7 @@ function renderMarkdown() {
     }
 
     // 6. Cập nhật và vẽ lại tất cả icon từ Lucide
-    // Bug 8: Scope to preview container only to avoid scanning entire DOM
+    // Scope to preview container only to avoid scanning entire DOM
     if (typeof lucide !== 'undefined') {
         lucide.createIcons({ root: previewOutput });
     }
@@ -1087,7 +1087,7 @@ markdownInput.addEventListener('keydown', (e) => {
     };
 
     if (selStart === selEnd && autoClosePairs[key]) {
-        // Bug 6: Don't auto-close single quote after word characters (contractions)
+        // Don't auto-close single quote after word characters (contractions)
         if (key === "'") {
             const charBefore = selStart > 0 ? val[selStart - 1] : '';
             // Skip auto-close if preceded by alphanumeric (e.g., don't, it's, user's)
@@ -1219,7 +1219,7 @@ function handleScroll(source, target) {
 markdownInput.addEventListener('mouseenter', () => activeScrollSource = markdownInput);
 previewOutput.addEventListener('mouseenter', () => activeScrollSource = previewOutput);
 
-// Bug 7: Also update activeScrollSource on focus, wheel, and keydown for keyboard navigation
+// Also update activeScrollSource on focus, wheel, and keydown for keyboard navigation
 markdownInput.addEventListener('focus', () => activeScrollSource = markdownInput);
 previewOutput.addEventListener('focus', () => activeScrollSource = previewOutput);
 
@@ -1259,7 +1259,7 @@ previewOutput.addEventListener('scroll', () => {
     });
 });
 
-// Bug 1: Intercept external link clicks and open in system browser
+// Intercept external link clicks and open in system browser
 // This prevents WebView navigation issues in desktop apps
 previewOutput.addEventListener('click', async (e) => {
     const link = e.target.closest('a');

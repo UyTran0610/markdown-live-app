@@ -44,9 +44,9 @@
 
     /* Tô màu cú pháp trong Editor */
     --md-header-marker: #8c959f;
-    --md-header-12: #0969da;
-    --md-header-34: #0550ae;
-    --md-header-56: #1f6feb;
+    --md-header-12: #0550ae;
+    --md-header-34: #0969da;
+    --md-header-56: #218bff;
     --md-bold: #24292f;
     --md-italic: #24292f;
     --md-bolditalic: #24292f;
@@ -276,7 +276,6 @@ body {
     contain: layout style paint;
 }
 
-/* Fix Bug 2: Reset contain during print to avoid single-page truncation */
 @media print {
     .pane,
     #preview-pane,
@@ -327,8 +326,8 @@ body {
        giống hệt nhau giữa chữ thường và chữ đậm (font-weight khác nhau), tránh lệch
        vị trí giữa lớp textarea (trong suốt) và lớp tô màu bên dưới khi có đoạn in đậm. */
     font-family: ui-monospace, "Cascadia Mono", "Consolas", "Liberation Mono", "SFMono-Regular", Menlo, monospace;
-    font-size: 1rem;
-    line-height: 1.6;
+    font-size: 16px;
+    line-height: 26px;
     font-variant-ligatures: none;
     font-kerning: none;
     letter-spacing: normal;
@@ -346,12 +345,8 @@ body {
     color: transparent;
     caret-color: var(--editor-caret);
     background-color: transparent;
-    overflow-y: auto;
+    overflow-y: scroll;
     scrollbar-gutter: stable;
-    /* Tắt Scroll Anchoring của trình duyệt: khi nội dung/scrollHeight thay đổi liên tục
-       (mỗi lần gõ phím), trình duyệt sẽ tự ý điều chỉnh thêm scrollTop để "giữ nguyên"
-       vị trí của một anchor node nào đó - điều chỉnh ngầm này CỘNG DỒN với việc khôi
-       phục scrollTop thủ công trong script.js, gây hiện tượng trôi/cuộn dần theo thời gian. */
     overflow-anchor: none;
 }
 
@@ -363,9 +358,29 @@ body {
     background-color: var(--editor-selection);
 }
 
+#markdown-input::-webkit-scrollbar,
+#editor-highlight::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+#markdown-input::-webkit-scrollbar-track,
+#editor-highlight::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#markdown-input::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 5px;
+}
+
+#markdown-input::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
 #editor-highlight {
     z-index: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     scrollbar-gutter: stable;
     pointer-events: none;
     user-select: none;
@@ -377,6 +392,10 @@ body {
 #editor-highlight::-webkit-scrollbar {
     width: 0;
     height: 0;
+}
+
+#editor-highlight::-webkit-scrollbar-thumb {
+    background: transparent;
 }
 
 #editor-highlight code {
@@ -428,7 +447,6 @@ body {
 .md-table-pipe { color: var(--md-table-pipe); }
 .md-math { color: var(--md-math); }
 
-/* Class màu cho cú pháp mới */
 .md-escape { color: var(--md-escape); font-weight: 600; }
 .md-ref-id { color: var(--md-ref-id); font-weight: 600; }
 .md-ref-title { color: var(--md-ref-title); font-style: italic; }

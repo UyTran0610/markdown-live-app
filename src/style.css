@@ -75,6 +75,16 @@
     --md-task-unchecked: #8c959f;
     --md-footnote: #8250df;
 
+    /* HTML inline elements */
+    --md-kbd: #57606a;
+    --md-kbd-bg: rgba(175, 184, 193, 0.2);
+    --md-mark-bg: #fff3bf;
+    --md-mark-text: #24292f;
+    --md-sup: #8250df;
+    --md-sub: #8250df;
+    --md-details: #9a6700;
+    --md-summary: #9a6700;
+
     /* GFM Alerts / Callouts (Preview) */
     --alert-note-color: #0969da;
     --alert-note-bg: rgba(9, 105, 218, 0.05);
@@ -152,6 +162,16 @@
     --md-task-checked: #3fb950;
     --md-task-unchecked: #6e7681;
     --md-footnote: #d2a8ff;
+
+    /* HTML inline elements (dark) */
+    --md-kbd: #c9d1d9;
+    --md-kbd-bg: rgba(110, 118, 129, 0.4);
+    --md-mark-bg: #9a6700;
+    --md-mark-text: #f0f6fc;
+    --md-sup: #d2a8ff;
+    --md-sub: #d2a8ff;
+    --md-details: #d29922;
+    --md-summary: #d29922;
 
     --alert-note-color: #58a6ff;
     --alert-note-bg: rgba(56, 139, 253, 0.15);
@@ -456,6 +476,31 @@ body {
 .md-task-unchecked { color: var(--md-task-unchecked); }
 .md-footnote-marker, .md-footnote-id { color: var(--md-footnote); font-weight: 600; }
 .md-footnote-ref { color: var(--md-footnote); }
+
+/* HTML inline elements */
+.md-kbd-marker { color: var(--md-kbd); opacity: 0.7; }
+.md-kbd {
+    color: var(--md-kbd);
+    background-color: var(--md-kbd-bg);
+    border-radius: 3px;
+    padding: 0.1em 0.3em;
+    font-family: var(--editor-bg);
+    font-size: 0.9em;
+}
+
+.md-mark-marker { color: var(--md-mark-text); opacity: 0.7; }
+.md-mark {
+    background-color: var(--md-mark-bg);
+    color: var(--md-mark-text);
+    border-radius: 2px;
+    padding: 0.1em 0.2em;
+}
+
+.md-sup-marker, .md-sub-marker { color: var(--md-sup); opacity: 0.7; }
+.md-sup, .md-sub { color: var(--md-sup); }
+
+.md-details-marker { color: var(--md-details); font-weight: 600; }
+.md-summary-marker { color: var(--md-summary); font-weight: 600; }
 
 /* Preview Styling */
 #preview-output {

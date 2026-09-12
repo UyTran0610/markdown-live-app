@@ -304,6 +304,32 @@ function highlightInline(text) {
     text = text.replace(/(~~)([^~\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-strikethrough">${d}${c}${d}</span>`));
 
+    // 14. Keyboard shortcut (kbd): <kbd>Ctrl</kbd>
+    text = text.replace(/(&lt;)(kbd&gt;)([^&]+)(&lt;\/)(kbd&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
+        protect(`<span class="md-kbd-marker">${ob1}${tagOpen}</span><span class="md-kbd">${content}</span><span class="md-kbd-marker">${cb1}${tagClose}</span>`));
+
+    // 15. Highlighted text (mark): <mark>text</mark>
+    text = text.replace(/(&lt;)(mark&gt;)([^&]+)(&lt;\/)(mark&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
+        protect(`<span class="md-mark-marker">${ob1}${tagOpen}</span><span class="md-mark">${content}</span><span class="md-mark-marker">${cb1}${tagClose}</span>`));
+
+    // 16. Superscript: <sup>text</sup>
+    text = text.replace(/(&lt;)(sup&gt;)([^&]+)(&lt;\/)(sup&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
+        protect(`<span class="md-sup-marker">${ob1}${tagOpen}</span><span class="md-sup">${content}</span><span class="md-sup-marker">${cb1}${tagClose}</span>`));
+
+    // 17. Subscript: <sub>text</sub>
+    text = text.replace(/(&lt;)(sub&gt;)([^&]+)(&lt;\/)(sub&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
+        protect(`<span class="md-sub-marker">${ob1}${tagOpen}</span><span class="md-sub">${content}</span><span class="md-sub-marker">${cb1}${tagClose}</span>`));
+
+    // 18. Details/Accordion block: <details>...</details> and <summary>...</summary>
+    text = text.replace(/(&lt;details&gt;)/gi, 
+        protect(`<span class="md-details-marker">&lt;details&gt;</span>`));
+    text = text.replace(/(&lt;\/details&gt;)/gi, 
+        protect(`<span class="md-details-marker">&lt;/details&gt;</span>`));
+    text = text.replace(/(&lt;summary&gt;)/gi, 
+        protect(`<span class="md-summary-marker">&lt;summary&gt;</span>`));
+    text = text.replace(/(&lt;\/summary&gt;)/gi, 
+        protect(`<span class="md-summary-marker">&lt;/summary&gt;</span>`));
+
     let previous;
     do {
         previous = text;

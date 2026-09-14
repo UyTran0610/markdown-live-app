@@ -84,6 +84,11 @@
     --md-sub: #8250df;
     --md-details: #9a6700;
     --md-summary: #9a6700;
+    --md-table-separator: #6e7781;
+    --md-html-void: #8c959f;
+    --md-html-tag-marker: #8c959f;
+    --md-html-tag-content: #24292f;
+    --md-html-comment: #6e7781;
 
     /* GFM Alerts / Callouts (Preview) */
     --alert-note-color: #0969da;
@@ -172,6 +177,11 @@
     --md-sub: #d2a8ff;
     --md-details: #d29922;
     --md-summary: #d29922;
+    --md-table-separator: #6e7681;
+    --md-html-void: #8b949e;
+    --md-html-tag-marker: #8b949e;
+    --md-html-tag-content: #c9d1d9;
+    --md-html-comment: #6e7681;
 
     --alert-note-color: #58a6ff;
     --alert-note-bg: rgba(56, 139, 253, 0.15);
@@ -501,6 +511,11 @@ body {
 
 .md-details-marker { color: var(--md-details); font-weight: 600; }
 .md-summary-marker { color: var(--md-summary); font-weight: 600; }
+.md-table-separator { color: var(--md-table-separator); font-weight: 600; }
+.md-html-void { color: var(--md-html-void); font-weight: 600; }
+.md-html-tag-marker { color: var(--md-html-tag-marker); }
+.md-html-tag-content { color: var(--md-html-tag-content); }
+.md-html-comment { color: var(--md-html-comment); font-style: italic; }
 
 /* Preview Styling */
 #preview-output {

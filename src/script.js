@@ -284,21 +284,26 @@ function highlightInline(text) {
     text = text.replace(/(\*\*\*|___)([^*_\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-bolditalic">${d}${c}${d}</span>`));
 
-    // 11. In đậm: **text** (cho phép _ bên trong)
-    text = text.replace(/(\*\*)([^*\n]+?)\1/g, (m, d, c) =>
-        protect(`<span class="md-bold">${d}${c}${d}</span>`));
+    // Helpers cho emphasis lồng nhau: content cho phép delimiter đơn lẻ bên trong,
+    // và content được xử lý italic đệ quy trước khi bọc span ngoài (tránh token che mất inner).
+    const underItalicOnce = (s) => s.replace(/\b(_)((?:[^_\n]|_(?!_))+?)\1\b/g, (m2, d2, c2) =>
+        protect(`<span class="md-italic">${d2}${c2}${d2}</span>`));
+    const starItalicOnce = (s) => s.replace(/(\*)((?:[^*\n]|\*(?!\*))+?)\1/g, (m2, d2, c2) =>
+        protect(`<span class="md-italic">${d2}${underItalicOnce(c2)}${d2}</span>`));
 
-    // 11b. In đậm: __text__ (cho phép * bên trong, yêu cầu word boundary)
-    text = text.replace(/\b(__)([^_\n]+?)\1\b/g, (m, d, c) =>
-        protect(`<span class="md-bold">${d}${c}${d}</span>`));
+    // 11. In đậm: **text** (cho phép * đơn bên trong cho nested italic)
+    text = text.replace(/(\*\*)((?:[^*\n]|\*(?!\*))+?)\1/g, (m, d, c) =>
+        protect(`<span class="md-bold">${d}${underItalicOnce(starItalicOnce(c))}${d}</span>`));
 
-    // 12. In nghiêng: *text* (cho phép _ bên trong)
-    text = text.replace(/(\*)([^*\n]+?)\1/g, (m, d, c) =>
-        protect(`<span class="md-italic">${d}${c}${d}</span>`));
+    // 11b. In đậm: __text__ (cho phép _ đơn bên trong, yêu cầu word boundary)
+    text = text.replace(/\b(__)((?:[^_\n]|_(?!_))+?)\1\b/g, (m, d, c) =>
+        protect(`<span class="md-bold">${d}${underItalicOnce(starItalicOnce(c))}${d}</span>`));
 
-    // 12b. In nghiêng: _text_ (cho phép * bên trong, yêu cầu word boundary)
-    text = text.replace(/\b(_)([^_\n]+?)\1\b/g, (m, d, c) =>
-        protect(`<span class="md-italic">${d}${c}${d}</span>`));
+    // 12. In nghiêng: *text* (cho phép _ bên trong, xử lý đệ quy trước khi bọc)
+    text = starItalicOnce(text);
+
+    // 12b. In nghiêng: _text_ (cho phép * bên trong đã xử lý ở rule 12, yêu cầu word boundary)
+    text = underItalicOnce(text);
 
     // 13. Gạch ngang giữa chữ: ~~text~~
     text = text.replace(/(~~)([^~\n]+?)\1/g, (m, d, c) =>
@@ -329,6 +334,41 @@ function highlightInline(text) {
         protect(`<span class="md-summary-marker">&lt;summary&gt;</span>`));
     text = text.replace(/(&lt;\/summary&gt;)/gi, 
         protect(`<span class="md-summary-marker">&lt;/summary&gt;</span>`));
+
+    // 19. HTML comments trên 1 dòng: <!-- ... -->
+    text = text.replace(/(&lt;!--)([\s\S]*?)(--&gt;)/g, (m) =>
+        protect(`<span class="md-html-comment">${m}</span>`));
+
+    // 20. Anchor: <a href="...">text</a> (href -> md-link-url, text -> md-link-text)
+    text = text.replace(/(&lt;)(a)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(&gt;)([\s\S]*?)(&lt;\/)(a)(&gt;)/gi,
+        (m, ob, tag, attrs, cb, content, cb2, tag2, cb3) => {
+            const hlAttrs = attrs.replace(/(^|\s)(href)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'<>]+)/i,
+                `$1<span class="md-link-marker">$2$3</span><span class="md-link-url">$4</span>`);
+            return protect(`<span class="md-link-marker">${ob}${tag}${hlAttrs}${cb}</span><span class="md-link-text">${content}</span><span class="md-link-marker">${cb2}${tag2}${cb3}</span>`);
+        });
+
+    // 21. Images: <img src="..." alt="..." ...> (thứ tự thuộc tính bất kỳ)
+    text = text.replace(/(&lt;)(img)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(\s*\/?)(&gt;)/gi,
+        (m, ob, tag, attrs, slash, cb) => {
+            let hlAttrs = attrs.replace(/(^|\s)(src)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'<>]+)/i,
+                `$1<span class="md-link-marker">$2$3</span><span class="md-link-url">$4</span>`);
+            hlAttrs = hlAttrs.replace(/(^|\s)(alt)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'<>]+)/i,
+                `$1<span class="md-link-marker">$2$3</span><span class="md-link-text">$4</span>`);
+            return protect(`<span class="md-html-tag-marker">${ob}${tag}${hlAttrs}${slash}${cb}</span>`);
+        });
+
+    // 22. Void tags: <br>, <hr>, <input type="checkbox" ...>
+    text = text.replace(/(&lt;)(br|hr|input)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(\s*\/?)(&gt;)/gi, (m) =>
+        protect(`<span class="md-html-void">${m}</span>`));
+
+    // 23. Paired tags (open/content/close): inline + block containers + raw tables
+    text = text.replace(/(&lt;)(div|span|p|table|tr|td|th|thead|tbody|b|strong|i|em|u|code|small)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(&gt;)([\s\S]*?)(&lt;\/)(\2)(\s*)(&gt;)/gi,
+        (m, ob, tag, attrs, cb, content, cb2, tag2, sp, cb3) =>
+            protect(`<span class="md-html-tag-marker">${ob}${tag}${attrs}${cb}</span><span class="md-html-tag-content">${content}</span><span class="md-html-tag-marker">${cb2}${tag2}${sp}${cb3}</span>`));
+
+    // 24. Lone block tags: <div align="center">, </div>, <table>... (không có cặp trên cùng dòng)
+    text = text.replace(/(&lt;\/?(?:div|span|p|table|tr|td|th|thead|tbody)(?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*\s*\/?&gt;)/gi, (m) =>
+        protect(`<span class="md-html-tag-marker">${m}</span>`));
 
     let previous;
     do {
@@ -399,6 +439,13 @@ function highlightMarkdownLine(line) {
 
     // Dòng thuộc bảng biểu (chứa dấu |)
     if (line.includes('|')) {
+        // Dòng phân tách header/body: |---|:---:|---:| (tô riêng, không qua highlightInline)
+        if (/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line)) {
+            return escapeHtml(line)
+                .replace(/\|/g, '\u0000P\u0000')
+                .replace(/:?-+:?/g, '<span class="md-table-separator">$&</span>')
+                .split('\u0000P\u0000').join('<span class="md-table-pipe">|</span>');
+        }
         // Tokenize inline code first to preserve pipes inside code
         const codeStore = [];
         let escapedLine = escapeHtml(line);
@@ -425,44 +472,114 @@ function highlightMarkdownLine(line) {
     return highlightInline(escapeHtml(line));
 }
 
-// Hàm quét toàn bộ nội dung Markdown, xử lý khối code (```...```) và khối toán ($$...$$)
+// Hàm quét toàn bộ nội dung Markdown: khối code (```...```), khối toán ($$...$$),
+// HTML comments (<!-- ... -->), indented code, setext headings (=== / ---)
 function highlightMarkdown(text) {
     const lines = text.split('\n');
     let inFence = false;
     let inMathBlock = false;
+    let inHtmlComment = false;
+    let inIndentedCode = false;
 
-    const outputLines = lines.map((line) => {
+    // Dòng văn bản thuần (ứng viên cho setext title): không blank/block
+    // (heading, list, quote, table, hr, footnote, refdef, fence, math, code, comment...)
+    const isPlainPara = (s) => {
+        if (!s || !s.trim()) return false;
+        if (/^\s{0,3}(=+|-+)\s*$/.test(s)) return false;
+        if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(s)) return false;
+        if (/^\s{0,3}#{1,6}\s+/.test(s)) return false;
+        if (/^\s{0,3}>/.test(s)) return false;
+        if (/^\s*([-*+]|\d+[.)])\s+/.test(s)) return false;
+        if (/^\s{0,3}\[\^/.test(s)) return false;
+        if (/^\s{0,3}\[[^\]^]+\]:/.test(s)) return false;
+        if (/^\s{0,3}(`{3,}|~{3,})/.test(s)) return false;
+        if (/^\s*\$\$/.test(s)) return false;
+        if (/^(    |\t)/.test(s)) return false;
+        if (s.includes('|')) return false;
+        if (s.includes('<!--') || s.includes('-->')) return false;
+        return true;
+    };
+
+    const outputLines = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // HTML comments nhiều dòng: nuốt mọi dòng cho tới -->
+        // (đặt trước fence để ``` nằm trong comment vẫn là comment)
+        if (inHtmlComment) {
+            outputLines.push(`<span class="md-html-comment">${escapeHtml(line)}</span>`);
+            if (line.includes('-->')) inHtmlComment = false;
+            continue;
+        }
+
         const fenceMatch = line.match(/^(\s{0,3})(`{3,}|~{3,})(.*)$/);
         if (fenceMatch) {
+            inIndentedCode = false;
             if (!inFence) {
                 inFence = true;
                 const [, indent, marker, lang] = fenceMatch;
-                return `${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span><span class="md-fence-lang">${escapeHtml(lang)}</span>`;
+                outputLines.push(`${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span><span class="md-fence-lang">${escapeHtml(lang)}</span>`);
             } else {
                 inFence = false;
                 const [, indent, marker] = fenceMatch;
-                return `${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span>`;
+                outputLines.push(`${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span>`);
             }
+            continue;
         }
 
         if (inFence) {
-            return `<span class="md-code-block">${escapeHtml(line)}</span>`;
+            outputLines.push(`<span class="md-code-block">${escapeHtml(line)}</span>`);
+            continue;
         }
 
         if (inMathBlock) {
             if (/^\s*\$\$\s*$/.test(line) || line.trim().endsWith('$$')) {
                 inMathBlock = false;
             }
-            return `<span class="md-math">${escapeHtml(line)}</span>`;
+            outputLines.push(`<span class="md-math">${escapeHtml(line)}</span>`);
+            continue;
+        }
+
+        // Indented code: 4 spaces / 1 tab. Không chen giữa paragraph/list nên chỉ mở
+        // sau dòng trắng (hoặc đầu file); dòng trắng không kết thúc block.
+        if (/^(    |\t)/.test(line)) {
+            if (inIndentedCode || i === 0 || !lines[i - 1].trim()) {
+                inIndentedCode = true;
+                outputLines.push(`<span class="md-code-block">${escapeHtml(line)}</span>`);
+                continue;
+            }
+        } else if (!line.trim()) {
+            outputLines.push(escapeHtml(line));
+            continue;
+        } else {
+            inIndentedCode = false;
+        }
+
+        // Mở HTML comment nhiều dòng (không có --> trên cùng dòng)
+        if (line.includes('<!--') && !line.includes('-->')) {
+            inHtmlComment = true;
+            outputLines.push(`<span class="md-html-comment">${escapeHtml(line)}</span>`);
+            continue;
         }
 
         if (/^\s*\$\$/.test(line) && !/^\s*\$\$.+\$\$\s*$/.test(line)) {
             inMathBlock = true;
-            return `<span class="md-math">${escapeHtml(line)}</span>`;
+            outputLines.push(`<span class="md-math">${escapeHtml(line)}</span>`);
+            continue;
         }
 
-        return highlightMarkdownLine(line);
-    });
+        // Setext headings: dòng === (H1) / --- (H2) sau 1 paragraph thuần.
+        // Đặt trước highlightMarkdownLine để --- sau paragraph thành H2 thay vì <hr>.
+        const setextMatch = line.match(/^\s{0,3}(=+|-+)\s*$/);
+        if (setextMatch && i > 0 && isPlainPara(lines[i - 1]) && !/^\s{0,3}-\s*$/.test(line)) {
+            const level = setextMatch[1][0] === '=' ? 1 : 2;
+            outputLines[i - 1] = `<span class="md-header md-header-${level}">${outputLines[i - 1]}</span>`;
+            outputLines.push(`<span class="md-header-marker">${escapeHtml(line)}</span>`);
+            continue;
+        }
+
+        outputLines.push(highlightMarkdownLine(line));
+    }
 
     return outputLines.join('\n');
 }

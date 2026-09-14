@@ -1,6 +1,6 @@
 [package]
 name = "markdown-live"
-version = "1.2.0"
+version = "1.2.1"
 description = "Trình soạn thảo Markdown hai chiều thời gian thực (Offline-first)"
 authors = ["Uy Tran"]
 edition = "2021"

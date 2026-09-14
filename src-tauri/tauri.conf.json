@@ -1,6 +1,6 @@
 {
   "productName": "Markdown Live",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "identifier": "com.uytran.markdownlive",
   "build": {
     "frontendDist": "../src",

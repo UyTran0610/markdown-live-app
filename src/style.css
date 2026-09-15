@@ -21,14 +21,20 @@
     --header-text: #ffffff;
     --logo-icon: #4f46e5;
 
-    --btn-bg: #374151;
-    --btn-text: #f3f4f6;
-    --btn-hover-bg: #4b5563;
-    
-    --btn-active-bg: #4f46e5;
-    --btn-active-text: #ffffff;
-    --btn-primary-bg: #4f46e5;
-    --btn-primary-hover-bg: #4338ca;
+    /* Nút toolbar luôn nằm trên header tối ở cả 2 theme, nên dùng lớp phủ trắng
+       trong suốt (pattern "button on dark header" của GitHub) thay vì màu đặc.
+       Token giống hệt nhau ở light/dark: --btn-text bám theo --header-text. */
+    --btn-bg: rgba(255, 255, 255, 0.06);
+    --btn-bg-hover: rgba(255, 255, 255, 0.10);
+    --btn-bg-pressed: rgba(255, 255, 255, 0.03);
+    --btn-border: rgba(255, 255, 255, 0.14);
+    --btn-border-hover: rgba(255, 255, 255, 0.24);
+    --btn-text: var(--header-text);
+    --btn-accent: #6366f1;
+    --btn-active-bg: rgba(99, 102, 241, 0.22);
+    --btn-active-border: rgba(129, 140, 248, 0.55);
+    --btn-active-text: #c7d2fe;
+    --btn-focus-ring: rgba(99, 102, 241, 0.45);
 
     --pane-bg: #ffffff;
     --pane-header-bg: #f6f8fa;
@@ -115,15 +121,6 @@
     --header-bg: #161b22;
     --header-text: #f0f6fc;
     --logo-icon: #818cf8;
-
-    --btn-bg: #21262d;
-    --btn-text: #e6edf3;
-    --btn-hover-bg: #30363d;
-    
-    --btn-active-bg: #6366f1;
-    --btn-active-text: #ffffff;
-    --btn-primary-bg: #6366f1;
-    --btn-primary-hover-bg: #4f46e5;
 
     --pane-bg: #0d1117;
     --pane-header-bg: #161b22;
@@ -244,26 +241,42 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 5px 10px;
-    font-size: 0.78rem;
+    padding: 5px 12px;
+    font-size: 0.8rem;
     font-weight: 500;
+    line-height: 1;
     border-radius: 6px;
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--btn-border);
     background: var(--btn-bg);
     color: var(--btn-text);
     transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .btn:hover {
-    background: var(--btn-hover-bg);
-    border-color: rgba(255, 255, 255, 0.14);
+    background: var(--btn-bg-hover);
+    border-color: var(--btn-border-hover);
 }
 
+.btn:active {
+    background: var(--btn-bg-pressed);
+}
+
+.btn:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: 2px;
+}
+
+/* Trạng thái bật (Sync Scroll ON): tint indigo thay vì đổ màu đặc */
 .btn.active {
     background: var(--btn-active-bg);
-    border-color: var(--btn-active-bg);
+    border-color: var(--btn-active-border);
     color: var(--btn-active-text);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .btn i,
@@ -581,7 +594,9 @@ body {
         gap: 4px;
     }
     .btn {
-        padding: 6px 8px;
+        min-width: 32px;
+        min-height: 32px;
+        padding: 0 8px;
         border-radius: 5px;
         gap: 0;
     }

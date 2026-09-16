@@ -1680,6 +1680,7 @@ function flattenForeignObjects(svgClone, fallbackColor, fallbackFontSize) {
 
 // Vẽ một SVG (sơ đồ Mermaid) lên canvas ở độ phân giải 2x rồi trả về data-URL PNG
 // để nhúng trực tiếp vào file DOC (Word không hỗ trợ SVG inline).
+// Trả về kèm kích thước hiển thị (px) để exportDoc thu ảnh vừa trang Word.
 async function svgToPngDataUrl(svg, scale = 2) {
     const viewBox = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
     const rect = svg.getBoundingClientRect();
@@ -1705,7 +1706,22 @@ async function svgToPngDataUrl(svg, scale = 2) {
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL('image/png');
+    return { dataUrl: canvas.toDataURL('image/png'), width: w, height: h };
+}
+
+// Word bỏ qua CSS max-width nên ảnh PNG 2x lớn hơn trang sẽ tràn lề.
+// Giữ nguyên ảnh nhỏ, thu ảnh lớn về vừa trang (rộng 650px / cao 900px,
+// nhỏ hơn khổ A4 trừ lề 15mm trong style.css) theo đúng tỉ lệ,
+// kèm width/height tường minh cho Word.
+const DOC_IMG_MAX_WIDTH_PX = 650;
+const DOC_IMG_MAX_HEIGHT_PX = 900;
+// Hàm thuần để self-check được.
+function fitDocImageSize(w, h, maxW = DOC_IMG_MAX_WIDTH_PX, maxH = DOC_IMG_MAX_HEIGHT_PX) {
+    w = Math.round(Number(w));
+    h = Math.round(Number(h));
+    if (!(w > 0) || !(h > 0)) return { width: w, height: h };
+    const s = Math.min(1, maxW / w, maxH / h);
+    return { width: Math.round(w * s), height: Math.round(h * s) };
 }
 
 // CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên
@@ -1720,7 +1736,7 @@ const DOC_STYLES = `
     pre { background: #f6f8fa; border: 1px solid #d0d7de; padding: 10px; font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; white-space: pre-wrap; }
     code { font-family: Consolas, "Courier New", monospace; }
     blockquote { border-left: 4px solid #d0d7de; margin-left: 0; padding-left: 12px; color: #57606a; }
-    img { max-width: 100%; }
+    img { max-width: 650px; max-height: 900px; height: auto; }
     a { color: #0969da; }
     hr { border: none; border-top: 1px solid #d0d7de; }
     .markdown-alert { border-left: 4px solid #0969da; background: #f6f8fa; padding: 8px 12px; }
@@ -1764,16 +1780,41 @@ async function exportDoc() {
         el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
     });
 
+    // Thu ảnh Markdown quá khổ về vừa trang Word (Word bỏ qua max-width).
+    // Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong preview theo chỉ số.
+    clone.querySelectorAll('img').forEach((img, idx) => {
+        const orig = previewOutput.querySelectorAll('img')[idx];
+        if (!orig) return;
+        const w = orig.naturalWidth || orig.width || parseFloat(orig.getAttribute('width')) || 0;
+        const h = orig.naturalHeight || orig.height || parseFloat(orig.getAttribute('height')) || 0;
+        if (w > 0 && h > 0 && (w > DOC_IMG_MAX_WIDTH_PX || h > DOC_IMG_MAX_HEIGHT_PX)) {
+            const fit = fitDocImageSize(w, h);
+            img.setAttribute('width', fit.width);
+            img.setAttribute('height', fit.height);
+            img.style.width = fit.width + 'px';
+            img.style.height = 'auto';
+        }
+    });
+
     // Chuyển sơ đồ Mermaid thành ảnh PNG. Thứ tự pre.mermaid trong clone khớp 1-1
     // với thứ tự trong DOM gốc nên có thể ánh xạ theo chỉ số.
     const cloneMers = clone.querySelectorAll('pre.mermaid');
     const origSvgs = previewOutput.querySelectorAll('pre.mermaid > svg');
     for (let i = 0; i < cloneMers.length; i++) {
         try {
-            const dataUrl = await svgToPngDataUrl(origSvgs[i]);
+            const { dataUrl, width, height } = await svgToPngDataUrl(origSvgs[i]);
             const img = document.createElement('img');
             img.src = dataUrl;
             img.alt = 'Mermaid diagram';
+            // PNG vẽ ở 2x nên điểm ảnh gốc gấp đôi kích thước hiển thị, mà Word
+            // lại bỏ qua max-width: luôn gắn kích thước hiển thị tường minh.
+            const fit = fitDocImageSize(width, height);
+            if (fit.width > 0 && fit.height > 0) {
+                img.setAttribute('width', fit.width);
+                img.setAttribute('height', fit.height);
+                img.style.width = fit.width + 'px';
+                img.style.height = 'auto';
+            }
             cloneMers[i].replaceWith(img);
         } catch (e) {
             console.warn('Không chuyển được sơ đồ Mermaid sang ảnh, giữ nguyên mã nguồn:', e);
@@ -1907,6 +1948,13 @@ function runSelfCheck() {
     assert('word html có meta UTF-8', wordHtml.includes('charset="UTF-8"'));
     assert('word html có namespace Office', wordHtml.includes('urn:schemas-microsoft-com:office:word'));
     assert('word html giữ body', wordHtml.includes('<p>x</p>'));
+    const fitWide = fitDocImageSize(1200, 600);
+    assert('doc cap thu ảnh rộng về 650 giữ tỉ lệ', fitWide.width === 650 && fitWide.height === 325);
+    const fitSmall = fitDocImageSize(400, 200);
+    assert('doc cap giữ nguyên ảnh nhỏ', fitSmall.width === 400 && fitSmall.height === 200);
+    const fitTall = fitDocImageSize(500, 1800);
+    assert('doc cap thu ảnh cao về 900 giữ tỉ lệ', fitTall.width === 250 && fitTall.height === 900);
+    assert('doc cap bỏ qua kích thước lạ', fitDocImageSize(0, 0).width === 0);
 
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');

@@ -129,6 +129,19 @@ const CONTENT_STORAGE_KEY = 'markdown-live-content';
 let isSyncScrollEnabled = true;
 let activeScrollSource = null;
 let mermaidTimeout = null;
+let mermaidScheduled = false;
+let pendingMermaidJobs = 0;
+// Cho export PDF/DOC doi bieu do ve xong thay vi doan mo 200ms.
+function whenMermaidIdle(timeoutMs = 8000) {
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+            if (pendingMermaidJobs <= 0 || Date.now() - start > timeoutMs) resolve();
+            else setTimeout(tick, 100);
+        };
+        tick();
+    });
+}
 
 // Đếm số thứ tự mỗi lần renderMarkdown() được gọi. Việc vẽ Mermaid là bất đồng bộ
 // (setTimeout + Promise), nên nếu người dùng gõ tiếp trong lúc nó đang chạy, một lượt
@@ -142,14 +155,38 @@ let renderVersion = 0;
 // từ đầu (thao tác tốn 50-200ms/biểu đồ). Cache sẽ bị xoá mỗi khi đổi theme vì màu
 // sắc SVG đã vẽ gắn liền với theme lúc vẽ.
 const mermaidCache = new Map();
+// ponytail: gioi han dem theo so muc + tong so ky tu (60 muc SVG lon = bo nho vo han);
+// nang cap sau: LRU theo bytes thuc te neu so do cuc lon pho bien.
 const MERMAID_CACHE_LIMIT = 60;
+const MERMAID_CACHE_MAX_CHARS = 600000;
+let mermaidCacheChars = 0;
 function cacheMermaidResult(code, html) {
-    if (mermaidCache.has(code)) mermaidCache.delete(code);
+    const prev = mermaidCache.get(code);
+    if (prev !== undefined) {
+        mermaidCacheChars -= code.length + prev.length;
+        mermaidCache.delete(code);
+    }
     mermaidCache.set(code, html);
-    if (mermaidCache.size > MERMAID_CACHE_LIMIT) {
-        mermaidCache.delete(mermaidCache.keys().next().value);
+    mermaidCacheChars += code.length + html.length;
+    while (mermaidCache.size > MERMAID_CACHE_LIMIT || mermaidCacheChars > MERMAID_CACHE_MAX_CHARS) {
+        const oldest = mermaidCache.keys().next().value;
+        const oldHtml = mermaidCache.get(oldest);
+        mermaidCacheChars -= oldest.length + (oldHtml ? oldHtml.length : 0);
+        mermaidCache.delete(oldest);
     }
 }
+function clearMermaidCache() {
+    mermaidCache.clear();
+    mermaidCacheChars = 0;
+}
+// DOMPurify loai bo <foreignObject> theo mac dinh, nhung nhan cua so do Mermaid
+// (htmlLabels) nam trong do -> thieu ADD_TAGS nay chu trong flowchart bien mat.
+const MERMAID_SANITIZE_CONFIG = {
+    USE_PROFILES: { html: true, svg: true },
+    ADD_ATTR: ['target', 'rel'],
+    ADD_TAGS: ['foreignObject'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
+};
 
 // ==========================================================================
 // CHUYỂN ĐỔI GIAO DIỆN SÁNG / TỐI (Light / Dark Theme)
@@ -194,7 +231,7 @@ if (btnTheme) {
         const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
         applyTheme(nextTheme, true);
         // Xoá cache Mermaid vì SVG cũ mang màu của theme trước, không dùng lại được
-        mermaidCache.clear();
+        clearMermaidCache();
         // Vẽ lại Preview để cập nhật màu Highlight.js / Mermaid theo theme mới
         if (typeof renderMarkdown === 'function') renderMarkdown();
         showToast(nextTheme === 'dark' ? "Đã chuyển sang giao diện Tối" : "Đã chuyển sang giao diện Sáng");
@@ -212,7 +249,7 @@ if (window.matchMedia) {
 
         if (!hasManualPreference) {
             applyTheme(event.matches ? 'dark' : 'light', false);
-            mermaidCache.clear();
+            clearMermaidCache();
             if (typeof renderMarkdown === 'function') renderMarkdown();
         }
     });
@@ -609,10 +646,12 @@ function scheduleEditorHighlight() {
 }
 
 // Hàm hiển thị thông báo Toast
+let toastTimer = null;
 function showToast(message) {
     toast.textContent = message;
     toast.classList.remove('hidden');
-    setTimeout(() => {
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
         toast.classList.add('hidden');
     }, 2500);
 }
@@ -668,7 +707,20 @@ function processGFMAlerts() {
 // Bảo mật bổ sung cho DOMPurify
 if (typeof DOMPurify !== 'undefined') {
     DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-        if (node.tagName === 'A' && node.hasAttribute('href')) {
+        const tag = (node.tagName || '').toUpperCase();
+        // SVG <a> co tagName viet thuong + xlink:href: chan tren moi phan tu.
+        const url = node.getAttribute
+            ? (node.getAttribute('href') || node.getAttribute('xlink:href')) : null;
+        if (url != null && /^\s*(javascript|data|vbscript):/i.test(url)) {
+            node.removeAttribute('href');
+            node.removeAttribute('xlink:href');
+            return;
+        }
+        // Form/iframe khong co cho trong preview: bo thuoc tinh dieu huong.
+        node.removeAttribute('formaction');
+        if (tag === 'FORM') node.removeAttribute('action');
+        if (tag === 'IFRAME') node.removeAttribute('srcdoc');
+        if (tag === 'A' && node.hasAttribute('href')) {
             const href = node.getAttribute('href') || '';
             if (/^\s*(javascript|data|vbscript):/i.test(href)) {
                 node.removeAttribute('href');
@@ -700,12 +752,19 @@ function renderMarkdown() {
     const dirtyHtml = marked.parse(rawText);
 
     // 2. Bảo mật XSS: Khử độc HTML bằng DOMPurify
-    const cleanHtml = typeof DOMPurify !== 'undefined'
-        ? DOMPurify.sanitize(dirtyHtml, {
-            USE_PROFILES: { html: true, mathMl: true, svg: true },
-            ADD_ATTR: ['target', 'rel']
-        })
-        : dirtyHtml;
+    // Fail-closed: DOMPurify chua tai duoc thi hien thi van ban thuan,
+    // khong bao gio innerHTML HTML chua loc.
+    if (typeof DOMPurify === 'undefined') {
+        previewOutput.textContent = rawText;
+        charCounter.textContent = `${rawText.length} ký tự`;
+        restorePreviewScrollTop(previousPreviewScrollTop);
+        return;
+    }
+    const cleanHtml = DOMPurify.sanitize(dirtyHtml, {
+        USE_PROFILES: { html: true, mathMl: true, svg: true },
+        ADD_ATTR: ['target', 'rel'],
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
+    });
 
     previewOutput.innerHTML = cleanHtml;
     charCounter.textContent = `${rawText.length} ký tự`;
@@ -721,7 +780,10 @@ function renderMarkdown() {
     processGFMAlerts();
 
     // 4. Tô màu mã nguồn (Syntax Highlighting) bằng Highlight.js
-    if (typeof hljs !== 'undefined') {
+    // ponytail: bo highlight khi preview >300k ky tu (O(blocks x size) moi lan go);
+    // nang cap sau: highlight rieng tung khoi thay doi hoac worker.
+    const isHugePreview = (previewOutput.textContent || '').length > 300000;
+    if (typeof hljs !== 'undefined' && !isHugePreview) {
         previewOutput.querySelectorAll('pre code').forEach((block) => {
             const hasLanguage = Array.from(block.classList).some(cls => cls.startsWith('language-'));
             if (hasLanguage && !block.classList.contains('language-mermaid')) {
@@ -759,12 +821,17 @@ function renderMarkdown() {
         });
 
         clearTimeout(mermaidTimeout);
+        if (mermaidScheduled) { mermaidScheduled = false; pendingMermaidJobs--; }
         if (nodesToRender.length > 0) {
+            mermaidScheduled = true;
+            pendingMermaidJobs++;
             mermaidTimeout = setTimeout(() => {
+                mermaidScheduled = false;
                 // Mermaid có thể phóng to chiều cao rất nhiều so với khối code chữ ban đầu.
                 // Ghi lại scrollTop NGAY TRƯỚC lúc thay thế nội dung để khôi phục lại đúng
                 // vị trí đang xem sau khi biểu đồ được vẽ xong (tránh preview bị "nhảy"/trôi lên).
                 const scrollTopBeforeMermaid = previewOutput.scrollTop;
+                const scrollGenBeforeMermaid = previewScrollGen;
 
                 mermaid.run({
                     nodes: nodesToRender,
@@ -772,6 +839,11 @@ function renderMarkdown() {
                 }).then(() => {
                     // Lưu lại SVG vừa vẽ để tái sử dụng cho các lần render sau
                     nodesToRender.forEach((node) => {
+                        // Mermaid sinh SVG chua qua loc (click/href javascript:):
+                        // loc lai truoc khi tin va cache.
+                        if (typeof DOMPurify !== 'undefined' && node.innerHTML) {
+                            node.innerHTML = DOMPurify.sanitize(node.innerHTML, MERMAID_SANITIZE_CONFIG);
+                        }
                         const code = codeByNode.get(node);
                         if (code && node.innerHTML) {
                             cacheMermaidResult(code, node.innerHTML);
@@ -784,9 +856,13 @@ function renderMarkdown() {
                     // của Preview. Bỏ qua việc khôi phục scroll trong trường hợp này để
                     // tránh ghi đè lên vị trí cuộn đúng mà lượt render mới hơn đã thiết lập.
                     if (myRenderVersion !== renderVersion) return;
+                    // Nguoi dung da cuon trong luc ve: giu vi tri moi, khong ghi de.
+                    if (scrollGenBeforeMermaid !== previewScrollGen) return;
                     restorePreviewScrollTop(scrollTopBeforeMermaid);
-                }).catch(err => {
+                }).catch((err) => {
                     console.warn("Mermaid render error (đang soạn thảo sơ đồ chưa hoàn thiện):", err);
+                }).finally(() => {
+                    pendingMermaidJobs--;
                 });
             }, 300);
         }
@@ -1296,11 +1372,17 @@ function loadDefaultContent() {
 }
 
 // Hàm lưu nội dung hiện tại của Editor vào bộ nhớ tạm (localStorage)
+let quotaWarnedAt = 0;
 function saveContentToStorage() {
     try {
         localStorage.setItem(CONTENT_STORAGE_KEY, markdownInput.value);
     } catch (e) {
-        // Bỏ qua nếu localStorage bị chặn (vd. hết dung lượng, chế độ riêng tư)
+        const isQuota = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
+        const now = Date.now();
+        if (isQuota && now - quotaWarnedAt > 10000) {
+            quotaWarnedAt = now;
+            showToast('Bộ nhớ tạm đầy, nội dung mới có thể mất khi tắt app.');
+        }
     }
 }
 
@@ -1387,6 +1469,7 @@ previewOutput.addEventListener('touchstart', () => activeScrollSource = previewO
 // scrollHeight/scrollTop (buộc trình duyệt tính lại layout) trên từng sự kiện scroll dồn dập.
 let editorScrollTicking = false;
 let previewScrollTicking = false;
+let previewScrollGen = 0;
 
 markdownInput.addEventListener('scroll', () => {
     // Lớp tô màu cú pháp phải bám sát tuyệt đối theo pixel nên đồng bộ ngay, không qua rAF
@@ -1402,6 +1485,7 @@ markdownInput.addEventListener('scroll', () => {
 });
 
 previewOutput.addEventListener('scroll', () => {
+    previewScrollGen++;
     if (previewScrollTicking) return;
     previewScrollTicking = true;
     requestAnimationFrame(() => {
@@ -1419,6 +1503,7 @@ previewOutput.addEventListener('click', async (e) => {
         // Bỏ qua các liên kết neo nội bộ (ví dụ: #muc-luc)
         if (!href.startsWith('#')) {
             e.preventDefault();
+            if (!isSafeExternalUrl(href)) return;
             
             // Use Tauri opener plugin in desktop app, fallback to window.open
             if (window.__TAURI__ && window.__TAURI__.opener) {
@@ -1504,7 +1589,16 @@ function downloadBlob(blob, filename) {
 // Trả về true nếu đã lưu, false nếu người dùng bấm Cancel.
 // Lưu ý: KHÔNG được đặt tên isTauri - Tauri core đã inject biến global isTauri
 // vào WebView (withGlobalTauri), trùng tên sẽ gây SyntaxError chết cả file script.
-const hasTauriBridge = () => !!(window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.fs);
+// Chi mo http(s)/mailto/tel/ftp ra trinh duyet he thong; chan
+// javascript:/data:/file:/blob: ngay ca khi sanitizer bi lot.
+function isSafeExternalUrl(href) {
+    const url = String(href || '').trim();
+    return /^(https?|ftp):\/\/\S/i.test(url) || /^(mailto|tel):\S/i.test(url);
+}
+const tauriDialogPlugin = () => (window.__TAURI__ ? window.__TAURI__.dialog : undefined);
+const tauriFsPlugin = () => (window.__TAURI__ ? window.__TAURI__.fs : undefined);
+const hasTauriBridge = () => !!(tauriDialogPlugin()?.save && tauriFsPlugin()?.writeTextFile);
+const isTauriRuntime = () => !!window.__TAURI__;
 
 async function saveTextFile(contents, baseName, ext, mimeType) {
     if (hasTauriBridge()) {
@@ -1517,7 +1611,12 @@ async function saveTextFile(contents, baseName, ext, mimeType) {
         return true;
     }
 
-    // Không có Tauri (mở bằng trình duyệt thường) -> tải kiểu trình duyệt
+    // Fallback trinh duyet. Trong WebView Tauri ma thieu dialog/fs thi
+    // <a download> khong hoat dong: bao ro thay vi im lang "thanh cong".
+    if (isTauriRuntime()) {
+        showToast('Không lưu được file: thiếu plugin lưu file của app.');
+        return false;
+    }
     downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
     return true;
 }
@@ -1655,6 +1754,8 @@ async function exportDoc() {
     showToast("Đang tạo file DOC...");
 
     // Clone Preview đã render hoàn chỉnh (heading, bullet, đậm/nghiêng, bảng, alert...)
+    renderMarkdown();
+    await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
 
     // Bỏ icon Lucide (Word không hiểu) và thay checkbox bằng ký hiệu Unicode
@@ -1691,11 +1792,16 @@ async function exportDoc() {
 
 // ----- Export PDF (hộp thoại In của hệ thống, văn bản chọn được & tìm kiếm được) -----
 
-function exportPdf() {
+async function exportPdf() {
     showToast("Đang chuẩn bị trang in / xuất file PDF...");
-    setTimeout(() => {
-        window.print();
-    }, 200);
+    renderMarkdown();
+    try {
+        await Promise.all([
+            whenMermaidIdle(8000),
+            (document.fonts ? document.fonts.ready : Promise.resolve())
+        ]);
+    } catch (e) {}
+    window.print();
 }
 
 // ----- Dropdown Export -----
@@ -1727,6 +1833,15 @@ exportPdfBtn.addEventListener('click', () => { closeExportMenu(); exportPdf(); }
 
 // ----- Import file Markdown -----
 
+const IMPORTABLE_EXTS = ['md', 'markdown', 'mdown', 'mkd', 'txt'];
+function isImportableFile(file) {
+    const name = String(file && file.name || '').toLowerCase();
+    const ext = name.includes('.') ? name.split('.').pop() : '';
+    if (IMPORTABLE_EXTS.includes(ext)) return true;
+    if (ext !== '') return false; // known non-markdown extension (even with empty MIME)
+    const type = file ? (file.type || '') : '';
+    return type === '' || type.startsWith('text/');
+}
 btnImport.addEventListener('click', () => importFileInput.click());
 
 importFileInput.addEventListener('change', () => {
@@ -1736,6 +1851,11 @@ importFileInput.addEventListener('change', () => {
 
     if (file.size > 5 * 1024 * 1024) {
         showToast("File quá lớn (tối đa 5MB).");
+        return;
+    }
+
+    if (!isImportableFile(file)) {
+        showToast('Chỉ nhập được file Markdown (.md, .markdown, .txt).');
         return;
     }
 
@@ -1768,6 +1888,21 @@ function runSelfCheck() {
     assert('filename bỏ ký tự đặc biệt', deriveExportBaseName('# Tiêu đề (v1.2)!') === 'tieu-de-v12');
     assert('filename fallback khi không có heading', deriveExportBaseName('không có heading') === 'document');
 
+    assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
+    assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);
+    assert('safe url blocks javascript', isSafeExternalUrl('javascript:alert(1)') === false);
+    assert('safe url blocks padded data', isSafeExternalUrl('  DATA:text/html,<h1>x</h1>') === false);
+    assert('safe url blocks relative', isSafeExternalUrl('/local/path') === false);
+    if (typeof DOMPurify !== 'undefined') {
+        const probe = DOMPurify.sanitize(
+            '<svg><foreignObject><div>probe-label</div></foreignObject></svg>',
+            MERMAID_SANITIZE_CONFIG
+        );
+        assert('sanitize keeps mermaid labels', probe.includes('probe-label'));
+    }
+    assert('import gate allows md', isImportableFile({ name: 'a.md', type: '' }) === true);
+    assert('import gate allows extensionless', isImportableFile({ name: 'README', type: '' }) === true);
+    assert('import gate rejects exe', isImportableFile({ name: 'a.exe', type: '' }) === false);
     const wordHtml = buildWordHtml('<p>x</p>');
     assert('word html có meta UTF-8', wordHtml.includes('charset="UTF-8"'));
     assert('word html có namespace Office', wordHtml.includes('urn:schemas-microsoft-com:office:word'));

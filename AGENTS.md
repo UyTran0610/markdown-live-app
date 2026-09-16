@@ -6,7 +6,7 @@ Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no b
 
 - `src/index.html`, `src/script.js`, `src/style.css` — entire frontend. `script.js` holds editor, preview render (marked + DOMPurify + KaTeX + mermaid + highlight.js), sync-scroll, PDF export, theme.
 - `src/vendor/` — locally bundled third-party libs (marked, katex, mermaid, highlight.js, purify, lucide) + KaTeX `fonts/`. App must stay fully offline: never add CDN links.
-- `src-tauri/src/lib.rs` — Rust backend; only `greet` command + `clipboard-manager` and `opener` plugins. Real logic lives in JS.
+- `src-tauri/src/lib.rs` — Rust backend; only `greet` command + `clipboard-manager`, `opener`, `dialog`, `fs` plugins. Real logic lives in JS.
 - `scripts/sync-version.js` — version/cache-bust sync script (see below).
 
 ## Commands
@@ -18,15 +18,15 @@ Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no b
 
 ## Versioning gotcha
 
-- Source of truth is `src-tauri/tauri.conf.json` `"version"` (currently 1.1.6). Root `package.json` version (`0.1.0`) is stale — ignore it.
-- `node scripts/sync-version.js` runs automatically via `beforeDevCommand`/`beforeBuildCommand` in `tauri.conf.json`: it copies the tauri.conf version into `src-tauri/Cargo.toml` `[package] version` and `?v=<version>` cache-busters on every css/js `href`/`src` in `src/index.html` (including the inline theme-swap block).
+- Source of truth is `src-tauri/tauri.conf.json` `"version"` (check file; root `package.json` version (`0.1.0`) is stale — ignore it).
+- `node scripts/sync-version.js` runs automatically via `beforeDevCommand`/`beforeBuildCommand` in `tauri.conf.json`: it copies the tauri.conf version into `src-tauri/Cargo.toml` `[package] version` and `?v=<version>` cache-busters on every css/js `href`/`src` in `src/index.html` (including the inline theme-swap block). Writes are atomic (tmp+rename) and skipped when unchanged; `--set` validates semver and refuses to run on garbage.
 - To bump: `node scripts/sync-version.js --set X.Y.Z` (strips leading `v`). Never hand-edit `?v=` strings or `Cargo.toml` version alone.
 - Release: push tag `v*` (or manual `workflow_dispatch` with `version`) → `.github/workflows/release.yml` runs `--set`, builds portable exe on `windows-latest`, publishes `.exe` + `.zip`. Only `workflow_dispatch` commits the version bump back.
 
 ## Tauri config notes
 
 - `tauri.conf.json`: `frontendDist` is `../src` (served raw, no dist step); `bundle.active: false`, targets `nsis`/`msi`; CSP is `null`.
-- Permissions live in `src-tauri/capabilities/default.json` (`core`, `opener`, `clipboard-manager` + `allow-write-text`). Add new plugin permissions there, not in Rust code.
+- Permissions live in `src-tauri/capabilities/default.json` (`core`, `opener`, `clipboard-manager` + `allow-write-text`, `dialog`, `fs:allow-write-text-file` scoped to `$HOME/**`). Frontend only writes to dialog-picked paths via `saveTextFile()`; CSP stays `null` (local-only app) so XSS must be handled in JS (fail-closed DOMPurify + mermaid re-sanitize + external-URL allowlist). Add new plugin permissions there, not in Rust code.
 - Frontend scripts must stay `defer` in declared order in `index.html`; theme must be set inline in `<head>` before CSS to avoid flash.
 
 

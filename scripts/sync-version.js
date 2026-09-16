@@ -20,6 +20,24 @@ function writeFile(p, content) {
   fs.writeFileSync(p, content, 'utf8');
 }
 
+// Ghi nguyên tử (tmp + rename) và bỏ qua khi nội dung không đổi:
+// tránh mtime churn kích hoạt vòng build lại + không để lại file nửa vời khi crash.
+function writeFileAtomic(p, content) {
+  let prev = null;
+  try {
+    prev = fs.readFileSync(p, 'utf8');
+  } catch (e) {}
+  if (prev === content) return false;
+  const tmp = `${p}.tmp-${process.pid}`;
+  writeFile(tmp, content);
+  fs.renameSync(tmp, p);
+  return true;
+}
+
+function isValidVersion(v) {
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(v);
+}
+
 // Tự tìm file theo các vị trí thông dụng (root hoặc thư mục con)
 function resolveExistingPath(candidates, fileDescription) {
   for (const relPath of candidates) {
@@ -33,21 +51,41 @@ const TAURI_CONF = resolveExistingPath(['src-tauri/tauri.conf.json', 'tauri.conf
 const CARGO_TOML = resolveExistingPath(['src-tauri/Cargo.toml', 'Cargo.toml'], 'Cargo.toml');
 const INDEX_HTML = resolveExistingPath(['index.html', 'src/index.html'], 'index.html');
 
-function setTauriConfVersion(content, version) {
-  if (!/"version":\s*"[^"]*"/.test(content)) {
-    throw new Error('Không tìm thấy trường "version" trong tauri.conf.json');
+function parseTauriConf(content) {
+  try {
+    return JSON.parse(content);
+  } catch (e) {
+    throw new Error('tauri.conf.json không phải JSON hợp lệ: ' + e.message);
   }
-  return content.replace(/"version":\s*"[^"]*"/, `"version": "${version}"`);
+}
+
+function setTauriConfVersion(content, version) {
+  // Giữ nguyên format file: chỉ thay giá trị của "version" cấp cao nhất,
+  // rồi xác minh JSON vẫn hợp lệ và version đã đổi đúng chỗ.
+  const oldVersion = getTauriConfVersion(content); // kiểm tra JSON + sự tồn tại
+  const escaped = oldVersion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(^\\s*"version"\\s*:\\s*)"${escaped}"`, 'm');
+  if (!pattern.test(content)) {
+    throw new Error('Không tìm thấy trường "version" cấp cao nhất trong tauri.conf.json');
+  }
+  const next = content.replace(pattern, `$1"${version}"`);
+  if (getTauriConfVersion(next) !== version) {
+    throw new Error('Cập nhật version thất bại (kiểm tra hậu điều kiện không đạt)');
+  }
+  return next;
 }
 
 function getTauriConfVersion(content) {
-  const m = content.match(/"version":\s*"([^"]*)"/);
-  if (!m) throw new Error('Không tìm thấy trường "version" trong tauri.conf.json');
-  return m[1];
+  const obj = parseTauriConf(content);
+  if (typeof obj.version !== 'string' || !obj.version) {
+    throw new Error('Không tìm thấy trường "version" trong tauri.conf.json');
+  }
+  return obj.version;
 }
 
 function setCargoVersion(content, version) {
-  const lines = content.split('\n');
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = content.split(/\r?\n/);
   let inPackage = false;
   let done = false;
   for (let i = 0; i < lines.length; i++) {
@@ -63,7 +101,7 @@ function setCargoVersion(content, version) {
     }
   }
   if (!done) throw new Error('Không tìm thấy version trong block [package] của Cargo.toml');
-  return lines.join('\n');
+  return lines.join(eol);
 }
 
 function syncIndexHtmlVersion(content, version) {
@@ -98,24 +136,31 @@ function main() {
       process.exit(1);
     }
     version = version.replace(/^v/, '');
+    if (!isValidVersion(version)) {
+      console.error(`Version không hợp lệ: "${version}" (cần dạng X.Y.Z, vd: 1.2.0)`);
+      process.exit(1);
+    }
 
     let tauriConf = readFile(TAURI_CONF);
     tauriConf = setTauriConfVersion(tauriConf, version);
-    writeFile(TAURI_CONF, tauriConf);
+    writeFileAtomic(TAURI_CONF, tauriConf);
 
     let cargoToml = readFile(CARGO_TOML);
     cargoToml = setCargoVersion(cargoToml, version);
-    writeFile(CARGO_TOML, cargoToml);
+    writeFileAtomic(CARGO_TOML, cargoToml);
 
     console.log(`[sync-version] Đã cập nhật version = ${version} vào tauri.conf.json & Cargo.toml`);
   } else {
     const tauriConf = readFile(TAURI_CONF);
     version = getTauriConfVersion(tauriConf);
+    if (!isValidVersion(version)) {
+      throw new Error(`Version trong tauri.conf.json không hợp lệ: "${version}"`);
+    }
   }
 
   let indexHtml = readFile(INDEX_HTML);
   indexHtml = syncIndexHtmlVersion(indexHtml, version);
-  writeFile(INDEX_HTML, indexHtml);
+  writeFileAtomic(INDEX_HTML, indexHtml);
 
   console.log(`[sync-version] Đã đồng bộ cache-busting ?v=${version} vào ${path.relative(ROOT, INDEX_HTML)}`);
 }

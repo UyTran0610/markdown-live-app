@@ -28,7 +28,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - [Ảnh chụp màn hình](#ảnh-chụp-màn-hình)
 - [Bắt đầu nhanh](#bắt-đầu-nhanh)
 - [Cách sử dụng](#cách-sử-dụng)
-- [Hướng dẫn xuất PDF](#hướng-dẫn-xuất-pdf)
+- [Hướng dẫn xuất file](#hướng-dẫn-xuất-file)
 - [Tổng quan kiến trúc](#tổng-quan-kiến-trúc)
 - [Công nghệ sử dụng](#công-nghệ-sử-dụng)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
@@ -45,7 +45,8 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Diagrams as Code:** Tích hợp Mermaid.js engine biên dịch biểu đồ luồng (Flowchart), biểu đồ tuần tự (Sequence), biểu đồ quan hệ (ERD).
 - **Code Syntax Highlighting:** Tự động phát hiện và định dạng mã nguồn đa ngôn ngữ thông qua Highlight.js.
 - **Dynamic Syntax Overlay:** Khung textarea được xử lý đồng bộ màu cú pháp Markdown trực tiếp.
-- **Vector PDF Print Engine:** Khả năng trích xuất PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
+- **Multi-Format Export:** Xuất nội dung ra Markdown (`.md`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
+- **File Import:** Mở file Markdown từ máy tính (`.md`, `.markdown`, `.txt`) trực tiếp vào trình soạn thảo.
 - **Light/Dark Theme:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ lựa chọn giữa các lần mở ứng dụng.
 
 ---
@@ -119,7 +120,8 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 | **Sync Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview |
 | **Reset** | Khôi phục nội dung ví dụ mặc định |
 | **Copy** | Sao chép toàn bộ nội dung Markdown vào clipboard |
-| **Export PDF** | Xuất nội dung Preview thành file PDF dạng vector, chọn được văn bản |
+| **Import** | Nhập file Markdown từ máy vào trình soạn thảo |
+| **Export** | Mở menu xuất nội dung ra **Markdown** (`.md`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
 
 ### Phím tắt trong Editor
@@ -142,7 +144,9 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 
 ---
 
-## Hướng dẫn xuất PDF
+## Hướng dẫn xuất file
+
+### PDF
 
 > [!IMPORTANT]
 > **Cấu hình Print Engine của hệ thống:**
@@ -167,7 +171,7 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 
 | Phân hệ | Công nghệ / Thư viện | Vai trò |
 | :--- | :--- | :--- |
-| **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener Plugin |
+| **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener, Dialog & FS Plugins |
 | **Markdown Parser**| Marked.js + DOMPurify | Phân tích cú pháp Markdown và lọc XSS an toàn |
 | **Mathematics** | KaTeX + marked-katex-extension | Xử lý công thức Toán học TeX/LaTeX |
 | **Diagram Engine** | Mermaid.js | Render biểu đồ từ cú pháp khai báo |

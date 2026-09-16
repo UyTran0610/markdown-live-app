@@ -28,7 +28,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - [Screenshots](#screenshots)
 - [Quick Start](#quick-start)
 - [How to Use](#how-to-use)
-- [PDF Export Guide](#pdf-export-guide)
+- [Export Guide](#export-guide)
 - [Architecture Overview](#architecture-overview)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -45,7 +45,8 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Diagrams as Code:** Integrated Mermaid.js engine supporting Flowcharts, Sequence Diagrams, and Entity Relationship Diagrams (ERDs).
 - **Code Syntax Highlighting:** Automatic detection and multi-language syntax formatting powered by Highlight.js.
 - **Dynamic Syntax Overlay:** Textarea synchronized with real-time Markdown syntax highlighting directly in the editor.
-- **Vector PDF Print Engine:** Vector-based PDF export (text remains selectable and copyable, not rasterized into images).
+- **Multi-Format Export:** Export content as Markdown (`.md`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
+- **File Import:** Open a local Markdown file (`.md`, `.markdown`, `.txt`) directly into the editor.
 - **Light/Dark Theme:** Automatic system theme detection, manual theme switching, and state persistence between sessions.
 
 ---
@@ -119,7 +120,8 @@ After launching the application, type or paste your Markdown content into the **
 | **Sync Scroll** | Toggle synchronized scrolling between Editor and Preview |
 | **Reset** | Restore the default template content |
 | **Copy** | Copy the full raw Markdown content to the clipboard |
-| **Export PDF** | Export Preview content to a selectable vector PDF file |
+| **Import** | Load a Markdown file from your device into the editor |
+| **Export** | Open a menu to export content as **Markdown** (`.md`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
 | **Theme** | Toggle between Light and Dark themes |
 
 ### Editor Shortcuts
@@ -142,7 +144,9 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 
 ---
 
-## PDF Export Guide
+## Export Guide
+
+### PDF
 
 > [!IMPORTANT]
 > **System Print Engine Settings:**
@@ -167,7 +171,7 @@ Markdown Live is engineered with memory efficiency and near-instant responsivene
 
 | Component | Technology / Library | Role |
 | :--- | :--- | :--- |
-| **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener Plugin |
+| **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener, Dialog & FS Plugins |
 | **Markdown Parser**| Marked.js + DOMPurify | Markdown parsing and secure XSS sanitization |
 | **Mathematics** | KaTeX + marked-katex-extension | TeX/LaTeX mathematical formula typesetting |
 | **Diagram Engine** | Mermaid.js | Declarative diagram rendering |

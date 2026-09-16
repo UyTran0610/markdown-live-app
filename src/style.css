@@ -285,6 +285,70 @@ body {
     height: 14px;
 }
 
+/* Nút Import + Dropdown Export */
+.export-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.export-wrap .chevron {
+    transition: transform 0.15s;
+}
+
+.export-wrap.open .chevron {
+    transform: rotate(180deg);
+}
+
+.export-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border: 1px solid var(--btn-border-hover);
+    border-radius: 8px;
+    background: var(--header-bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    z-index: 500;
+}
+
+.export-menu.hidden {
+    display: none;
+}
+
+.export-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--btn-text);
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s;
+}
+
+.export-item:hover,
+.export-item:focus-visible {
+    background: var(--btn-bg-hover);
+    outline: none;
+}
+
+.export-item i,
+.export-item svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
 /* Nút chuyển đổi giao diện Sáng / Tối */
 #btn-theme .icon-moon {
     display: none;
@@ -604,6 +668,13 @@ body {
     .btn svg {
         width: 16px;
         height: 16px;
+    }
+
+    .export-menu {
+        min-width: 150px;
+    }
+    .export-item span {
+        display: inline;
     }
 }
 

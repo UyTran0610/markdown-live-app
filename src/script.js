@@ -7,7 +7,8 @@ Chào mừng bạn đến với **Markdown Live**! Đây là một ứng dụng 
 - **Bảo mật XSS**: Tự động lọc sạch mã độc hại với DOMPurify.
 - **Đồng bộ cuộn (Sync Scroll)**: Cuộn song song cả 2 khung soạn thảo và xem trước.
 - **Copy**: Sao chép nhanh mã nguồn Markdown.
-- **Export PDF**: Xuất trực tiếp nội dung Preview thành định dạng PDF với **văn bản chọn được (Selectable Text)**.
+- **Import**: Nhập file Markdown từ máy vào ứng dụng.
+- **Export**: Xuất nội dung ra **Markdown**, **DOC** (sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** với **văn bản chọn được (Selectable Text)**.
 - **Reset**: Đưa dữ liệu về văn bản mẫu ban đầu này bất kỳ lúc nào.
 
 ---
@@ -106,7 +107,14 @@ const editorHighlightCode = document.getElementById('editor-highlight-code');
 const btnSync = document.getElementById('btn-sync');
 const btnReset = document.getElementById('btn-reset');
 const btnCopy = document.getElementById('btn-copy');
-const btnPdf = document.getElementById('btn-pdf');
+const btnImport = document.getElementById('btn-import');
+const importFileInput = document.getElementById('import-file');
+const btnExport = document.getElementById('btn-export');
+const exportWrap = document.querySelector('.export-wrap');
+const exportMenu = document.getElementById('export-menu');
+const exportMdBtn = document.getElementById('export-md');
+const exportDocBtn = document.getElementById('export-doc');
+const exportPdfBtn = document.getElementById('export-pdf');
 const btnTheme = document.getElementById('btn-theme');
 const toast = document.getElementById('toast');
 
@@ -1454,29 +1462,364 @@ btnCopy.addEventListener('click', () => {
         .catch(() => showToast("Có lỗi xảy ra khi sao chép."));
 });
 
-// Nút Xuất file PDF với văn bản vector chọn được (Selectable Text & Searchable)
-btnPdf.addEventListener('click', () => {
+// ==========================================================================
+// IMPORT & EXPORT (Markdown / DOC / PDF)
+// ==========================================================================
+
+// Tạo tên file (không phần mở rộng) từ heading cấp 1 đầu tiên trong Markdown.
+// Bỏ dấu tiếng Việt, thay khoảng trắng bằng gạch nối; không có heading thì dùng "document".
+// Hàm thuần để self-check được.
+function deriveExportBaseName(markdown) {
+    const heading = markdown.match(/^\s{0,3}#\s+(.+?)\s*$/m);
+    const raw = heading ? heading[1] : '';
+    const slug = raw
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')   // bỏ dấu thanh/dấu phụ sau khi tách NFD
+        .replace(/đ/gi, 'd')               // đ không bị tách trong NFD nên phải thay riêng
+        .replace(/[^\w\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-{2,}/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
+    return (slug || 'document').slice(0, 80);
+}
+
+// Tải một Blob về máy thông qua thẻ <a download> (fallback khi chạy ngoài Tauri,
+// ví dụ mở trực tiếp bằng trình duyệt). Lưu ý: WebView của Tauri CHẶN cơ chế này
+// (wry không có download delegate), nên trong app phải dùng saveTextFile() bên dưới.
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// Lưu văn bản ra file: trong app Tauri dùng hộp thoại "Save As" (plugin dialog) và
+// ghi file (plugin fs); ngoài Tauri thì fallback về <a download> của trình duyệt.
+// Trả về true nếu đã lưu, false nếu người dùng bấm Cancel.
+// Lưu ý: KHÔNG được đặt tên isTauri - Tauri core đã inject biến global isTauri
+// vào WebView (withGlobalTauri), trùng tên sẽ gây SyntaxError chết cả file script.
+const hasTauriBridge = () => !!(window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.fs);
+
+async function saveTextFile(contents, baseName, ext, mimeType) {
+    if (hasTauriBridge()) {
+        const path = await window.__TAURI__.dialog.save({
+            defaultPath: baseName + '.' + ext,
+            filters: [{ name: ext.toUpperCase() + ' file', extensions: [ext] }]
+        });
+        if (!path) return false; // người dùng bấm Cancel
+        await window.__TAURI__.fs.writeTextFile(path, contents);
+        return true;
+    }
+
+    // Không có Tauri (mở bằng trình duyệt thường) -> tải kiểu trình duyệt
+    downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
+    return true;
+}
+
+// ----- Export Markdown -----
+
+async function exportMarkdown() {
+    const text = markdownInput.value;
+    if (!text.trim()) {
+        showToast("Nội dung trống, không có gì để xuất.");
+        return;
+    }
+    try {
+        const saved = await saveTextFile(text, deriveExportBaseName(text), 'md', 'text/markdown;charset=utf-8');
+        if (saved) showToast("Đã xuất file Markdown!");
+    } catch (err) {
+        console.error('Export Markdown thất bại:', err);
+        showToast("Có lỗi xảy ra khi xuất file Markdown.");
+    }
+}
+
+// ----- Export DOC (Word-compatible HTML) -----
+
+// Chuyển mọi <foreignObject> (nhãn HTML của Mermaid) bên trong SVG clone thành <text>
+// thuần SVG, vì canvas không vẽ được nội dung foreignObject (nhãn sơ đồ sẽ biến mất).
+// ponytail: mất định dạng đậm/nghiêng trong nhãn, chỉ giữ dòng chữ, màu và cỡ font;
+// nâng cấp sau: dựng text theo đúng kích thước/tọa độ từng span con của foreignObject.
+function flattenForeignObjects(svgClone, fallbackColor, fallbackFontSize) {
+    const NS = 'http://www.w3.org/2000/svg';
+    svgClone.querySelectorAll('foreignObject').forEach((fo) => {
+        const div = fo.querySelector('div, span, p');
+        const lines = (div ? div.textContent : fo.textContent).split('\n').map(s => s.trim()).filter(Boolean);
+        if (!lines.length) {
+            fo.remove();
+            return;
+        }
+        const x = parseFloat(fo.getAttribute('x')) || 0;
+        const y = parseFloat(fo.getAttribute('y')) || 0;
+        const w = parseFloat(fo.getAttribute('width')) || 100;
+        const h = parseFloat(fo.getAttribute('height')) || 40;
+        const fontSize = (div && div.style.fontSize) || fallbackFontSize || '16px';
+        const lineH = (parseFloat(fontSize) || 16) * 1.25;
+        const text = document.createElementNS(NS, 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'middle');
+        text.setAttribute('fill', (div && div.style.color) || fallbackColor || '#000');
+        text.setAttribute('font-size', fontSize);
+        // Mỗi dòng là một tspan, căn giữa theo chiều rộng/cao của foreignObject;
+        // vị trí tuyệt đối do transform của phần tử cha (được giữ nguyên) quyết định.
+        const startY = y + h / 2 - ((lines.length - 1) * lineH) / 2;
+        lines.forEach((line, i) => {
+            const tspan = document.createElementNS(NS, 'tspan');
+            tspan.setAttribute('x', x + w / 2);
+            tspan.setAttribute('y', startY + i * lineH);
+            tspan.textContent = line;
+            text.appendChild(tspan);
+        });
+        fo.replaceWith(text);
+    });
+}
+
+// Vẽ một SVG (sơ đồ Mermaid) lên canvas ở độ phân giải 2x rồi trả về data-URL PNG
+// để nhúng trực tiếp vào file DOC (Word không hỗ trợ SVG inline).
+async function svgToPngDataUrl(svg, scale = 2) {
+    const viewBox = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+    const rect = svg.getBoundingClientRect();
+    const w = rect.width > 0 ? rect.width : (viewBox.length === 4 && viewBox[2] > 0 ? viewBox[2] : 800);
+    const h = rect.height > 0 ? rect.height : (viewBox.length === 4 && viewBox[3] > 0 ? viewBox[3] : 600);
+
+    const svgStyle = window.getComputedStyle(svg);
+    const clone = svg.cloneNode(true);
+    flattenForeignObjects(clone, svgStyle.color, svgStyle.fontSize);
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/png');
+}
+
+// CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên
+// phải tự mang theo các định dạng cốt lõi (heading, bảng, code, trích dẫn, alert).
+const DOC_STYLES = `
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
+    h1 { font-size: 20pt; } h2 { font-size: 16pt; } h3 { font-size: 14pt; }
+    h4 { font-size: 12pt; } h5 { font-size: 11pt; } h6 { font-size: 10pt; color: #57606a; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; }
+    th { background: #f6f8fa; font-weight: bold; }
+    pre { background: #f6f8fa; border: 1px solid #d0d7de; padding: 10px; font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; white-space: pre-wrap; }
+    code { font-family: Consolas, "Courier New", monospace; }
+    blockquote { border-left: 4px solid #d0d7de; margin-left: 0; padding-left: 12px; color: #57606a; }
+    img { max-width: 100%; }
+    a { color: #0969da; }
+    hr { border: none; border-top: 1px solid #d0d7de; }
+    .markdown-alert { border-left: 4px solid #0969da; background: #f6f8fa; padding: 8px 12px; }
+    .markdown-alert-title { font-weight: bold; }
+    .markdown-alert-tip { border-left-color: #1a7f37; }
+    .markdown-alert-important { border-left-color: #8250df; }
+    .markdown-alert-warning { border-left-color: #9a6700; }
+    .markdown-alert-caution { border-left-color: #d1242f; }
+`;
+
+// Bọc nội dung HTML trong khung file Word (namespace Office + meta UTF-8).
+// Hàm thuần để self-check được.
+function buildWordHtml(bodyHtml) {
+    return '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+        + 'xmlns:w="urn:schemas-microsoft-com:office:word" '
+        + 'xmlns="http://www.w3.org/TR/REC-html40">\n<head>\n'
+        + '<meta charset="UTF-8">\n'
+        + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->\n'
+        + '<style>' + DOC_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
+}
+
+// ponytail: công thức KaTeX giữ nguyên dạng HTML/CSS - Word không render được font KaTeX
+// nên công thức sẽ hiển thị dạng chữ thường; nâng cấp sau: render KaTeX sang ảnh
+// giống cách làm với Mermaid ở trên. Ảnh với URL remote giữ nguyên <img src> (Word tự tải).
+async function exportDoc() {
+    const text = markdownInput.value;
+    if (!text.trim()) {
+        showToast("Nội dung trống, không có gì để xuất.");
+        return;
+    }
+    showToast("Đang tạo file DOC...");
+
+    // Clone Preview đã render hoàn chỉnh (heading, bullet, đậm/nghiêng, bảng, alert...)
+    const clone = previewOutput.cloneNode(true);
+
+    // Bỏ icon Lucide (Word không hiểu) và thay checkbox bằng ký hiệu Unicode
+    clone.querySelectorAll('svg').forEach((el) => el.remove());
+    clone.querySelectorAll('input[type="checkbox"]').forEach((el) => {
+        el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
+    });
+
+    // Chuyển sơ đồ Mermaid thành ảnh PNG. Thứ tự pre.mermaid trong clone khớp 1-1
+    // với thứ tự trong DOM gốc nên có thể ánh xạ theo chỉ số.
+    const cloneMers = clone.querySelectorAll('pre.mermaid');
+    const origSvgs = previewOutput.querySelectorAll('pre.mermaid > svg');
+    for (let i = 0; i < cloneMers.length; i++) {
+        try {
+            const dataUrl = await svgToPngDataUrl(origSvgs[i]);
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            img.alt = 'Mermaid diagram';
+            cloneMers[i].replaceWith(img);
+        } catch (e) {
+            console.warn('Không chuyển được sơ đồ Mermaid sang ảnh, giữ nguyên mã nguồn:', e);
+        }
+    }
+
+    const html = buildWordHtml(clone.innerHTML);
+    try {
+        const saved = await saveTextFile('\ufeff' + html, deriveExportBaseName(text), 'doc', 'application/msword');
+        if (saved) showToast("Đã xuất file DOC!");
+    } catch (err) {
+        console.error('Export DOC thất bại:', err);
+        showToast("Có lỗi xảy ra khi xuất file DOC.");
+    }
+}
+
+// ----- Export PDF (hộp thoại In của hệ thống, văn bản chọn được & tìm kiếm được) -----
+
+function exportPdf() {
     showToast("Đang chuẩn bị trang in / xuất file PDF...");
     setTimeout(() => {
         window.print();
     }, 200);
+}
+
+// ----- Dropdown Export -----
+
+function closeExportMenu() {
+    exportMenu.classList.add('hidden');
+    exportWrap.classList.remove('open');
+}
+
+btnExport.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = exportMenu.classList.toggle('hidden');
+    exportWrap.classList.toggle('open', !isHidden);
 });
+
+// Đóng menu khi bấm ra ngoài hoặc nhấn Esc
+document.addEventListener('click', (e) => {
+    if (!exportMenu.classList.contains('hidden') && !exportWrap.contains(e.target)) {
+        closeExportMenu();
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeExportMenu();
+});
+
+exportMdBtn.addEventListener('click', () => { closeExportMenu(); exportMarkdown(); });
+exportDocBtn.addEventListener('click', () => { closeExportMenu(); exportDoc(); });
+exportPdfBtn.addEventListener('click', () => { closeExportMenu(); exportPdf(); });
+
+// ----- Import file Markdown -----
+
+btnImport.addEventListener('click', () => importFileInput.click());
+
+importFileInput.addEventListener('change', () => {
+    const file = importFileInput.files[0];
+    importFileInput.value = ''; // cho phép chọn lại cùng một file ở lần kế tiếp
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+        showToast("File quá lớn (tối đa 5MB).");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const text = String(reader.result);
+        if (!text.trim()) {
+            showToast("File rỗng hoặc không đọc được nội dung.");
+            return;
+        }
+        if (markdownInput.value.trim() && !confirm("Nhập file sẽ ghi đè nội dung hiện tại. Tiếp tục?")) {
+            return;
+        }
+        applyContent(text);
+        saveContentToStorage();
+        showToast(`Đã nhập "${file.name}" vào editor!`);
+    };
+    reader.onerror = () => showToast("Có lỗi xảy ra khi đọc file.");
+    reader.readAsText(file, 'utf-8');
+});
+
+// ==========================================================================
+// SELF-CHECK (chỉ chạy khi URL có ?selfcheck - dùng console, không framework)
+// ==========================================================================
+function runSelfCheck() {
+    const results = [];
+    const assert = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} - ${name}`);
+
+    assert('filename từ heading có dấu', deriveExportBaseName('# Trình soạn thảo Markdown Live\n\nnội dung') === 'trinh-soan-thao-markdown-live');
+    assert('filename bỏ ký tự đặc biệt', deriveExportBaseName('# Tiêu đề (v1.2)!') === 'tieu-de-v12');
+    assert('filename fallback khi không có heading', deriveExportBaseName('không có heading') === 'document');
+
+    const wordHtml = buildWordHtml('<p>x</p>');
+    assert('word html có meta UTF-8', wordHtml.includes('charset="UTF-8"'));
+    assert('word html có namespace Office', wordHtml.includes('urn:schemas-microsoft-com:office:word'));
+    assert('word html giữ body', wordHtml.includes('<p>x</p>'));
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    const fo = document.createElementNS(NS, 'foreignObject');
+    fo.setAttribute('x', '10');
+    fo.setAttribute('y', '20');
+    fo.setAttribute('width', '100');
+    fo.setAttribute('height', '40');
+    const labelDiv = document.createElement('div');
+    labelDiv.textContent = 'Xin chào';
+    fo.appendChild(labelDiv);
+    svg.appendChild(fo);
+    flattenForeignObjects(svg, '#000', '16px');
+    const textEl = svg.querySelector('text');
+    assert('foreignObject chuyển thành <text>', !!textEl && !svg.querySelector('foreignObject') && svg.textContent.includes('Xin chào'));
+    assert('tspan đặt đúng tâm foreignObject', textEl && textEl.querySelector('tspan').getAttribute('x') === '60');
+
+    const failed = results.filter(r => r.startsWith('FAIL'));
+    (failed.length ? console.error : console.log)('Self-check Import/Export:\n' + results.join('\n'));
+    if (failed.length) showToast(`Self-check: ${failed.length} test FAIL (xem console)`);
+    else showToast('Self-check: tất cả PASS');
+}
+if (location.search.includes('selfcheck')) {
+    window.addEventListener('DOMContentLoaded', runSelfCheck);
+}
 
 // Chạy khởi tạo ứng dụng khi trang web tải xong
 window.addEventListener('DOMContentLoaded', () => {
+    // Nạp nội dung TRƯỚC tiên: dù các thư viện bên dưới có lỗi thì nội dung
+    // đã lưu vẫn hiển thị trong editor thay vì trang trắng trống.
+    loadInitialContent();
+
     if (typeof mermaid !== 'undefined') {
         mermaid.initialize({ startOnLoad: false, theme: getCurrentTheme() === 'dark' ? 'dark' : 'default' });
     }
 
-    if (typeof markedKatex !== 'undefined') {
+    if (typeof markedKatex !== 'undefined' && typeof marked !== 'undefined') {
         const katexExt = typeof markedKatex === 'function' ? markedKatex : markedKatex.markedKatex;
         if (katexExt) {
             marked.use(katexExt({ throwOnError: false }));
         }
     }
 
-    lucide.createIcons();
-    loadInitialContent();
+    // Guard: nếu lucide fail to load thì bỏ qua vẽ icon thay vì văng exception
+    // làm hỏng toàn bộ khởi tạo.
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 });
 
 // Lưu ngay lập tức (không debounce) khi cửa sổ chuẩn bị đóng lại,

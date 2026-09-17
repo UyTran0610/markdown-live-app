@@ -1,100 +1,99 @@
-// Nội dung Markdown mặc định khi tải trang hoặc ấn Reset
-const defaultMarkdown = `# Trình soạn thảo Markdown Live
+// Default Markdown content shown on load or after pressing Reset
+const defaultMarkdown = `# Markdown Live Editor
 
-Chào mừng bạn đến với **Markdown Live**! Đây là một ứng dụng hỗ trợ soạn thảo và xem trước nội dung Markdown trong thời gian thực.
+Welcome to **Markdown Live**! This app lets you write and preview Markdown content in real time.
 
-## Các chức năng chính:
-- **Bảo mật XSS**: Tự động lọc sạch mã độc hại với DOMPurify.
-- **Đồng bộ cuộn (Sync Scroll)**: Cuộn song song cả 2 khung soạn thảo và xem trước.
-- **Copy**: Sao chép nhanh mã nguồn Markdown.
-- **Import**: Nhập file Markdown từ máy vào ứng dụng.
-- **Export**: Xuất nội dung ra **Markdown**, **DOC** (sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** với **văn bản chọn được (Selectable Text)**.
-- **Reset**: Đưa dữ liệu về văn bản mẫu ban đầu này bất kỳ lúc nào.
+## Key features:
+- **Sync Scroll**: Scrolls the editor and preview panes together.
+- **Copy**: Quickly copy the Markdown source.
+- **Import**: Import a Markdown file from your device into the app.
+- **Export**: Export your content as **Markdown**, **DOC** (Mermaid diagrams are converted to images), or **PDF** with **selectable text**.
+- **Reset**: Restore this original sample text at any time.
 
 ---
 
-## Tính năng nâng cao chuyên nghiệp:
+## Advanced professional features:
 
-### 1. Hộp thông báo đặc biệt (GFM Alerts / Callouts)
+### 1. Special callout boxes (GFM Alerts / Callouts)
 > [!NOTE]
-> Đây là một ghi chú quan trọng giúp người đọc lưu ý thông tin nhanh.
+> This is an important note to help readers catch key information quickly.
 
 > [!TIP]
-> Gợi ý cách làm việc hiệu quả hơn hoặc một mẹo nhỏ hữu ích.
+> A tip for working more efficiently, or a small useful trick.
 
 > [!IMPORTANT]
-> Đây là thông tin cực kỳ quan trọng không thể bỏ qua.
+> This is critical information that shouldn't be overlooked.
 
 > [!WARNING]
-> Cảnh báo rủi ro có thể xảy ra lỗi nếu thao tác sai.
+> A warning about a risk that could cause errors if handled incorrectly.
 
 > [!CAUTION]
-> Khuyến cáo nguy hiểm về nguy cơ mất mát dữ liệu hoặc hỏng hóc.
+> A caution about a serious risk of data loss or damage.
 
 ---
 
-### 2. Danh sách công việc (Task List)
-- [x] Tích hợp DOMPurify ngăn chặn tấn công XSS
-- [x] Cải tiến bộ tô màu cú pháp Editor (Escape, Footnote, Reference Link, Tasklist)
-- [ ] Thử nghiệm tạo tài liệu Markdown của riêng bạn
+### 2. Task List
+- [x] Integrated DOMPurify to prevent XSS attacks
+- [x] Improved the editor's syntax highlighter (Escape, Footnote, Reference Link, Tasklist)
+- [ ] Try creating your own Markdown document
 
 ---
 
-### 3. Công thức toán học (LaTeX/Math)
-- Viết cùng dòng (inline): $E = mc^2$ hoặc đường chéo tam giác $c = \\sqrt{a^2 + b^2}$.
-- Viết khối hiển thị trung tâm (block display):
+### 3. Math formulas (LaTeX/Math)
+- Inline: $E = mc^2$ or the triangle's hypotenuse $c = \\sqrt{a^2 + b^2}$.
+- Centered block display:
 $$
 f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx
 $$
 
 ---
 
-### 4. Biểu đồ trực quan (Mermaid Diagrams)
+### 4. Visual diagrams (Mermaid Diagrams)
 \`\`\`mermaid
 graph TD
-    A[Bắt đầu] --> B(Soạn thảo Markdown)
-    B --> C{Xem trước?}
-    C -- Có --> D[Hiển thị HTML]
-    C -- Không --> E[Tiếp tục viết]
-    D --> F[Xuất bản PDF]
+    A[Start] --> B(Write Markdown)
+    B --> C{Preview?}
+    C -- Yes --> D[Render HTML]
+    C -- No --> E[Keep writing]
+    D --> F[Export PDF]
 \`\`\`
 
 ---
 
-### 5. Tô màu cú pháp (Syntax Highlighting)
+### 5. Syntax Highlighting
 \`\`\`javascript
-// Một đoạn code Javascript đơn giản
+// A simple JavaScript snippet
 function helloWorld() {
-    console.log("Xin chào từ Markdown Live!");
+    console.log("Hello from Markdown Live!");
 }
 helloWorld();
 \`\`\`
 
 ---
 
-### 6. Thoát ký tự (Escape), Liên kết tham chiếu
-- Thoát ký tự đặc biệt không bị format: \\*không in nghiêng\\*, \\# không phải tiêu đề.
-- Liên kết tự động (Autolink): <https://github.com> hoặc email <support@example.com>.
-- Liên kết tham chiếu: Tìm kiếm tại [Google][google-ref] hoặc đọc tài liệu [Markdown Guide][md-guide].
+### 6. Escaping characters, reference links
+- Escape special characters so they aren't formatted: \\*not italic\\*, \\# not a heading.
+- Autolinks: <https://github.com> or an email <support@example.com>.
+- Reference links: Search on [Google][google-ref] or read the [Markdown Guide][md-guide].
 
-[google-ref]: https://www.google.com "Công cụ tìm kiếm Google"
-[md-guide]: https://www.markdownguide.org "Tài liệu Markdown chính thức"
+[google-ref]: https://www.google.com "Google search engine"
+[md-guide]: https://www.markdownguide.org "Official Markdown documentation"
 
 ---
 
-### 7. Bảng biểu (Table)
+### 7. Table
 
-| Tên công cụ | Tính năng | Trạng thái |
+| Tool | Feature | Status |
 | :--- | :--- | :--- |
-| Marked JS | Chuyển đổi Markdown | Đã tích hợp |
-| DOMPurify | Bảo mật XSS | Đã tích hợp |
-| Lucide | Bộ Icon tối giản | Đã tích hợp |
+| Marked JS | Markdown conversion | Integrated |
+| DOMPurify | XSS protection | Integrated |
+| Lucide | Minimalist icon set | Integrated |
 
-### 8. Trích dẫn thông thường (Blockquote)
-> "Sự đơn giản là độ tinh tế tối thượng." — *Leonardo da Vinci*
+### 8. Blockquote
+> "Simplicity is the ultimate sophistication." — *Leonardo da Vinci*
 
 ---
-Hãy chỉnh sửa thử nội dung ở khung bên trái và quan sát sự thay đổi tức thì ở khung bên phải nhé!
+Try editing the content in the left pane and watch it update instantly on the right!
 `;
 
 // Lấy các phần tử DOM
@@ -234,7 +233,7 @@ if (btnTheme) {
         clearMermaidCache();
         // Vẽ lại Preview để cập nhật màu Highlight.js / Mermaid theo theme mới
         if (typeof renderMarkdown === 'function') renderMarkdown();
-        showToast(nextTheme === 'dark' ? "Đã chuyển sang giao diện Tối" : "Đã chuyển sang giao diện Sáng");
+        showToast(nextTheme === 'dark' ? "Switched to Dark theme" : "Switched to Light theme");
     });
 }
 
@@ -756,7 +755,7 @@ function renderMarkdown() {
     // khong bao gio innerHTML HTML chua loc.
     if (typeof DOMPurify === 'undefined') {
         previewOutput.textContent = rawText;
-        charCounter.textContent = `${rawText.length} ký tự`;
+        charCounter.textContent = `${rawText.length} characters`;
         restorePreviewScrollTop(previousPreviewScrollTop);
         return;
     }
@@ -767,7 +766,7 @@ function renderMarkdown() {
     });
 
     previewOutput.innerHTML = cleanHtml;
-    charCounter.textContent = `${rawText.length} ký tự`;
+    charCounter.textContent = `${rawText.length} characters`;
 
     // LƯU Ý: KHÔNG khôi phục scrollTop ngay ở đây. Các bước bên dưới (GFM alerts, hljs,
     // mermaid, lucide icons) vẫn có thể làm thay đổi chiều cao nội dung; nếu khôi phục
@@ -860,7 +859,7 @@ function renderMarkdown() {
                     if (scrollGenBeforeMermaid !== previewScrollGen) return;
                     restorePreviewScrollTop(scrollTopBeforeMermaid);
                 }).catch((err) => {
-                    console.warn("Mermaid render error (đang soạn thảo sơ đồ chưa hoàn thiện):", err);
+                    console.warn("Mermaid render error (diagram is still being drafted):", err);
                 }).finally(() => {
                     pendingMermaidJobs--;
                 });
@@ -951,7 +950,7 @@ const editorHistory = {
 
 // Đồng bộ giao diện sau khi thực hiện thao tác chỉnh sửa văn bản
 function syncEditorAfterChange() {
-    charCounter.textContent = `${markdownInput.value.length} ký tự`;
+    charCounter.textContent = `${markdownInput.value.length} characters`;
     scheduleEditorHighlight();
     debouncedRender();
 }
@@ -1159,12 +1158,11 @@ function handleEditorLink() {
     const selected = val.substring(selStart, selEnd);
 
     if (selStart === selEnd) {
-        const insert = '[liên kết](url)';
+        const insert = '[link](url)';
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
-        // Bôi đen sẵn chữ "url" để người dùng dán link vào.
-        // "[liên kết](url)" -> chữ "url" nằm ở index 11-14 (không phải 10-13:
-        // vị trí đó trước đây lệch 1 ký tự, khiến vùng bôi đen lại là "(ur").
-        applyEditorChange(newText, selStart + 11, selStart + 14);
+        // Pre-select the word "url" so the user can paste their link over it.
+        // "[link](url)" -> "url" sits at index 7-10.
+        applyEditorChange(newText, selStart + 7, selStart + 10);
     } else {
         const insert = `[${selected}](url)`;
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
@@ -1381,7 +1379,7 @@ function saveContentToStorage() {
         const now = Date.now();
         if (isQuota && now - quotaWarnedAt > 10000) {
             quotaWarnedAt = now;
-            showToast('Bộ nhớ tạm đầy, nội dung mới có thể mất khi tắt app.');
+            showToast('Storage is full, new content may be lost when the app closes.');
         }
     }
 }
@@ -1420,7 +1418,7 @@ const debouncedSaveContent = debounce(saveContentToStorage, 400);
 
 // Sự kiện nhập liệu trong Editor
 markdownInput.addEventListener('input', (e) => {
-    charCounter.textContent = `${markdownInput.value.length} ký tự`;
+    charCounter.textContent = `${markdownInput.value.length} characters`;
     scheduleEditorHighlight();
     debouncedRender();
     debouncedSaveContent();
@@ -1524,14 +1522,14 @@ previewOutput.addEventListener('click', async (e) => {
 btnSync.addEventListener('click', () => {
     isSyncScrollEnabled = !isSyncScrollEnabled;
     btnSync.classList.toggle('active', isSyncScrollEnabled);
-    showToast(isSyncScrollEnabled ? "Đã bật đồng bộ cuộn trang" : "Đã tắt đồng bộ cuộn trang");
+    showToast(isSyncScrollEnabled ? "Sync scroll enabled" : "Sync scroll disabled");
 });
 
 // Nút Reset
 btnReset.addEventListener('click', () => {
-    if (confirm("Bạn có chắc chắn muốn khôi phục lại văn bản mẫu không? Hành động này sẽ ghi đè nội dung hiện tại của bạn.")) {
+    if (confirm("Are you sure you want to restore the sample text? This will overwrite your current content.")) {
         loadDefaultContent();
-        showToast("Đã khôi phục dữ liệu mẫu!");
+        showToast("Sample content restored!");
     }
 });
 
@@ -1543,8 +1541,8 @@ btnCopy.addEventListener('click', () => {
         : navigator.clipboard.writeText(textToCopy);
 
     copyPromise
-        .then(() => showToast("Đã sao chép Markdown vào khay nhớ tạm!"))
-        .catch(() => showToast("Có lỗi xảy ra khi sao chép."));
+        .then(() => showToast("Markdown copied to clipboard!"))
+        .catch(() => showToast("An error occurred while copying."));
 });
 
 // ==========================================================================
@@ -1614,7 +1612,7 @@ async function saveTextFile(contents, baseName, ext, mimeType) {
     // Fallback trinh duyet. Trong WebView Tauri ma thieu dialog/fs thi
     // <a download> khong hoat dong: bao ro thay vi im lang "thanh cong".
     if (isTauriRuntime()) {
-        showToast('Không lưu được file: thiếu plugin lưu file của app.');
+        showToast('Could not save the file: the app\'s file-saving plugin is missing.');
         return false;
     }
     downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
@@ -1626,15 +1624,15 @@ async function saveTextFile(contents, baseName, ext, mimeType) {
 async function exportMarkdown() {
     const text = markdownInput.value;
     if (!text.trim()) {
-        showToast("Nội dung trống, không có gì để xuất.");
+        showToast("Content is empty, nothing to export.");
         return;
     }
     try {
         const saved = await saveTextFile(text, deriveExportBaseName(text), 'md', 'text/markdown;charset=utf-8');
-        if (saved) showToast("Đã xuất file Markdown!");
+        if (saved) showToast("Markdown file exported!");
     } catch (err) {
-        console.error('Export Markdown thất bại:', err);
-        showToast("Có lỗi xảy ra khi xuất file Markdown.");
+        console.error('Markdown export failed:', err);
+        showToast("An error occurred while exporting the Markdown file.");
     }
 }
 
@@ -1764,10 +1762,10 @@ function buildWordHtml(bodyHtml) {
 async function exportDoc() {
     const text = markdownInput.value;
     if (!text.trim()) {
-        showToast("Nội dung trống, không có gì để xuất.");
+        showToast("Content is empty, nothing to export.");
         return;
     }
-    showToast("Đang tạo file DOC...");
+    showToast("Generating DOC file...");
 
     // Clone Preview đã render hoàn chỉnh (heading, bullet, đậm/nghiêng, bảng, alert...)
     renderMarkdown();
@@ -1817,24 +1815,24 @@ async function exportDoc() {
             }
             cloneMers[i].replaceWith(img);
         } catch (e) {
-            console.warn('Không chuyển được sơ đồ Mermaid sang ảnh, giữ nguyên mã nguồn:', e);
+            console.warn('Could not convert the Mermaid diagram to an image, keeping the source code:', e);
         }
     }
 
     const html = buildWordHtml(clone.innerHTML);
     try {
         const saved = await saveTextFile('\ufeff' + html, deriveExportBaseName(text), 'doc', 'application/msword');
-        if (saved) showToast("Đã xuất file DOC!");
+        if (saved) showToast("DOC file exported!");
     } catch (err) {
-        console.error('Export DOC thất bại:', err);
-        showToast("Có lỗi xảy ra khi xuất file DOC.");
+        console.error('DOC export failed:', err);
+        showToast("An error occurred while exporting the DOC file.");
     }
 }
 
 // ----- Export PDF (hộp thoại In của hệ thống, văn bản chọn được & tìm kiếm được) -----
 
 async function exportPdf() {
-    showToast("Đang chuẩn bị trang in / xuất file PDF...");
+    showToast("Preparing the print page / exporting PDF...");
     renderMarkdown();
     try {
         await Promise.all([
@@ -1891,12 +1889,12 @@ importFileInput.addEventListener('change', () => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-        showToast("File quá lớn (tối đa 5MB).");
+        showToast("File is too large (5MB max).");
         return;
     }
 
     if (!isImportableFile(file)) {
-        showToast('Chỉ nhập được file Markdown (.md, .markdown, .txt).');
+        showToast('Only Markdown files can be imported (.md, .markdown, .txt).');
         return;
     }
 
@@ -1904,17 +1902,17 @@ importFileInput.addEventListener('change', () => {
     reader.onload = () => {
         const text = String(reader.result);
         if (!text.trim()) {
-            showToast("File rỗng hoặc không đọc được nội dung.");
+            showToast("File is empty or its content could not be read.");
             return;
         }
-        if (markdownInput.value.trim() && !confirm("Nhập file sẽ ghi đè nội dung hiện tại. Tiếp tục?")) {
+        if (markdownInput.value.trim() && !confirm("Importing a file will overwrite the current content. Continue?")) {
             return;
         }
         applyContent(text);
         saveContentToStorage();
-        showToast(`Đã nhập "${file.name}" vào editor!`);
+        showToast(`Imported "${file.name}" into the editor!`);
     };
-    reader.onerror = () => showToast("Có lỗi xảy ra khi đọc file.");
+    reader.onerror = () => showToast("An error occurred while reading the file.");
     reader.readAsText(file, 'utf-8');
 });
 
@@ -1974,8 +1972,8 @@ function runSelfCheck() {
 
     const failed = results.filter(r => r.startsWith('FAIL'));
     (failed.length ? console.error : console.log)('Self-check Import/Export:\n' + results.join('\n'));
-    if (failed.length) showToast(`Self-check: ${failed.length} test FAIL (xem console)`);
-    else showToast('Self-check: tất cả PASS');
+    if (failed.length) showToast(`Self-check: ${failed.length} test FAIL (see console)`);
+    else showToast('Self-check: all PASS');
 }
 if (location.search.includes('selfcheck')) {
     window.addEventListener('DOMContentLoaded', runSelfCheck);

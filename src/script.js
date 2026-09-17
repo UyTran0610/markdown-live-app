@@ -1756,9 +1756,52 @@ function buildWordHtml(bodyHtml) {
         + '<style>' + DOC_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
 }
 
-// ponytail: công thức KaTeX giữ nguyên dạng HTML/CSS - Word không render được font KaTeX
-// nên công thức sẽ hiển thị dạng chữ thường; nâng cấp sau: render KaTeX sang ảnh
-// giống cách làm với Mermaid ở trên. Ảnh với URL remote giữ nguyên <img src> (Word tự tải).
+// KaTeX render mỗi công thức thành 2 lớp: .katex-mathml (MathML chuẩn, ẩn bằng CSS
+// của katex.min.css) và .katex-html (hàng trăm span định vị bằng CSS). File DOC không
+// mang theo CSS đó nên Word in cả hai lớp ra thành chữ rác. Hàm này thay mỗi
+// span.katex bằng một <math> MathML thuần mà Word nhập trực tiếp thành phương trình.
+// Khối nhiều dòng (aligned/bmatrix...): MathML mặc định của KaTeX còn thưa (chỉ mrow),
+// nên render lại từ LaTeX nguồn (lấy trong <annotation encoding="application/x-tex">)
+// với output:'mathml' để có cây mtable đầy đủ mà Word hiểu là công thức nhiều dòng.
+function convertKatexForDoc(container) {
+    container.querySelectorAll('span.katex').forEach((el) => {
+        let math = el.querySelector('.katex-mathml > math')
+            // output:'mathml' của KaTeX không có wrapper .katex-mathml, <math> là con trực tiếp.
+            || el.querySelector(':scope > math');
+        const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+        const tex = annotation ? annotation.textContent : '';
+        // Khối nhiều dòng: MathML mặc định của KaTeX (nhân bản .katex-mathml) thiếu
+        // cấu trúc dòng; render lại từ LaTeX nguồn cho ra MathML phẳng đầy đủ (mtable).
+        if (tex && /\\\\|\\begin\{(aligned|align|gather|cases|matrix|bmatrix|pmatrix|vmatrix|array)\}/.test(tex)
+            && typeof katex !== 'undefined') {
+            try {
+                const tmp = document.createElement('div');
+                tmp.innerHTML = katex.renderToString(tex, { throwOnError: false, displayMode: true, output: 'mathml' });
+                const rendered = tmp.querySelector('math');
+                if (rendered) math = rendered;
+            } catch (e) { /* giữ math mặc định bên dưới */ }
+        }
+        if (math) {
+            // Word không hiểu <annotation>; bỏ annotation và mọi text node trần
+            // (DOMPurify ở preview có thể đã gỡ annotation nhưng chừa lại text của nó).
+            math.querySelectorAll('annotation').forEach((a) => a.remove());
+            Array.from(math.childNodes)
+                .filter(n => n.nodeType === 3 && n.textContent.trim())
+                .forEach(n => n.remove());
+            const wrapper = document.createElement('span');
+            wrapper.style.fontFamily = "'Cambria Math', 'Times New Roman', serif";
+            wrapper.innerHTML = typeof DOMPurify !== 'undefined'
+                ? DOMPurify.sanitize(math.outerHTML, { USE_PROFILES: { mathMl: true } })
+                : math.outerHTML;
+            el.replaceWith(wrapper);
+        } else {
+            // Không có MathML (KaTeX lỗi/không tải): giữ LaTeX nguồn thay vì chữ rác.
+            el.replaceWith(document.createTextNode(el.textContent));
+        }
+    });
+}
+
+// Ảnh với URL remote giữ nguyên <img src> (Word tự tải).
 async function exportDoc() {
     const text = markdownInput.value;
     if (!text.trim()) {
@@ -1818,6 +1861,10 @@ async function exportDoc() {
             console.warn('Could not convert the Mermaid diagram to an image, keeping the source code:', e);
         }
     }
+
+    // Công thức KaTeX -> MathML thuần (Word nhập trực tiếp thành phương trình);
+    // chạy sau vòng lặp Mermaid vì các bước convert trên không đụng tới span.katex.
+    convertKatexForDoc(clone);
 
     const html = buildWordHtml(clone.innerHTML);
     try {
@@ -1969,6 +2016,42 @@ function runSelfCheck() {
     const textEl = svg.querySelector('text');
     assert('foreignObject chuyển thành <text>', !!textEl && !svg.querySelector('foreignObject') && svg.textContent.includes('Xin chào'));
     assert('tspan đặt đúng tâm foreignObject', textEl && textEl.querySelector('tspan').getAttribute('x') === '60');
+
+    if (typeof katex !== 'undefined') {
+        // Inline thường: dùng MathML có sẵn trong .katex-mathml, gỡ annotation.
+        const inlineHost = document.createElement('div');
+        inlineHost.innerHTML = katex.renderToString('E = mc^2', { throwOnError: false, output: 'htmlAndMathml' });
+        convertKatexForDoc(inlineHost);
+        const inlineMath = inlineHost.querySelector('math');
+        assert('katex inline chuyển thành <math> thuần', !!inlineMath && !inlineHost.querySelector('span.katex'));
+        assert('katex inline bỏ annotation', !!inlineMath && !inlineMath.querySelector('annotation'));
+
+        // Khối nhiều dòng: phải render lại từ LaTeX nguồn ra MathML phẳng có mtable/mtr.
+        const alignedHost = document.createElement('div');
+        alignedHost.innerHTML = katex.renderToString(
+            String.raw`\begin{aligned} a &= 1 \\ b &= 2 \end{aligned}`,
+            { throwOnError: false, displayMode: true, output: 'htmlAndMathml' }
+        );
+        convertKatexForDoc(alignedHost);
+        const alignedMath = alignedHost.querySelector('math');
+        assert('katex aligned chuyển thành <math> có mtable', !!alignedMath && !!alignedMath.querySelector('mtable'));
+        assert('katex aligned giữ đủ 2 dòng', !!alignedMath && alignedMath.querySelectorAll('mtr').length === 2);
+
+        // Text node trần (tàn dư của annotation bị DOMPurify gỡ ở preview) phải bị dọn.
+        const strayHost = document.createElement('div');
+        strayHost.innerHTML = katex.renderToString('E = mc^2', { throwOnError: false, output: 'mathml' });
+        const strayMath = strayHost.querySelector('math');
+        strayMath.appendChild(document.createTextNode('E = mc^2'));
+        convertKatexForDoc(strayHost);
+        const cleanedMath = strayHost.querySelector('math');
+        assert('katex dọn text node trần trong <math>', !!cleanedMath && !Array.from(cleanedMath.childNodes).some(n => n.nodeType === 3 && n.textContent.trim()));
+
+        // KaTeX hỏng (không có .katex-mathml): phải thay bằng text thay vì để lại span rác.
+        const brokenHost = document.createElement('div');
+        brokenHost.innerHTML = '<span class="katex">fallback text</span>';
+        convertKatexForDoc(brokenHost);
+        assert('katex hỏng fallback thành text', brokenHost.textContent === 'fallback text' && !brokenHost.querySelector('span.katex'));
+    }
 
     const failed = results.filter(r => r.startsWith('FAIL'));
     (failed.length ? console.error : console.log)('Self-check Import/Export:\n' + results.join('\n'));

@@ -2064,25 +2064,30 @@ if (location.search.includes('selfcheck')) {
 
 // Chạy khởi tạo ứng dụng khi trang web tải xong
 window.addEventListener('DOMContentLoaded', () => {
-    // Nạp nội dung TRƯỚC tiên: dù các thư viện bên dưới có lỗi thì nội dung
-    // đã lưu vẫn hiển thị trong editor thay vì trang trắng trống.
-    loadInitialContent();
-
-    if (typeof mermaid !== 'undefined') {
-        mermaid.initialize({ startOnLoad: false, theme: getCurrentTheme() === 'dark' ? 'dark' : 'default' });
-    }
-
-    if (typeof markedKatex !== 'undefined' && typeof marked !== 'undefined') {
-        const katexExt = typeof markedKatex === 'function' ? markedKatex : markedKatex.markedKatex;
-        if (katexExt) {
-            marked.use(katexExt({ throwOnError: false }));
+    try {
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: getCurrentTheme() === 'dark' ? 'dark' : 'default' });
         }
-    }
 
-    // Guard: nếu lucide fail to load thì bỏ qua vẽ icon thay vì văng exception
-    // làm hỏng toàn bộ khởi tạo.
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+        if (typeof markedKatex !== 'undefined' && typeof marked !== 'undefined') {
+            const katexExt = typeof markedKatex === 'function' ? markedKatex : markedKatex.markedKatex;
+            if (katexExt) {
+                marked.use(katexExt({ throwOnError: false }));
+            }
+        }
+
+        // Guard: nếu lucide fail to load thì bỏ qua vẽ icon thay vì văng exception
+        // làm hỏng toàn bộ khởi tạo.
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    } finally {
+        // Nạp nội dung CUỐI cùng: lần renderMarkdown() đầu tiên phải chạy sau khi
+        // mermaid đã initialize và marked đã gắn KaTeX extension, nếu không công
+        // thức toán ($...$ / $$...$$) ở lần mở app đầu tiên chỉ hiện chữ thô và
+        // phải gõ thêm mới render. Đặt trong finally để editor vẫn có nội dung
+        // dù khối init bên trên có ném lỗi.
+        loadInitialContent();
     }
 });
 

@@ -50,9 +50,12 @@
 
     /* Tô màu cú pháp trong Editor */
     --md-header-marker: #8c959f;
-    --md-header-12: #0550ae;
-    --md-header-34: #0969da;
-    --md-header-56: #218bff;
+    --md-header-1: #063f8c;
+    --md-header-2: #0550ae;
+    --md-header-3: #0969da;
+    --md-header-4: #218bff;
+    --md-header-5: #54aeff;
+    --md-header-6: #91c9ff;
     --md-bold: #24292f;
     --md-italic: #24292f;
     --md-bolditalic: #24292f;
@@ -135,9 +138,12 @@
     --toast-text: #f0f6fc;
 
     --md-header-marker: #8b949e;
-    --md-header-12: #58a6ff;
-    --md-header-34: #79c0ff;
-    --md-header-56: #a5d6ff;
+    --md-header-1: #388bfd;
+    --md-header-2: #58a6ff;
+    --md-header-3: #79c0ff;
+    --md-header-4: #a5d6ff;
+    --md-header-5: #c3e5ff;
+    --md-header-6: #e0f2ff;
     --md-bold: #c9d1d9;
     --md-italic: #c9d1d9;
     --md-bolditalic: #c9d1d9;
@@ -521,9 +527,12 @@ body {
    ========================================================================== */
 .md-header-marker { color: var(--md-header-marker); font-weight: 600; }
 .md-header { font-weight: 700; }
-.md-header-1, .md-header-2 { color: var(--md-header-12); }
-.md-header-3, .md-header-4 { color: var(--md-header-34); }
-.md-header-5, .md-header-6 { color: var(--md-header-56); }
+.md-header-1 { color: var(--md-header-1); }
+.md-header-2 { color: var(--md-header-2); }
+.md-header-3 { color: var(--md-header-3); }
+.md-header-4 { color: var(--md-header-4); }
+.md-header-5 { color: var(--md-header-5); }
+.md-header-6 { color: var(--md-header-6); }
 
 .md-bold { color: var(--md-bold); font-weight: 700; }
 .md-italic { color: var(--md-italic); font-style: italic; }

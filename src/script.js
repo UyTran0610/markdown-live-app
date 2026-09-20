@@ -198,8 +198,15 @@ function getCurrentTheme() {
 
 // Áp dụng theme: cập nhật thuộc tính data-theme, hoán đổi CSS bên ngoài (markdown/hljs)
 // và đồng bộ theme của Mermaid. persist=true khi người dùng chủ động bấm nút chuyển đổi.
+function syncWindowTheme(theme) {
+    try {
+        if (window.__TAURI__ && window.__TAURI__.window) window.__TAURI__.window.getCurrentWindow().setTheme(theme).catch(() => {});
+    } catch (e) {}
+}
+
 function applyTheme(theme, persist) {
     document.documentElement.setAttribute('data-theme', theme);
+    syncWindowTheme(theme);
 
     if (markdownThemeLink) {
         markdownThemeLink.href = theme === 'dark'
@@ -223,6 +230,9 @@ function applyTheme(theme, persist) {
         }
     }
 }
+
+// Đẩy theme khởi động (đã chọn ở <head>) xuống khung cửa sổ Tauri; bỏ qua khi mở bằng trình duyệt thường.
+syncWindowTheme(getCurrentTheme());
 
 // Nút Bật/Tắt giao diện Sáng / Tối
 if (btnTheme) {

@@ -18,7 +18,7 @@
     --border-color: #d0d7de;
 
     /* Toolbar: nền sáng cùng họ với pane, phân tách bằng đường viền mảnh */
-    --header-bg: #ffffff;
+    --header-bg: var(--pane-header-bg);
     --header-text: #24292f;
     --logo-icon: #0969da;
 
@@ -127,7 +127,7 @@
     --text-muted: #6e7681;
     --border-color: #30363d;
 
-    --header-bg: #161b22;
+    --header-bg: var(--pane-header-bg);
     --header-text: #c9d1d9;
     --logo-icon: #58a6ff;
 
@@ -345,7 +345,7 @@ body {
     position: absolute;
     top: calc(100% + 8px);
     right: 0;
-    min-width: 184px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     padding: 4px;

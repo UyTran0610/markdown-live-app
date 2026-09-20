@@ -17,24 +17,30 @@
     --text-muted: #8c959f;
     --border-color: #d0d7de;
 
-    --header-bg: #1f2328;
-    --header-text: #ffffff;
-    --logo-icon: #4f46e5;
+    /* Toolbar: nền sáng cùng họ với pane, phân tách bằng đường viền mảnh */
+    --header-bg: #ffffff;
+    --header-text: #24292f;
+    --logo-icon: #0969da;
 
-    /* Nút toolbar luôn nằm trên header tối ở cả 2 theme, nên dùng lớp phủ trắng
-       trong suốt (pattern "button on dark header" của GitHub) thay vì màu đặc.
-       Token giống hệt nhau ở light/dark: --btn-text bám theo --header-text. */
-    --btn-bg: rgba(255, 255, 255, 0.06);
-    --btn-bg-hover: rgba(255, 255, 255, 0.10);
-    --btn-bg-pressed: rgba(255, 255, 255, 0.03);
-    --btn-border: rgba(255, 255, 255, 0.14);
-    --btn-border-hover: rgba(255, 255, 255, 0.24);
-    --btn-text: var(--header-text);
-    --btn-accent: #6366f1;
-    --btn-active-bg: rgba(99, 102, 241, 0.22);
-    --btn-active-border: rgba(129, 140, 248, 0.55);
-    --btn-active-text: #c7d2fe;
-    --btn-focus-ring: rgba(99, 102, 241, 0.45);
+    /* Nút dạng "ghost": không nền, không viền; chỉ hiện nền nhạt khi hover.
+       Trạng thái bật dùng tint xanh nhạt (cùng màu link ở Preview). */
+    --btn-bg: transparent;
+    --btn-border: #d0d7de;
+    --btn-border-hover: #afb8c1;
+    --btn-bg-hover: rgba(175, 184, 193, 0.2);
+    --btn-bg-pressed: rgba(175, 184, 193, 0.32);
+    --btn-text: #57606a;
+    --btn-text-hover: #24292f;
+    --btn-active-bg: rgba(9, 105, 218, 0.1);
+    --btn-active-bg-hover: rgba(9, 105, 218, 0.16);
+    --btn-active-border: rgba(9, 105, 218, 0.4);
+    --btn-active-text: #0550ae;
+    --btn-focus-ring: rgba(9, 105, 218, 0.55);
+
+    /* Menu xổ xuống (Export) */
+    --menu-bg: #ffffff;
+    --menu-border: #d0d7de;
+    --menu-shadow: 0 8px 24px rgba(140, 149, 159, 0.25);
 
     --pane-bg: #ffffff;
     --pane-header-bg: #f6f8fa;
@@ -122,8 +128,24 @@
     --border-color: #30363d;
 
     --header-bg: #161b22;
-    --header-text: #f0f6fc;
-    --logo-icon: #818cf8;
+    --header-text: #c9d1d9;
+    --logo-icon: #58a6ff;
+
+    --btn-border: #30363d;
+    --btn-border-hover: #484f58;
+    --btn-bg-hover: rgba(110, 118, 129, 0.2);
+    --btn-bg-pressed: rgba(110, 118, 129, 0.32);
+    --btn-text: #8b949e;
+    --btn-text-hover: #c9d1d9;
+    --btn-active-bg: rgba(56, 139, 253, 0.15);
+    --btn-active-bg-hover: rgba(56, 139, 253, 0.22);
+    --btn-active-border: rgba(56, 139, 253, 0.45);
+    --btn-active-text: #79c0ff;
+    --btn-focus-ring: rgba(56, 139, 253, 0.6);
+
+    --menu-bg: #1c2128;
+    --menu-border: #30363d;
+    --menu-shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
 
     --pane-bg: #0d1117;
     --pane-header-bg: #161b22;
@@ -214,12 +236,12 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 16px;
+    padding: 0 16px;
     background-color: var(--header-bg);
     color: var(--header-text);
     height: 44px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    transition: background-color 0.2s;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .logo {
@@ -239,6 +261,7 @@ body {
 
 .toolbar {
     display: flex;
+    align-items: center;
     gap: 6px;
 }
 
@@ -246,9 +269,11 @@ body {
 .btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 12px;
-    font-size: 0.8rem;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    font-family: inherit;
+    font-size: 0.8125rem;
     font-weight: 500;
     line-height: 1;
     border-radius: 6px;
@@ -256,12 +281,13 @@ body {
     border: 1px solid var(--btn-border);
     background: var(--btn-bg);
     color: var(--btn-text);
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .btn:hover {
     background: var(--btn-bg-hover);
     border-color: var(--btn-border-hover);
+    color: var(--btn-text-hover);
 }
 
 .btn:active {
@@ -270,12 +296,18 @@ body {
 
 .btn:focus-visible {
     outline: 2px solid var(--btn-focus-ring);
-    outline-offset: 2px;
+    outline-offset: 1px;
 }
 
-/* Trạng thái bật (Sync Scroll ON): tint indigo thay vì đổ màu đặc */
+/* Trạng thái bật (Sync Scroll ON): tint xanh nhạt + viền và chữ xanh */
 .btn.active {
     background: var(--btn-active-bg);
+    border-color: var(--btn-active-border);
+    color: var(--btn-active-text);
+}
+
+.btn.active:hover {
+    background: var(--btn-active-bg-hover);
     border-color: var(--btn-active-border);
     color: var(--btn-active-text);
 }
@@ -287,8 +319,9 @@ body {
 
 .btn i,
 .btn svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
 }
 
 /* Nút Import + Dropdown Export */
@@ -298,6 +331,9 @@ body {
 }
 
 .export-wrap .chevron {
+    width: 13px;
+    height: 13px;
+    opacity: 0.7;
     transition: transform 0.15s;
 }
 
@@ -307,16 +343,16 @@ body {
 
 .export-menu {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     right: 0;
-    min-width: 180px;
+    min-width: 184px;
     display: flex;
     flex-direction: column;
     padding: 4px;
-    border: 1px solid var(--btn-border-hover);
+    border: 1px solid var(--menu-border);
     border-radius: 8px;
-    background: var(--header-bg);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    background: var(--menu-bg);
+    box-shadow: var(--menu-shadow);
     z-index: 500;
 }
 
@@ -328,12 +364,12 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 7px 10px;
     border: none;
     border-radius: 5px;
     background: transparent;
-    color: var(--btn-text);
-    font-size: 0.8rem;
+    color: var(--text-primary);
+    font-size: 0.8125rem;
     font-weight: 500;
     font-family: inherit;
     text-align: left;
@@ -348,11 +384,17 @@ body {
     outline: none;
 }
 
+.export-item:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: -2px;
+}
+
 .export-item i,
 .export-item svg {
     width: 15px;
     height: 15px;
     flex-shrink: 0;
+    color: var(--text-secondary);
 }
 
 /* Nút chuyển đổi giao diện Sáng / Tối */
@@ -660,7 +702,7 @@ body {
     }
 
     .app-header {
-        padding: 4px 10px;
+        padding: 0 10px;
         height: 42px;
     }
     .toolbar {
@@ -670,7 +712,7 @@ body {
         min-width: 32px;
         min-height: 32px;
         padding: 0 8px;
-        border-radius: 5px;
+        border-radius: 6px;
         gap: 0;
     }
     .btn i,

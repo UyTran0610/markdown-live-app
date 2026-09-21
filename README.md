@@ -45,6 +45,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Diagrams as Code:** Integrated Mermaid.js engine supporting Flowcharts, Sequence Diagrams, and Entity Relationship Diagrams (ERDs).
 - **Code Syntax Highlighting:** Automatic detection and multi-language syntax formatting powered by Highlight.js.
 - **Dynamic Syntax Overlay:** Textarea synchronized with real-time Markdown syntax highlighting directly in the editor.
+- **Formatting Toolbar:** One-click toolbar above the editor for Headings, Lists, Bold, Italic, Strikethrough, Links, and Tables, so you can format Markdown without memorizing the syntax.
 - **Multi-Format Export:** Export content as Markdown (`.md`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
 - **File Import:** Open a local Markdown file (`.md`, `.markdown`, `.txt`) directly into the editor.
 - **Light/Dark Theme:** Automatic system theme detection, manual theme switching, and state persistence between sessions.
@@ -124,6 +125,23 @@ After launching the application, type or paste your Markdown content into the **
 | **Export** | Open a menu to export content as **Markdown** (`.md`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
 | **Theme** | Toggle between Light and Dark themes |
 
+### Formatting Toolbar
+
+The formatting toolbar sits above the **EDITOR** pane. Select some text and click a button to apply the formatting, or click without a selection to insert the Markdown syntax at the cursor position.
+
+| Button | Description | Markdown Output | Shortcut |
+| :--- | :--- | :--- | :--- |
+| **Headings** | Choose a heading level from the list | `# Heading 1` ... `###### Heading 6` | — |
+| **Lists** | Choose a list type: bullet, numbered, or task list | `- item`, `1. item`, `- [ ] task` | — |
+| **B** (Bold) | Make the selected text bold | `**text**` | `Ctrl`/`Cmd` + `B` |
+| *I* (Italic) | Make the selected text italic | `*text*` | `Ctrl`/`Cmd` + `I` |
+| ~~S~~ (Strikethrough) | Strike through the selected text | `~~text~~` | `Ctrl`/`Cmd` + `Shift` + `X` |
+| **Link** | Insert a link; the `url` placeholder is highlighted for quick pasting | `[text](url)` | `Ctrl`/`Cmd` + `K` |
+| **Table** | Insert a Markdown table template at the cursor | `\| Column \| Column \|` | — |
+
+> [!TIP]
+> All toolbar actions work with Undo/Redo (`Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y`), and the preview updates instantly after each action.
+
 ### Editor Shortcuts
 
 The editor includes built-in shortcuts and formatting utilities common in modern source code editors:
@@ -148,11 +166,23 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 
 ### PDF
 
+> [!TIP]
+> **Switch to the Light theme before exporting.**
+> For the best results, use the **Light** theme before exporting to PDF so the printed document has clean colors and good contrast on paper.
+
 > [!IMPORTANT]
 > **System Print Engine Settings:**
 > To ensure printed documents or exported PDF files retain background colors, Alert Callouts, and code block styles:
 > 1. In the system Print Dialog, expand the **More settings** dropdown.
 > 2. Enable the **Background graphics** checkbox.
+
+### DOC
+
+> [!TIP]
+> **Switch to the Light theme before exporting.**
+> For the best results, use the **Light** theme before exporting to DOC so the exported Word document keeps clean colors and good contrast.
+
+The exported `.doc` file can be opened in Microsoft Word. Mermaid diagrams are automatically converted to images.
 
 ---
 

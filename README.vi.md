@@ -45,6 +45,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Diagrams as Code:** Tích hợp Mermaid.js engine biên dịch biểu đồ luồng (Flowchart), biểu đồ tuần tự (Sequence), biểu đồ quan hệ (ERD).
 - **Code Syntax Highlighting:** Tự động phát hiện và định dạng mã nguồn đa ngôn ngữ thông qua Highlight.js.
 - **Dynamic Syntax Overlay:** Khung textarea được xử lý đồng bộ màu cú pháp Markdown trực tiếp.
+- **Formatting Toolbar:** Thanh công cụ một chạm phía trên khung soạn thảo cho Tiêu đề, Danh sách, In đậm, In nghiêng, Gạch ngang, Liên kết và Bảng, giúp bạn định dạng Markdown mà không cần nhớ cú pháp.
 - **Multi-Format Export:** Xuất nội dung ra Markdown (`.md`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
 - **File Import:** Mở file Markdown từ máy tính (`.md`, `.markdown`, `.txt`) trực tiếp vào trình soạn thảo.
 - **Light/Dark Theme:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ lựa chọn giữa các lần mở ứng dụng.
@@ -124,6 +125,23 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 | **Export** | Mở menu xuất nội dung ra **Markdown** (`.md`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
 
+### Thanh công cụ định dạng
+
+Thanh công cụ định dạng nằm phía trên khung **EDITOR**. Bôi đen đoạn văn bản rồi nhấn nút để áp dụng định dạng, hoặc nhấn nút khi không bôi đen để chèn cú pháp Markdown tại vị trí con trỏ.
+
+| Nút | Chức năng | Kết quả Markdown | Phím tắt |
+| :--- | :--- | :--- | :--- |
+| **Headings** | Chọn cấp độ tiêu đề từ danh sách | `# Heading 1` ... `###### Heading 6` | — |
+| **Lists** | Chọn loại danh sách: gạch đầu dòng, đánh số hoặc task list | `- item`, `1. item`, `- [ ] task` | — |
+| **B** (Bold) | In đậm đoạn văn bản đang chọn | `**text**` | `Ctrl`/`Cmd` + `B` |
+| *I* (Italic) | In nghiêng đoạn văn bản đang chọn | `*text*` | `Ctrl`/`Cmd` + `I` |
+| ~~S~~ (Strikethrough) | Gạch ngang giữa đoạn văn bản đang chọn | `~~text~~` | `Ctrl`/`Cmd` + `Shift` + `X` |
+| **Link** | Chèn liên kết; phần `url` được bôi đen sẵn để dán nhanh | `[text](url)` | `Ctrl`/`Cmd` + `K` |
+| **Table** | Chèn mẫu bảng Markdown tại vị trí con trỏ | `\| Column \| Column \|` | — |
+
+> [!TIP]
+> Mọi thao tác trên thanh công cụ đều hoạt động với Undo/Redo (`Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y`), và bản xem trước được cập nhật tức thì sau mỗi thao tác.
+
 ### Phím tắt trong Editor
 
 Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh sửa quen thuộc như trong các trình soạn thảo mã nguồn:
@@ -148,11 +166,23 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 
 ### PDF
 
+> [!TIP]
+> **Chuyển sang giao diện Sáng trước khi xuất.**
+> Để có kết quả tốt nhất, hãy dùng giao diện **Sáng (Light)** trước khi xuất PDF để bản in có màu sắc rõ ràng và độ tương phản tốt trên giấy.
+
 > [!IMPORTANT]
 > **Cấu hình Print Engine của hệ thống:**
 > Để bản in hoặc file xuất PDF giữ nguyên toàn bộ nền màu, định dạng Alert Callouts và khối mã nguồn:
 > 1. Trong hộp thoại in của hệ thống (Print Dialog), mở rộng danh mục **More settings (Cài đặt khác)**.
 > 2. Bật tùy chọn **Background graphics (Đồ họa nền)**.
+
+### DOC
+
+> [!TIP]
+> **Chuyển sang giao diện Sáng trước khi xuất.**
+> Để có kết quả tốt nhất, hãy dùng giao diện **Sáng (Light)** trước khi xuất DOC để tài liệu Word giữ được màu sắc rõ ràng và độ tương phản tốt.
+
+File `.doc` sau khi xuất có thể mở bằng Microsoft Word. Các sơ đồ Mermaid được tự động chuyển thành ảnh.
 
 ---
 

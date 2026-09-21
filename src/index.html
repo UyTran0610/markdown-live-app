@@ -48,8 +48,60 @@
     <!-- Header / Toolbar -->
     <header class="app-header">
         <div class="logo">
-            <!-- <i data-lucide="file-text" class="logo-icon"></i>
-            <h1>Markdown Live</h1> -->
+            <!-- Thanh định dạng Markdown, thay thế vị trí logo cũ -->
+            <div class="format-bar" role="toolbar" aria-label="Formatting toolbar">
+                <div class="format-wrap">
+                    <button id="btn-heading" class="btn-icon" title="Headings" aria-haspopup="menu" aria-expanded="false">
+                        <i data-lucide="heading-1"></i>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div id="heading-menu" class="format-menu hidden" role="menu" aria-label="Heading level">
+                        <button class="format-item" data-heading="1" role="menuitem"><i data-lucide="heading-1" class="h1"></i><span>Heading 1</span></button>
+                        <button class="format-item" data-heading="2" role="menuitem"><i data-lucide="heading-2" class="h2"></i><span>Heading 2</span></button>
+                        <button class="format-item" data-heading="3" role="menuitem"><i data-lucide="heading-3" class="h3"></i><span>Heading 3</span></button>
+                        <button class="format-item" data-heading="4" role="menuitem"><i data-lucide="heading-4" class="h4"></i><span>Heading 4</span></button>
+                        <button class="format-item" data-heading="5" role="menuitem"><i data-lucide="heading-5" class="h5"></i><span>Heading 5</span></button>
+                        <button class="format-item" data-heading="6" role="menuitem"><i data-lucide="heading-6" class="h6"></i><span>Heading 6</span></button>
+                        <div class="format-menu-sep" role="separator"></div>
+                        <button class="format-item" data-heading="0" role="menuitem"><i data-lucide="pilcrow" class="plain"></i><span>Plain text</span></button>
+                    </div>
+                </div>
+                <div class="format-wrap">
+                    <button id="btn-list" class="btn-icon" title="Lists" aria-haspopup="menu" aria-expanded="false">
+                        <i data-lucide="list"></i>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div id="list-menu" class="format-menu hidden" role="menu" aria-label="List style">
+                        <button class="format-item" data-list="bullet" role="menuitem"><i data-lucide="list"></i><span>Bulleted list</span></button>
+                        <button class="format-item" data-list="numbered" role="menuitem"><i data-lucide="list-ordered"></i><span>Numbered list</span></button>
+                        <button class="format-item" data-list="task" role="menuitem"><i data-lucide="list-todo"></i><span>Task list</span></button>
+                    </div>
+                </div>
+                <button id="btn-bold" class="btn-icon" title="Bold (Ctrl+B)" aria-label="Bold">
+                    <i data-lucide="bold"></i>
+                </button>
+                <button id="btn-italic" class="btn-icon" title="Italic (Ctrl+I)" aria-label="Italic">
+                    <i data-lucide="italic"></i>
+                </button>
+                <button id="btn-strike" class="btn-icon" title="Strikethrough (Ctrl+Shift+X)" aria-label="Strikethrough">
+                    <i data-lucide="strikethrough"></i>
+                </button>
+                <button id="btn-link" class="btn-icon" title="Insert link (Ctrl+K)" aria-label="Insert link">
+                    <i data-lucide="link-2"></i>
+                </button>
+                <div class="format-wrap">
+                    <button id="btn-table" class="btn-icon" title="Insert table" aria-haspopup="menu" aria-expanded="false">
+                        <i data-lucide="table-2"></i>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div id="table-menu" class="format-menu table-picker hidden" role="menu" aria-label="Table size">
+                        <div class="table-grid">
+                            <!-- 24 ô lưới được sinh sẵn bằng JS (5x5, ô cuối là Custom size) -->
+                        </div>
+                        <button class="format-item" data-table="custom" role="menuitem"><i data-lucide="table-2"></i><span>Custom size</span></button>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="toolbar">
             <button id="btn-sync" class="btn active" title="Sync scroll">
@@ -118,6 +170,36 @@
             <div id="preview-output" class="markdown-body"></div>
         </section>
     </main>
+
+    <!-- Link Dialog -->
+    <div id="link-dialog" class="dialog-overlay hidden">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title">
+            <h2 id="link-dialog-title">Link</h2>
+            <label for="link-text">Display text</label>
+            <input type="text" id="link-text" placeholder="Text for the link (optional)">
+            <label for="link-url">Address</label>
+            <input type="text" id="link-url" placeholder="Link to an existing webpage">
+            <div class="dialog-actions">
+                <button id="link-insert" class="dialog-btn primary" disabled>Insert</button>
+                <button id="link-cancel" class="dialog-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Size Dialog -->
+    <div id="table-dialog" class="dialog-overlay hidden">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="table-dialog-title">
+            <h2 id="table-dialog-title">Insert table</h2>
+            <label for="table-cols">Number of columns</label>
+            <input type="number" id="table-cols" min="1" max="99" value="3">
+            <label for="table-rows">Number of rows</label>
+            <input type="number" id="table-rows" min="1" max="99" value="3">
+            <div class="dialog-actions">
+                <button id="table-insert" class="dialog-btn primary">Insert</button>
+                <button id="table-cancel" class="dialog-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast hidden">Notification appears here</div>

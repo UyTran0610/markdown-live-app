@@ -1927,6 +1927,405 @@ exportMdBtn.addEventListener('click', () => { closeExportMenu(); exportMarkdown(
 exportDocBtn.addEventListener('click', () => { closeExportMenu(); exportDoc(); });
 exportPdfBtn.addEventListener('click', () => { closeExportMenu(); exportPdf(); });
 
+// ==========================================================================
+// THANH ĐỊNH DẠNG MARKDOWN (Format bar: Headings, Lists, Bold, Italic,
+// Strikethrough, Link, Table) — thay thế vị trí logo cũ trên header
+// ==========================================================================
+
+// ----- Tham chiếu DOM của format bar và hộp thoại -----
+const btnHeading = document.getElementById('btn-heading');
+const headingMenu = document.getElementById('heading-menu');
+const btnList = document.getElementById('btn-list');
+const listMenu = document.getElementById('list-menu');
+const btnBold = document.getElementById('btn-bold');
+const btnItalic = document.getElementById('btn-italic');
+const btnStrike = document.getElementById('btn-strike');
+const btnLink = document.getElementById('btn-link');
+const btnTable = document.getElementById('btn-table');
+const tableMenu = document.getElementById('table-menu');
+const linkDialog = document.getElementById('link-dialog');
+const linkTextInput = document.getElementById('link-text');
+const linkUrlInput = document.getElementById('link-url');
+const linkInsertBtn = document.getElementById('link-insert');
+const linkCancelBtn = document.getElementById('link-cancel');
+const tableDialog = document.getElementById('table-dialog');
+const tableColsInput = document.getElementById('table-cols');
+const tableRowsInput = document.getElementById('table-rows');
+const tableInsertBtn = document.getElementById('table-insert');
+const tableCancelBtn = document.getElementById('table-cancel');
+
+// ----- Các hàm thuần (không đụng DOM, có assert trong self-check) -----
+
+// Đọc level heading của một dòng: 0 = không phải heading, 1..6
+function getHeadingLevel(line) {
+    const m = line.match(/^[ \t]{0,3}(#{1,6})(?:[ \t]+|$)/);
+    return m ? m[1].length : 0;
+}
+
+// Đặt level heading của một dòng: "#..." mới thay hoàn toàn "#..." cũ;
+// level = 0 nghĩa là gỡ heading. Dòng thường (không phải heading) sẽ được THÊM
+// prefix khi level > 0. Trả về { line, delta }, hoặc null nếu không có gì thay đổi.
+function setHeadingLevel(line, level) {
+    const m = line.match(/^([ \t]{0,3})(#{1,6})([ \t]+|$)/);
+    const indent = m ? m[1] : (line.match(/^[ \t]*/) || [''])[0];
+    const rest = m ? line.slice(m[0].length) : line.slice(indent.length);
+    if (!m && level === 0) return null; // dòng thường muốn gỡ heading: nothing to do
+    const newLine = indent + (level > 0 ? '#'.repeat(level) + ' ' : '') + rest;
+    if (newLine === line) return null;
+    return { line: newLine, delta: newLine.length - line.length };
+}
+
+// Nhận diện marker danh sách ở đầu dòng, trả về { indent, marker, kind, rest }
+// với kind: 'bullet' | 'numbered' | 'task'; null nếu không phải dòng danh sách.
+function parseListLine(line) {
+    const m = line.match(/^([ \t]*)([-*+]|\d+[.)])([ \t]+)(\[[ xX]\][ \t]+)?(.*)$/);
+    if (!m) return null;
+    const [, indent, mark, sp, checkbox, rest] = m;
+    const kind = checkbox ? 'task' : (/^\d/.test(mark) ? 'numbered' : 'bullet');
+    return { indent, marker: mark + sp + (checkbox || ''), kind, rest };
+}
+
+// Xây dựng nội dung bảng Markdown kích thước rows x cols.
+// ponytail: header để trống cho người dùng điền sau khi chèn;
+// nâng cấp sau: điền tên cột từ lựa chọn văn bản hiện tại nếu có.
+function buildTableMarkdown(rows, cols) {
+    const r = Math.max(1, Math.min(99, rows | 0));
+    const c = Math.max(1, Math.min(99, cols | 0));
+    const out = ['|' + ' Head |'.repeat(c), '|' + ' --- |'.repeat(c)];
+    for (let i = 1; i < r; i++) out.push('|' + '  |'.repeat(c));
+    return out.join('\n');
+}
+
+// Chuẩn hoá URL người dùng nhập cho liên kết: thêm https:// nếu còn trần
+// (ponytail: kiểm tra scheme bằng regex đơn giản, đủ cho anchor/email/relative)
+function normalizeLinkUrl(raw) {
+    const url = String(raw || '').trim();
+    if (!url) return '';
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith('#') || url.startsWith('//')) return url;
+    return 'https://' + url;
+}
+
+// Thoát dấu [ ] trong nhãn liên kết để không bẻ gãy cú pháp [text](url)
+function escapeLinkText(text) {
+    return text.replace(/([\[\]])/g, '\\$1');
+}
+
+// ----- Mở / đóng dropdown của format bar -----
+const formatMenus = [
+    { btn: btnHeading, wrap: btnHeading.parentElement, menu: headingMenu },
+    { btn: btnList, wrap: btnList.parentElement, menu: listMenu },
+    { btn: btnTable, wrap: btnTable.parentElement, menu: tableMenu }
+];
+
+function closeFormatMenus() {
+    formatMenus.forEach(({ btn, wrap, menu }) => {
+        menu.classList.add('hidden');
+        wrap.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function toggleFormatMenu(entry) {
+    const wasOpen = !entry.menu.classList.contains('hidden');
+    closeExportMenu();
+    closeFormatMenus();
+    if (!wasOpen) {
+        entry.menu.classList.remove('hidden');
+        entry.wrap.classList.add('open');
+        entry.btn.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function anyFormatMenuOpen() {
+    return formatMenus.some(({ menu }) => !menu.classList.contains('hidden'));
+}
+
+// ----- Bold / Italic / Strikethrough: dùng lại wrapOrToggleFormat có sẵn -----
+btnBold.addEventListener('click', () => { wrapOrToggleFormat('**'); markdownInput.focus(); });
+btnItalic.addEventListener('click', () => { wrapOrToggleFormat('*'); markdownInput.focus(); });
+btnStrike.addEventListener('click', () => { wrapOrToggleFormat('~~'); markdownInput.focus(); });
+
+// ----- Dropdown Headings -----
+btnHeading.addEventListener('click', () => toggleFormatMenu(formatMenus[0]));
+
+headingMenu.querySelectorAll('.format-item').forEach((item) => {
+    item.addEventListener('click', () => {
+        closeFormatMenus();
+        markdownInput.focus();
+        applyHeadingLevel(parseInt(item.dataset.heading, 10) || 0);
+    });
+});
+
+// ----- Dropdown Lists -----
+btnList.addEventListener('click', () => toggleFormatMenu(formatMenus[1]));
+
+listMenu.querySelectorAll('.format-item').forEach((item) => {
+    item.addEventListener('click', () => {
+        closeFormatMenus();
+        markdownInput.focus();
+        applyListStyle(item.dataset.list);
+    });
+});
+
+// ----- Dropdown Table: lưới 5x5, ô góc dưới-phải là Custom size -----
+btnTable.addEventListener('click', () => toggleFormatMenu(formatMenus[2]));
+
+(function buildTableGrid() {
+    const grid = tableMenu.querySelector('.table-grid');
+    for (let i = 0; i < 24; i++) {
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'table-cell';
+        const cols = (i % 5) + 1;
+        const rows = Math.floor(i / 5) + 1;
+        cell.title = 'Insert table ' + cols + ' × ' + rows;
+        cell.setAttribute('aria-label', 'Insert table ' + cols + 'x' + rows);
+        cell.addEventListener('mouseenter', () => highlightTableCells(grid, i + 1));
+        cell.addEventListener('click', () => {
+            closeFormatMenus();
+            markdownInput.focus();
+            insertTableBlock(cols, rows);
+        });
+        grid.appendChild(cell);
+    }
+    const customCell = document.createElement('button');
+    customCell.type = 'button';
+    customCell.className = 'table-cell custom';
+    customCell.title = 'Custom size…';
+    customCell.setAttribute('aria-label', 'Custom table size');
+    customCell.addEventListener('mouseenter', () => highlightTableCells(grid, null));
+    customCell.addEventListener('click', () => {
+        closeFormatMenus();
+        openTableDialog();
+    });
+    grid.appendChild(customCell);
+    tableMenu.addEventListener('mouseleave', () => highlightTableCells(grid, null));
+})();
+
+tableMenu.querySelector('[data-table="custom"]').addEventListener('click', () => {
+    closeFormatMenus();
+    openTableDialog();
+});
+
+// Đánh dấu các ô lưới đã rê qua (count = null để bỏ hết)
+function highlightTableCells(grid, count) {
+    for (let i = 0; i < grid.children.length; i++) {
+        grid.children[i].classList.toggle('on', count !== null && i < count);
+    }
+}
+
+// ----- Áp dụng heading cho (các) dòng đang chọn hoặc dòng con trỏ -----
+function applyHeadingLevel(level) {
+    const val = markdownInput.value;
+    const selStart = markdownInput.selectionStart;
+    const selEnd = markdownInput.selectionEnd;
+    const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
+    let lineEnd = val.indexOf('\n', selEnd);
+    if (lineEnd === -1) lineEnd = val.length;
+    const lines = val.substring(lineStart, lineEnd).split('\n');
+
+    // Toggle: nếu TẤT CẢ dòng đã cùng level yêu cầu thì gỡ heading thay vì đặt lại
+    const allSame = lines.every((line) => getHeadingLevel(line) === level);
+    const target = allSame ? 0 : level;
+    let delta = 0;
+    const newLines = lines.map((line) => {
+        const res = setHeadingLevel(line, target);
+        if (!res) return line;
+        delta += res.delta;
+        return res.line;
+    });
+    if (delta === 0) return; // không có gì thay đổi
+
+    const newText = val.substring(0, lineStart) + newLines.join('\n') + val.substring(lineEnd);
+    applyEditorChange(newText, lineStart, Math.max(lineStart, selEnd + delta));
+}
+
+// ----- Áp dụng kiểu danh sách cho (các) dòng đang chọn hoặc dòng con trỏ -----
+function applyListStyle(style) {
+    const val = markdownInput.value;
+    const selStart = markdownInput.selectionStart;
+    const selEnd = markdownInput.selectionEnd;
+    const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
+    let lineEnd = val.indexOf('\n', selEnd);
+    if (lineEnd === -1) lineEnd = val.length;
+    const lines = val.substring(lineStart, lineEnd).split('\n');
+
+    let delta = 0;
+    let num = 0; // đánh số tăng dần trong phạm vi vùng chọn
+    const newLines = lines.map((line, i) => {
+        const parsed = parseListLine(line);
+        const indent = parsed ? parsed.indent : (line.match(/^[ \t]*/) || [''])[0];
+        const rest = parsed ? parsed.rest : line.slice(indent.length);
+
+        // Dòng trống trong vùng chọn nhiều dòng: giữ nguyên, không đánh dấu
+        if (!parsed && rest.trim() === '' && lines.length > 1) return line;
+
+        // Cùng kiểu đang có: toggle bỏ marker (dòng đơn rỗng marker cũng bỏ)
+        if (parsed && parsed.kind === style && (lines.length === 1 || parsed.rest.trim() !== '')) {
+            const newLine = indent + rest;
+            delta += newLine.length - line.length;
+            return newLine;
+        }
+
+        // Thêm mới hoặc đổi kiểu marker
+        let marker;
+        if (style === 'numbered') {
+            num++;
+            marker = num + '. ';
+        } else if (style === 'task') {
+            marker = '- [ ] ';
+        } else {
+            marker = '- ';
+        }
+        const newLine = indent + marker + rest;
+        delta += newLine.length - line.length;
+        return newLine;
+    });
+    if (delta === 0) return;
+
+    // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi giữa có dòng trống;
+    // nâng cấp sau: restart về 1 khi gặp đoạn văn mới (dòng trống).
+    const newText = val.substring(0, lineStart) + newLines.join('\n') + val.substring(lineEnd);
+
+    // Giữ nguyên vùng bôi đen: marker được thêm/xoá ở ĐẦU dòng, nên selection mới
+    // được tính bằng cách dịch theo delta độ dài của từng dòng (cùng cách handleEditorTab).
+    const firstLineDelta = newLines[0].length - lines[0].length;
+    const newSelStart = selStart > lineStart
+        ? Math.max(lineStart, selStart + firstLineDelta)
+        : lineStart;
+    const newSelEnd = Math.max(newSelStart, selEnd + delta);
+
+    applyEditorChange(newText, newSelStart, newSelEnd);
+}
+
+// ----- Hộp thoại dùng chung (Link / Table custom size) -----
+let dialogReturnFocus = null;
+
+function openDialog(overlay, focusTarget) {
+    dialogReturnFocus = document.activeElement;
+    overlay.classList.remove('hidden');
+    focusTarget.focus();
+    if (focusTarget.select) focusTarget.select();
+}
+
+function closeDialogs() {
+    linkDialog.classList.add('hidden');
+    tableDialog.classList.add('hidden');
+    linkTextInput.value = '';
+    linkUrlInput.value = '';
+    linkInsertBtn.disabled = true;
+    if (dialogReturnFocus && document.contains(dialogReturnFocus)) dialogReturnFocus.focus();
+    dialogReturnFocus = null;
+}
+
+function openLinkDialog() {
+    const selStart = markdownInput.selectionStart;
+    const selEnd = markdownInput.selectionEnd;
+    const selected = selStart !== selEnd ? markdownInput.value.substring(selStart, selEnd) : '';
+    linkTextInput.value = '';
+    linkUrlInput.value = '';
+    linkInsertBtn.disabled = true;
+    if (selected) linkTextInput.value = selected;
+    openDialog(linkDialog, selected ? linkUrlInput : linkTextInput);
+}
+
+function openTableDialog() {
+    openDialog(tableDialog, tableColsInput);
+}
+
+function insertLinkFromDialog() {
+    const url = normalizeLinkUrl(linkUrlInput.value);
+    if (!url) return;
+    const text = linkTextInput.value.trim();
+    const val = markdownInput.value;
+    const selStart = markdownInput.selectionStart;
+    const selEnd = markdownInput.selectionEnd;
+    const label = text || (selStart !== selEnd ? val.substring(selStart, selEnd) : url);
+    // URL chứa khoảng trắng phải bọc trong < > theo cú pháp GFM
+    const urlPart = /\s/.test(url) ? '<' + url + '>' : url;
+    const insert = '[' + escapeLinkText(label) + '](' + urlPart + ')';
+    applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), selStart + insert.length, selStart + insert.length);
+    closeDialogs();
+    markdownInput.focus();
+}
+
+function insertTableFromDialog() {
+    const cols = Math.max(1, Math.min(99, parseInt(tableColsInput.value, 10) || 3));
+    const rows = Math.max(1, Math.min(99, parseInt(tableRowsInput.value, 10) || 3));
+    closeDialogs();
+    markdownInput.focus();
+    insertTableBlock(cols, rows);
+}
+
+// Chèn bảng Markdown tại con trỏ, đảm bảo có dòng mới bao quanh
+function insertTableBlock(cols, rows) {
+    const val = markdownInput.value;
+    const selStart = markdownInput.selectionStart;
+    const selEnd = markdownInput.selectionEnd;
+    const table = buildTableMarkdown(rows, cols);
+    const needTop = selStart > 0 && val[selStart - 1] !== '\n';
+    const needBottom = selEnd < val.length && val[selEnd] !== '\n';
+    const insert = (needTop ? '\n' : '') + table + (needBottom ? '\n' : '');
+    const caret = selStart + insert.length;
+    applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
+}
+
+// ----- Sự kiện hộp thoại -----
+btnLink.addEventListener('click', openLinkDialog);
+
+linkUrlInput.addEventListener('input', () => {
+    linkInsertBtn.disabled = linkUrlInput.value.trim() === '';
+});
+
+linkInsertBtn.addEventListener('click', insertLinkFromDialog);
+linkCancelBtn.addEventListener('click', closeDialogs);
+tableInsertBtn.addEventListener('click', insertTableFromDialog);
+tableCancelBtn.addEventListener('click', closeDialogs);
+
+// Click nền overlay để đóng
+[linkDialog, tableDialog].forEach((overlay) => {
+    overlay.addEventListener('mousedown', (e) => {
+        if (e.target === overlay) closeDialogs();
+    });
+});
+
+// Trong hộp thoại: Enter = nút chính, Esc = đóng, Tab = giữ vòng focus;
+// chặn mọi phím khác lọt xuống editor bên dưới.
+[linkDialog, tableDialog].forEach((overlay) => {
+    overlay.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const primary = overlay.querySelector('.dialog-btn.primary');
+            if (primary && !primary.disabled) primary.click();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeDialogs();
+        } else if (e.key === 'Tab') {
+            e.preventDefault();
+            const focusables = Array.from(overlay.querySelectorAll('input, button'));
+            const idx = focusables.indexOf(document.activeElement);
+            const next = e.shiftKey
+                ? focusables[(idx - 1 + focusables.length) % focusables.length]
+                : focusables[(idx + 1) % focusables.length];
+            if (next) next.focus();
+        }
+    });
+});
+
+// ----- Đóng dropdown khi bấm ra ngoài hoặc Esc (cùng cơ chế menu Export) -----
+document.addEventListener('click', (e) => {
+    if (anyFormatMenuOpen() && !e.target.closest('.format-wrap')) closeFormatMenus();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (anyFormatMenuOpen()) {
+        closeFormatMenus();
+    } else if (!linkDialog.classList.contains('hidden') || !tableDialog.classList.contains('hidden')) {
+        closeDialogs();
+    }
+});
+
 // ----- Import file Markdown -----
 
 const IMPORTABLE_EXTS = ['md', 'markdown', 'mdown', 'mkd', 'txt'];
@@ -2010,6 +2409,33 @@ function runSelfCheck() {
     const fitTall = fitDocImageSize(500, 1800);
     assert('doc cap thu ảnh cao về 900 giữ tỉ lệ', fitTall.width === 250 && fitTall.height === 900);
     assert('doc cap bỏ qua kích thước lạ', fitDocImageSize(0, 0).width === 0);
+
+    // ----- Format bar: helpers thuần -----
+    assert('heading nhận diện H2 có thụt lề', getHeadingLevel('  ## Tiêu đề') === 2);
+    assert('heading nhận diện dòng thường', getHeadingLevel('nội dung') === 0);
+    assert('heading nhận diện # không nội dung', getHeadingLevel('#') === 1);
+    assert('heading từ chối #không-cách', getHeadingLevel('#hashtag') === 0);
+    assert('heading từ chối 7 dấu #', getHeadingLevel('####### bảy') === 0);
+    assert('heading đổi H1 thành H3', setHeadingLevel('# Tiêu đề', 3).line === '### Tiêu đề');
+    assert('heading gỡ prefix khi level 0', setHeadingLevel('## Tiêu đề', 0).line === 'Tiêu đề');
+    assert('heading giữ nguyên thụt lề', setHeadingLevel('  # a', 2).line === '  ## a');
+    assert('heading tạo mới trên dòng thường', setHeadingLevel('văn bản', 2).line === '## văn bản');
+    assert('heading dòng thường + gỡ là no-op', setHeadingLevel('văn bản', 0) === null);
+    assert('heading giữ # trong nội dung', setHeadingLevel('#hashtag', 1).line === '# #hashtag');
+    assert('list parse task', parseListLine('- [x] việc').kind === 'task' && parseListLine('- [x] việc').rest === 'việc');
+    assert('list parse numbered', parseListLine('2. mục').kind === 'numbered');
+    assert('list parse bullet giữ thụt lề', parseListLine('  - a').indent === '  ' && parseListLine('  - a').rest === 'a');
+    assert('list từ chối dòng thường', parseListLine('chữ') === null);
+    assert('list từ chối dòng trống', parseListLine('') === null);
+    assert('list từ chối -5 không cách', parseListLine('-5') === null);
+    assert('bảng 2x2 đúng cú pháp', buildTableMarkdown(2, 2) === '| Head | Head |\n| --- | --- |\n|  |  |');
+    assert('bảng kẹp giới hạn 1..99', buildTableMarkdown(5, 0) === '| Head |\n| --- |\n|  |\n|  |\n|  |\n|  |');
+    assert('url thêm https khi trần', normalizeLinkUrl('example.com') === 'https://example.com');
+    assert('url giữ scheme có sẵn', normalizeLinkUrl('mailto:a@b.com') === 'mailto:a@b.com');
+    assert('url giữ anchor nội bộ', normalizeLinkUrl('#muc-luc') === '#muc-luc');
+    assert('url giữ protocol-relative', normalizeLinkUrl('//cdn.example.com/x') === '//cdn.example.com/x');
+    assert('url rỗng trả về rỗng', normalizeLinkUrl('   ') === '');
+    assert('escape nhãn link', escapeLinkText('a[b]c') === 'a\\[b\\]c');
 
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');

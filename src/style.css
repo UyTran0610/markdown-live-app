@@ -901,9 +901,7 @@ body {
     color: var(--md-kbd);
     background-color: var(--md-kbd-bg);
     border-radius: 3px;
-    padding: 0.1em 0.3em;
-    font-family: var(--editor-bg);
-    font-size: 0.9em;
+    box-shadow: 0 0 0 0.25em var(--md-kbd-bg);
 }
 
 .md-mark-marker { color: var(--md-mark-text); opacity: 0.7; }
@@ -911,7 +909,7 @@ body {
     background-color: var(--md-mark-bg);
     color: var(--md-mark-text);
     border-radius: 2px;
-    padding: 0.1em 0.2em;
+    box-shadow: 0 0 0 0.15em var(--md-mark-bg);
 }
 
 .md-sup-marker, .md-sub-marker { color: var(--md-sup); opacity: 0.7; }

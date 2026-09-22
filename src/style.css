@@ -236,10 +236,13 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 16px;
+    padding: 6px 16px;
     background-color: var(--header-bg);
     color: var(--header-text);
-    height: 44px;
+    min-height: 44px;
+    height: auto;
+    flex-wrap: wrap-reverse;
+    row-gap: 8px;
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 }
@@ -260,12 +263,12 @@ body {
 }
 
 /* ==========================================================================
-   Thanh định dạng Markdown (Format bar) — thay thế vị trí logo cũ
+   Thanh định dạng Markdown (Format bar)
    ========================================================================== */
 .format-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 /* Thanh phân cách dọc giữa nhóm định dạng và nhóm lệnh bên phải */
@@ -551,6 +554,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    margin-left: auto;
 }
 
 /* Buttons */
@@ -702,7 +706,8 @@ body {
 .workspace {
     display: flex;
     flex: 1;
-    height: calc(100vh - 44px);
+    height: auto;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -714,8 +719,6 @@ body {
     overflow: hidden;
     background: var(--pane-bg);
     transition: background-color 0.2s;
-    /* Cách ly layout/paint của từng pane: khi Preview thay đổi DOM liên tục,
-       trình duyệt không cần tính lại layout/paint của phần còn lại của trang. */
     contain: layout style paint;
 }
 
@@ -765,9 +768,6 @@ body {
     height: 100%;
     padding: 20px;
     border: none;
-    /* Font monospace hiện đại: các họ font này đảm bảo độ rộng ký tự (advance width)
-       giống hệt nhau giữa chữ thường và chữ đậm (font-weight khác nhau), tránh lệch
-       vị trí giữa lớp textarea (trong suốt) và lớp tô màu bên dưới khi có đoạn in đậm. */
     font-family: ui-monospace, "Cascadia Mono", "Consolas", "Liberation Mono", "SFMono-Regular", Menlo, monospace;
     font-size: 16px;
     line-height: 26px;
@@ -936,13 +936,6 @@ body {
     flex: 1;
     padding: 20px 30px;
     overflow-y: auto;
-    /* Quan trọng: previewOutput.innerHTML được thay mới toàn bộ mỗi lần render (kèm theo
-       hljs, GFM alerts, icon Lucide được chèn/thay thế). script.js đã tự lưu và khôi phục
-       scrollTop một cách chính xác (xem renderMarkdown()/restorePreviewScrollTop()), nhưng
-       nếu để mặc định, trình duyệt sẽ áp dụng thêm cơ chế Scroll Anchoring của riêng nó lên
-       trên kết quả đó ở cuối mỗi khung hình. Hai cơ chế cộng dồn với nhau qua từng lần gõ
-       phím chính là nguyên nhân khiến Preview "trôi" dần lên trên. Tắt hẳn để script.js là
-       nơi duy nhất quyết định vị trí cuộn. */
     overflow-anchor: none;
 }
 
@@ -980,57 +973,11 @@ body {
         border-bottom: 1px solid var(--border-color);
         height: 50%;
     }
-    .preview-pane {
-        height: 50%;
-    }
-    .btn span {
-        display: none;
-    }
 
     .app-header {
-        padding: 0 10px;
-        height: 42px;
-    }
-    .toolbar {
-        gap: 4px;
-    }
-    .btn {
-        min-width: 32px;
-        min-height: 32px;
-        padding: 0 8px;
-        border-radius: 6px;
-        gap: 0;
-    }
-    .btn i,
-    .btn svg {
-        width: 16px;
-        height: 16px;
-    }
-
-    .export-menu {
-        min-width: 150px;
-    }
-    .export-item span {
-        display: inline;
-    }
-
-    .btn-icon {
-        min-width: 32px;
-        min-height: 32px;
-        width: 32px;
-        height: 32px;
-    }
-    .btn-icon i,
-    .btn-icon svg {
-        width: 17px;
-        height: 17px;
-    }
-    .btn-icon .chevron {
-        width: 12px;
-        height: 12px;
-    }
-    .format-menu {
-        max-width: calc(100vw - 20px);
+        padding: 6px 10px;
+        height: auto;
+        min-height: 42px;
     }
 }
 
@@ -1114,7 +1061,7 @@ body {
 }
 
 /* ==========================================================================
-   Quy tắc In & Xuất PDF với văn bản vector chọn được (Selectable Text)
+   Quy tắc In & Xuất PDF
    ========================================================================== */
 @media print {
     @page {

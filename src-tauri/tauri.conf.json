@@ -14,10 +14,11 @@
       {
         "title": "Markdown Live",
         "width": 1280,
-        "height": 800,
-        "minWidth": 900,
+        "height": 700,
+        "minWidth": 768,
         "minHeight": 600,
-        "resizable": true
+        "resizable": true,
+        "center": true
       }
     ],
     "security": {

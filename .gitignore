@@ -12,9 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Debug scripts
-cdp-probe.cjs
-
 # Editor directories and files
 .vscode/
 .freebuff/

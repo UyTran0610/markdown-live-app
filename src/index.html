@@ -50,6 +50,16 @@
         <div class="logo">
             <!-- Thanh định dạng Markdown, thay thế vị trí logo cũ -->
             <div class="format-bar" role="toolbar" aria-label="Formatting toolbar">
+                <button id="btn-undo" class="btn-icon" title="Undo (Ctrl+Z)" aria-label="Undo">
+                    <i data-lucide="undo-2"></i>
+                </button>
+                <button id="btn-redo" class="btn-icon" title="Redo (Ctrl+Y)" aria-label="Redo">
+                    <i data-lucide="redo-2"></i>
+                </button>
+                <button id="btn-clear" class="btn-icon" title="Clear editor" aria-label="Clear editor">
+                    <i data-lucide="eraser"></i>
+                </button>
+                <div class="format-bar-sep" role="separator"></div>
                 <div class="format-wrap">
                     <button id="btn-heading" class="btn-icon" title="Headings" aria-haspopup="menu" aria-expanded="false">
                         <i data-lucide="heading-1"></i>
@@ -88,6 +98,24 @@
                 </button>
                 <button id="btn-link" class="btn-icon" title="Insert link (Ctrl+K)" aria-label="Insert link">
                     <i data-lucide="link-2"></i>
+                </button>
+                <button id="btn-code-inline" class="btn-icon" title="Inline code (Ctrl+E)" aria-label="Inline code">
+                    <i data-lucide="code"></i>
+                </button>
+                <button id="btn-code-block" class="btn-icon" title="Code block" aria-label="Code block">
+                    <i data-lucide="square-code"></i>
+                </button>
+                <button id="btn-math-inline" class="btn-icon" title="Inline math" aria-label="Inline math">
+                    <i data-lucide="sigma"></i>
+                </button>
+                <button id="btn-math-block" class="btn-icon" title="Math block" aria-label="Math block">
+                    <i data-lucide="square-radical"></i>
+                </button>
+                <button id="btn-quote" class="btn-icon" title="Blockquote" aria-label="Blockquote">
+                    <i data-lucide="text-quote"></i>
+                </button>
+                <button id="btn-mermaid" class="btn-icon" title="Mermaid diagram" aria-label="Mermaid diagram">
+                    <i data-lucide="workflow"></i>
                 </button>
                 <div class="format-wrap">
                     <button id="btn-table" class="btn-icon" title="Insert table" aria-haspopup="menu" aria-expanded="false">

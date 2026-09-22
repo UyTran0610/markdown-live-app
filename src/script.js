@@ -1941,6 +1941,15 @@ const btnBold = document.getElementById('btn-bold');
 const btnItalic = document.getElementById('btn-italic');
 const btnStrike = document.getElementById('btn-strike');
 const btnLink = document.getElementById('btn-link');
+const btnUndo = document.getElementById('btn-undo');
+const btnRedo = document.getElementById('btn-redo');
+const btnClear = document.getElementById('btn-clear');
+const btnCodeInline = document.getElementById('btn-code-inline');
+const btnCodeBlock = document.getElementById('btn-code-block');
+const btnMathInline = document.getElementById('btn-math-inline');
+const btnMathBlock = document.getElementById('btn-math-block');
+const btnQuote = document.getElementById('btn-quote');
+const btnMermaid = document.getElementById('btn-mermaid');
 const btnTable = document.getElementById('btn-table');
 const tableMenu = document.getElementById('table-menu');
 const linkDialog = document.getElementById('link-dialog');
@@ -1978,10 +1987,10 @@ function setHeadingLevel(line, level) {
 // Nhận diện marker danh sách ở đầu dòng, trả về { indent, marker, kind, rest }
 // với kind: 'bullet' | 'numbered' | 'task'; null nếu không phải dòng danh sách.
 function parseListLine(line) {
-    const m = line.match(/^([ \t]*)([-*+]|\d+[.)])([ \t]+)(\[[ xX]\][ \t]+)?(.*)$/);
+    const m = line.match(/^([ \t]*)([-*+]|\d+[.)]|>)([ \t]+)(\[[ xX]\][ \t]+)?(.*)$/);
     if (!m) return null;
     const [, indent, mark, sp, checkbox, rest] = m;
-    const kind = checkbox ? 'task' : (/^\d/.test(mark) ? 'numbered' : 'bullet');
+    const kind = checkbox ? 'task' : (mark === '>' ? 'quote' : (/^\d/.test(mark) ? 'numbered' : 'bullet'));
     return { indent, marker: mark + sp + (checkbox || ''), kind, rest };
 }
 
@@ -2044,6 +2053,33 @@ function anyFormatMenuOpen() {
 btnBold.addEventListener('click', () => { wrapOrToggleFormat('**'); markdownInput.focus(); });
 btnItalic.addEventListener('click', () => { wrapOrToggleFormat('*'); markdownInput.focus(); });
 btnStrike.addEventListener('click', () => { wrapOrToggleFormat('~~'); markdownInput.focus(); });
+
+// ----- Inline code / Inline math: tái sử dụng wrapOrToggleFormat -----
+btnCodeInline.addEventListener('click', () => { wrapOrToggleFormat('`', 'code'); markdownInput.focus(); });
+btnMathInline.addEventListener('click', () => { wrapOrToggleFormat('$', 'E = mc^2'); markdownInput.focus(); });
+
+// ----- Code block / Math block / Mermaid: chèn khối fence tại con trỏ -----
+btnCodeBlock.addEventListener('click', () => { insertBlockFence('code'); markdownInput.focus(); });
+btnMathBlock.addEventListener('click', () => { insertBlockFence('math'); markdownInput.focus(); });
+btnMermaid.addEventListener('click', () => { insertBlockFence('mermaid'); markdownInput.focus(); });
+
+// ----- Blockquote: dùng applyListStyle('quote') sau khi mở rộng cho '>' -----
+btnQuote.addEventListener('click', () => { applyListStyle('quote'); markdownInput.focus(); });
+
+// ----- Undo / Redo: tái sử dụng editorHistory (cùng cơ chế Ctrl+Z / Ctrl+Y) -----
+btnUndo.addEventListener('click', () => { editorHistory.undo(markdownInput); markdownInput.focus(); });
+btnRedo.addEventListener('click', () => { editorHistory.redo(markdownInput); markdownInput.focus(); });
+
+// ----- Clear: xoá trắng editor (vẫn undo được vì đi qua applyEditorChange) -----
+btnClear.addEventListener('click', () => {
+    if (!markdownInput.value) {
+        markdownInput.focus();
+        return;
+    }
+    applyEditorChange('', 0, 0);
+    saveContentToStorage();
+    showToast('Editor cleared. Press Ctrl+Z to undo.');
+});
 
 // ----- Dropdown Headings -----
 btnHeading.addEventListener('click', () => toggleFormatMenu(formatMenus[0]));
@@ -2177,7 +2213,7 @@ function applyListStyle(style) {
         } else {
             marker = '- ';
         }
-        const newLine = indent + marker + rest;
+        const newLine = indent + (style === 'quote' ? '> ' : marker) + rest;
         delta += newLine.length - line.length;
         return newLine;
     });
@@ -2268,6 +2304,46 @@ function insertTableBlock(cols, rows) {
     const insert = (needTop ? '\n' : '') + table + (needBottom ? '\n' : '');
     const caret = selStart + insert.length;
     applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
+}
+
+// Xây dựng nội dung khối fence (code / math / mermaid). body rỗng sẽ thay bằng
+// placeholder để caret có chỗ đứng. Trả về string hoàn chỉnh nhiều dòng.
+function buildBlockFence(kind, body) {
+    // Chỉ thay placeholder khi body rỗng/toàn whitespace; giữ nguyên nội dung
+    // (kể cả thụt lề) vì selection bọc vào code block đã được indent sẵn.
+    const hasBody = body != null && String(body).trim() !== '';
+    if (kind === 'math') {
+        return '$$\n' + (hasBody ? body : 'f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx') + '\n$$';
+    }
+    const lang = kind === 'mermaid' ? 'mermaid' : 'js';
+    const fallback = kind === 'mermaid' ? 'graph TD\n    A[Start] --> B[End]' : '// code here';
+    return '```' + lang + '\n' + (hasBody ? body : fallback) + '\n```';
+}
+
+// Chèn khối code / math / mermaid tại con trỏ, đảm bảo có dòng trống bao quanh
+// (cùng pattern với insertTableBlock). Có selection: nội dung khối là vùng chọn
+// (mỗi dòng của khối code lùi vào 4 space cho đúng cú pháp fence); không có:
+// chèn placeholder và đặt caret vào dòng nội dung.
+function insertBlockFence(kind) {
+    const val = markdownInput.value;
+    const selStart = markdownInput.selectionStart;
+    const selEnd = markdownInput.selectionEnd;
+    const selected = selStart !== selEnd ? val.substring(selStart, selEnd) : '';
+    const hasBody = selected.trim() !== '';
+    const block = buildBlockFence(kind, hasBody
+        ? (kind === 'code' ? selected.split('\n').map((l) => (l.trim() ? '    ' + l : l)).join('\n') : selected)
+        : '');
+
+    const needTop = selStart > 0 && val[selStart - 1] !== '\n';
+    const needBottom = selEnd < val.length && val[selEnd] !== '\n';
+    const insert = (needTop ? '\n' : '') + block + (needBottom ? '\n' : '');
+    const blockStart = selStart + (needTop ? 1 : 0);
+    const caret = hasBody ? selStart + insert.length : blockStart + (kind === 'math' ? 3 : langPrefixLen(kind));
+    applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
+}
+// Độ dài của "```js\n" hoặc "```mermaid\n" dùng để tính vị trí caret
+function langPrefixLen(kind) {
+    return kind === 'mermaid' ? '```mermaid\n'.length : '```js\n'.length;
 }
 
 // ----- Sự kiện hộp thoại -----
@@ -2436,6 +2512,13 @@ function runSelfCheck() {
     assert('url giữ protocol-relative', normalizeLinkUrl('//cdn.example.com/x') === '//cdn.example.com/x');
     assert('url rỗng trả về rỗng', normalizeLinkUrl('   ') === '');
     assert('escape nhãn link', escapeLinkText('a[b]c') === 'a\\[b\\]c');
+    assert('quote parse dòng >', parseListLine('> trích dẫn').kind === 'quote' && parseListLine('> trích dẫn').rest === 'trích dẫn');
+    assert('quote parse giữ thụt lề', parseListLine('  > a').indent === '  ');
+    assert('quote từ chối >không-cách', parseListLine('>không-cách') === null);
+    assert('fence code mặc định', buildBlockFence('code', '') === '```js\n// code here\n```');
+    assert('fence math mặc định', buildBlockFence('math', '') === '$$\nf(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx\n$$');
+    assert('fence mermaid mặc định', buildBlockFence('mermaid', '') === '```mermaid\ngraph TD\n    A[Start] --> B[End]\n```');
+    assert('fence giữ nội dung có sẵn', buildBlockFence('code', 'a\nb') === '```js\na\nb\n```');
 
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');

@@ -403,6 +403,14 @@ body {
     background: var(--border-color);
 }
 
+/* Phân cách dọc giữa nhóm Undo/Redo/Clear và nhóm định dạng trên format bar */
+.format-bar-sep {
+    width: 1px;
+    height: 18px;
+    flex-shrink: 0;
+    background: var(--border-color);
+}
+
 /* Lưới chọn kích thước bảng (5x5, ô góc dưới-phải là Custom) */
 .table-picker {
     min-width: unset;
@@ -889,7 +897,7 @@ body {
 .md-ref-id { color: var(--md-ref-id); font-weight: 600; }
 .md-ref-title { color: var(--md-ref-title); font-style: italic; }
 .md-autolink { color: var(--md-autolink); text-decoration: underline; }
-.md-task-checkbox { font-weight: 700; font-family: monospace; }
+.md-task-checkbox { font-weight: 700; }
 .md-task-checked { color: var(--md-task-checked); }
 .md-task-unchecked { color: var(--md-task-unchecked); }
 .md-footnote-marker, .md-footnote-id { color: var(--md-footnote); font-weight: 600; }

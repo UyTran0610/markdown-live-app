@@ -47,8 +47,68 @@
 
     <!-- Header / Toolbar -->
     <header class="app-header">
-        <div class="logo">
-            <!-- Thanh định dạng Markdown, thay thế vị trí logo cũ -->
+        <div class="toolbar" role="toolbar" aria-label="Document toolbar">
+            <button id="btn-sync" class="btn active" title="Sync scroll" aria-label="Sync scroll" aria-pressed="true">
+                <i data-lucide="arrow-up-down"></i>
+                <span class="btn-label">Scroll</span>
+            </button>
+
+            <div class="format-bar-sep" role="separator"></div>
+
+            <button id="btn-reset" class="btn" title="Restore the default example" aria-label="Reset">
+                <i data-lucide="rotate-ccw"></i>
+                <span class="btn-label">Reset</span>
+            </button>
+            <button id="btn-copy" class="btn" title="Copy Markdown content" aria-label="Copy">
+                <i data-lucide="copy"></i>
+                <span class="btn-label">Copy</span>
+            </button>
+            <button id="btn-import" class="btn" title="Import a Markdown file from your device" aria-label="Import">
+                <i data-lucide="file-up"></i>
+                <span class="btn-label">Import</span>
+            </button>
+            <input type="file" id="import-file" accept=".md,.markdown,.txt" hidden>
+            <div class="export-wrap">
+                <button id="btn-export" class="btn" title="Export file (MD / DOC / PDF)" aria-haspopup="menu" aria-expanded="false" aria-label="Export">
+                    <i data-lucide="file-output"></i>
+                    <span class="btn-label">Export</span>
+                    <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div id="export-menu" class="export-menu hidden" role="menu">
+                    <button id="export-md" class="export-item" role="menuitem" title="Export Markdown file (.md)">
+                        <i data-lucide="file-code"></i>
+                        <span>Export Markdown (.md)</span>
+                    </button>
+                    <button id="export-doc" class="export-item" role="menuitem" title="Export Word file (.doc)">
+                        <i data-lucide="file-text"></i>
+                        <span>Export Word (.doc)</span>
+                    </button>
+                    <button id="export-pdf" class="export-item" role="menuitem" title="Export PDF via the Print dialog">
+                        <i data-lucide="printer"></i>
+                        <span>Print (.pdf)</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="format-bar-sep" role="separator"></div>
+
+            <button id="btn-theme" class="btn" title="Toggle Light / Dark theme" aria-label="Toggle theme">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+                <span class="btn-label label-light">Light</span>
+                <span class="btn-label label-dark">Dark</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        <!-- Editor Column -->
+        <section class="pane editor-pane">
+            <div class="pane-header">
+                <span>EDITOR</span>
+                <span id="char-counter" class="counter">0 characters</span>
+            </div>
             <div class="format-bar" role="toolbar" aria-label="Formatting toolbar">
                 <button id="btn-undo" class="btn-icon" title="Undo (Ctrl+Z)" aria-label="Undo">
                     <i data-lucide="undo-2"></i>
@@ -129,62 +189,6 @@
                         <button class="format-item" data-table="custom" role="menuitem"><i data-lucide="table-2"></i><span>Custom size</span></button>
                     </div>
                 </div>
-            </div>
-        </div>
-        <div class="toolbar">
-            <button id="btn-sync" class="btn active" title="Sync scroll">
-                <i data-lucide="arrow-up-down"></i>
-                <span>Sync Scroll</span>
-            </button>
-            <button id="btn-reset" class="btn" title="Restore the default example">
-                <i data-lucide="rotate-ccw"></i>
-                <span>Reset</span>
-            </button>
-            <button id="btn-copy" class="btn" title="Copy Markdown content">
-                <i data-lucide="copy"></i>
-                <span>Copy</span>
-            </button>
-            <button id="btn-import" class="btn" title="Import a Markdown file from your device">
-                <i data-lucide="file-up"></i>
-                <span>Import</span>
-            </button>
-            <input type="file" id="import-file" accept=".md,.markdown,.txt" hidden>
-            <div class="export-wrap">
-                <button id="btn-export" class="btn" title="Export file (MD / DOC / PDF)">
-                    <i data-lucide="file-output"></i>
-                    <span>Export</span>
-                    <i data-lucide="chevron-down" class="chevron"></i>
-                </button>
-                <div id="export-menu" class="export-menu hidden" role="menu">
-                    <button id="export-md" class="export-item" role="menuitem" title="Export Markdown file (.md)">
-                        <i data-lucide="file-code"></i>
-                        <span>Export MD</span>
-                    </button>
-                    <button id="export-doc" class="export-item" role="menuitem" title="Export Word file (.doc)">
-                        <i data-lucide="file-text"></i>
-                        <span>Export DOC</span>
-                    </button>
-                    <button id="export-pdf" class="export-item" role="menuitem" title="Export PDF via the Print dialog">
-                        <i data-lucide="printer"></i>
-                        <span>Export PDF</span>
-                    </button>
-                </div>
-            </div>
-            <button id="btn-theme" class="btn" title="Toggle Light / Dark theme">
-                <i data-lucide="sun" class="icon-sun"></i>
-                <i data-lucide="moon" class="icon-moon"></i>
-                <span>Theme</span>
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Workspace -->
-    <main class="workspace">
-        <!-- Editor Column -->
-        <section class="pane editor-pane">
-            <div class="pane-header">
-                <span>EDITOR</span>
-                <span id="char-counter" class="counter">0 characters</span>
             </div>
             <div class="editor-container">
                 <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"><code id="editor-highlight-code"></code></pre>

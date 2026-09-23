@@ -234,51 +234,35 @@ body {
 /* Header & Toolbar */
 .app-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     padding: 6px 16px;
     background-color: var(--header-bg);
     color: var(--header-text);
     min-height: 44px;
     height: auto;
-    flex-wrap: wrap-reverse;
-    row-gap: 8px;
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 }
 
-.logo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.logo-icon {
-    color: var(--logo-icon);
-}
-
-.logo h1 {
-    font-size: 1.05rem;
-    font-weight: 600;
-}
-
 /* ==========================================================================
-   Thanh định dạng Markdown (Format bar)
+   Thanh định dạng Markdown (Format bar) — gắn trực tiếp vào cột Editor,
+   ngay trên vùng soạn thảo, vì đây là nơi người dùng thao tác nhiều nhất.
+   Dùng flex-wrap (không phải overflow-x) vì các menu thả xuống của
+   Heading/List/Table cần đổ xuống dưới nút — một container overflow:auto/
+   hidden ở đây sẽ cắt mất các menu đó.
    ========================================================================== */
 .format-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
+    row-gap: 6px;
+    padding: 2px 16px;
+    background-color: var(--pane-header-bg);
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s, border-color 0.2s;
 }
-
-/* Thanh phân cách dọc giữa nhóm định dạng và nhóm lệnh bên phải */
-/* .format-bar::after {
-    content: "";
-    width: 1px;
-    height: 18px;
-    margin-left: 8px;
-    background: var(--border-color);
-} */
 
 /* Nút icon vuông 28x28, cùng ngôn ngữ "ghost" với .btn */
 .btn-icon {
@@ -318,7 +302,8 @@ body {
     flex-shrink: 0;
 }
 
-.btn-icon .chevron {
+.btn-icon .chevron,
+.btn .chevron {
     width: 11px;
     height: 11px;
     opacity: 0.7;
@@ -328,6 +313,18 @@ body {
 
 .format-wrap.open .btn-icon .chevron {
     transform: rotate(180deg);
+}
+
+/* Trạng thái bật cho nút icon dạng toggle (vd: Sync Scroll) —
+   cùng tint xanh với .btn.active nhưng không viền, giữ ngôn ngữ "ghost". */
+.btn-icon.active {
+    background: var(--btn-active-bg);
+    color: var(--btn-active-text);
+}
+
+.btn-icon.active:hover {
+    background: var(--btn-active-bg-hover);
+    color: var(--btn-active-text);
 }
 
 /* Dropdown của format bar: cùng ngôn ngữ với .export-menu */
@@ -553,8 +550,10 @@ body {
 .toolbar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    row-gap: 6px;
 }
 
 /* Buttons */
@@ -616,17 +615,14 @@ body {
     flex-shrink: 0;
 }
 
+.btn-label {
+    white-space: nowrap;
+}
+
 /* Nút Import + Dropdown Export */
 .export-wrap {
     position: relative;
     display: inline-flex;
-}
-
-.export-wrap .chevron {
-    width: 13px;
-    height: 13px;
-    opacity: 0.7;
-    transition: transform 0.15s;
 }
 
 .export-wrap.open .chevron {
@@ -693,13 +689,22 @@ body {
 #btn-theme .icon-moon {
     display: none;
 }
+#btn-theme .label-dark {
+    display: none;
+}
 
 [data-theme="dark"] #btn-theme .icon-sun {
+    display: none;
+}
+[data-theme="dark"] #btn-theme .label-light {
     display: none;
 }
 
 [data-theme="dark"] #btn-theme .icon-moon {
     display: inline-flex;
+}
+[data-theme="dark"] #btn-theme .label-dark {
+    display: inline;
 }
 
 /* Workspace Layout */
@@ -962,9 +967,6 @@ body {
 
 /* Responsive (Chuyển sang dạng dọc trên màn hình nhỏ) */
 @media (max-width: 768px) {
-    .logo h1 {
-        display: none;
-    }
     .workspace {
         flex-direction: column;
     }
@@ -972,12 +974,6 @@ body {
         border-right: none;
         border-bottom: 1px solid var(--border-color);
         height: 50%;
-    }
-
-    .app-header {
-        padding: 6px 10px;
-        height: auto;
-        min-height: 42px;
     }
 }
 

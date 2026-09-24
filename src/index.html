@@ -48,6 +48,32 @@
     <!-- Header / Toolbar -->
     <header class="app-header">
         <div class="toolbar" role="toolbar" aria-label="Document toolbar">
+            <div class="view-wrap">
+                <button id="btn-view" class="btn" title="Switch view mode (Editor / Split / Preview)" aria-haspopup="menu" aria-expanded="false" aria-label="View mode">
+                    <i data-lucide="pencil" class="icon-editor"></i>
+                    <i data-lucide="columns-2" class="icon-split"></i>
+                    <i data-lucide="eye" class="icon-preview"></i>
+                    <span class="btn-label label-editor">Editor</span>
+                    <span class="btn-label label-split">Split</span>
+                    <span class="btn-label label-preview">Preview</span>
+                    <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div id="view-menu" class="export-menu hidden" role="menu">
+                    <button class="view-item" data-view="editor" role="menuitem" title="Show only the editor">
+                        <i data-lucide="pencil"></i>
+                        <span>Editor</span>
+                    </button>
+                    <button class="view-item" data-view="split" role="menuitem" title="Show editor and preview side by side">
+                        <i data-lucide="columns-2"></i>
+                        <span>Split</span>
+                    </button>
+                    <button class="view-item" data-view="preview" role="menuitem" title="Show only the preview">
+                        <i data-lucide="eye"></i>
+                        <span>Preview</span>
+                    </button>
+                </div>
+            </div>
+
             <button id="btn-sync" class="btn active" title="Sync scroll" aria-label="Sync scroll" aria-pressed="true">
                 <i data-lucide="arrow-up-down"></i>
                 <span class="btn-label">Scroll</span>
@@ -195,6 +221,9 @@
                 <textarea id="markdown-input" spellcheck="false" placeholder="Type Markdown here..."></textarea>
             </div>
         </section>
+
+        <!-- Thanh ngăn cách kéo được giữa Editor và Preview -->
+        <div id="pane-resizer" role="separator" aria-orientation="vertical" title="Drag to resize panes"></div>
 
         <!-- Preview Column -->
         <section class="pane preview-pane">

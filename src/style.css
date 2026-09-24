@@ -648,7 +648,8 @@ body {
     display: none;
 }
 
-.export-item {
+.export-item,
+.view-item {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -667,22 +668,121 @@ body {
 }
 
 .export-item:hover,
-.export-item:focus-visible {
+.export-item:focus-visible,
+.view-item:hover,
+.view-item:focus-visible {
     background: var(--btn-bg-hover);
     outline: none;
 }
 
-.export-item:focus-visible {
+.export-item:focus-visible,
+.view-item:focus-visible {
     outline: 2px solid var(--btn-focus-ring);
     outline-offset: -2px;
 }
 
 .export-item i,
-.export-item svg {
+.export-item svg,
+.view-item i,
+.view-item svg {
     width: 15px;
     height: 15px;
     flex-shrink: 0;
     color: var(--text-secondary);
+}
+
+/* Nút + Dropdown chuyển chế độ xem (Editor / Split / Preview) */
+.view-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.view-wrap.open .chevron {
+    transform: rotate(180deg);
+}
+
+.view-item.active {
+    background: var(--btn-active-bg);
+    color: var(--btn-active-text);
+}
+
+.view-item.active i,
+.view-item.active svg {
+    color: var(--btn-active-text);
+}
+
+/* Thanh ngăn cách kéo được giữa Editor và Preview (chỉ hiện ở chế độ Split) */
+#pane-resizer {
+    display: none;
+    position: relative;
+    flex: 0 0 5px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background-color 0.15s;
+    touch-action: none;
+    z-index: 10;
+}
+
+/* Hit-area rộng hơn thanh vẽ để dễ bấm/kéo */
+#pane-resizer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -3px;
+    right: -3px;
+}
+
+#pane-resizer:hover,
+#pane-resizer.dragging {
+    background: var(--btn-active-border);
+}
+
+body.view-split #pane-resizer {
+    display: block;
+}
+
+/* Khi kéo: giữ mặc định sẵn của textarea/svg để không nuốt pointer */
+body.resizing {
+    cursor: col-resize;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Trước khi script.js gắn class (flash 1 khung hình): layout mặc định là split */
+.editor-pane,
+.preview-pane {
+    flex: 1;
+}
+
+/* Nút View hiển thị icon + label theo chế độ xem hiện tại (class view-* trên <body>,
+   do applyViewMode() gắn — script chạy defer nên gắn class trước lần paint đầu tiên) */
+#btn-view .icon-editor,
+#btn-view .icon-split,
+#btn-view .icon-preview,
+#btn-view .label-editor,
+#btn-view .label-split,
+#btn-view .label-preview {
+    display: none;
+}
+
+body.view-editor #btn-view .icon-editor {
+    display: inline-flex;
+}
+body.view-editor #btn-view .label-editor {
+    display: inline;
+}
+body.view-split #btn-view .icon-split {
+    display: inline-flex;
+}
+body.view-split #btn-view .label-split {
+    display: inline;
+}
+body.view-preview #btn-view .icon-preview {
+    display: inline-flex;
+}
+body.view-preview #btn-view .label-preview {
+    display: inline;
 }
 
 /* Nút chuyển đổi giao diện Sáng / Tối */
@@ -707,13 +807,36 @@ body {
     display: inline;
 }
 
-/* Workspace Layout */
+/* Workspace Layout — điều khiển theo 3 chế độ xem đặt trên <body>:
+   view-split / view-editor / view-preview (luôn có đúng 1 class) */
 .workspace {
     display: flex;
     flex: 1;
     height: auto;
     min-height: 0;
     overflow: hidden;
+    --split-editor-width: 50%;
+}
+
+body.view-split .editor-pane {
+    flex: 0 0 var(--split-editor-width);
+    min-width: 0;
+}
+
+body.view-split .preview-pane {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Chế độ Editor / Preview: pane được chọn chiếm trọn (flex:1 kế thừa từ .pane),
+   pane còn lại ẩn; resizer chỉ hiện ở view-split nên không cần luật riêng */
+body.view-editor .preview-pane,
+body.view-preview .editor-pane {
+    display: none;
+}
+
+body.view-editor .editor-pane {
+    border-right: none;
 }
 
 .pane {
@@ -974,6 +1097,13 @@ body {
         border-right: none;
         border-bottom: 1px solid var(--border-color);
         height: 50%;
+    }
+    /* Layout dọc: thanh ngăn cách ngang không còn ý nghĩa, ẩn đi */
+    #pane-resizer {
+        display: none !important;
+    }
+    body.view-split .editor-pane {
+        flex: 1 1 50%;
     }
 }
 

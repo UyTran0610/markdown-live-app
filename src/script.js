@@ -1535,6 +1535,150 @@ btnSync.addEventListener('click', () => {
     showToast(isSyncScrollEnabled ? "Sync scroll enabled" : "Sync scroll disabled");
 });
 
+// ==========================================================================
+// CHẾ ĐỘ XEM (Editor / Split / Preview) + Thanh ngăn cách kéo được
+// ==========================================================================
+
+const VIEW_STORAGE_KEY = 'markdown-live-view';
+const DEFAULT_VIEW_MODE = 'split'; // Chế độ mặc định của ứng dụng
+const workspace = document.querySelector('.workspace');
+const paneResizer = document.getElementById('pane-resizer');
+const viewWrap = document.querySelector('.view-wrap');
+const btnView = document.getElementById('btn-view');
+const viewMenu = document.getElementById('view-menu');
+const viewItems = Array.from(document.querySelectorAll('.view-item'));
+
+// Giới hạn độ rộng editor khi kéo thanh ngăn cách: 20% - 80% của workspace
+const SPLIT_MIN_PERCENT = 20;
+const SPLIT_MAX_PERCENT = 80;
+// Kéo editor sát mép trái (dưới 2%) -> Preview; sát mép phải (trên 98%) -> Editor
+const VIEW_EDGE_PREVIEW_PERCENT = 2;
+const VIEW_EDGE_EDITOR_PERCENT = 98;
+
+// Hàm thuần (để self-check): tính % width của editor từ vị trí con trỏ, có clamp
+function computeSplitPercent(pointerX, workspaceWidth) {
+    if (!(workspaceWidth > 0)) return 50;
+    const percent = (pointerX / workspaceWidth) * 100;
+    return Math.min(SPLIT_MAX_PERCENT, Math.max(SPLIT_MIN_PERCENT, percent));
+}
+
+// Hàm thuần (để self-check): quyết định chế độ xem từ vị trí kéo %
+function computeViewModeFromPercent(percent) {
+    if (percent < VIEW_EDGE_PREVIEW_PERCENT) return 'preview';
+    if (percent > VIEW_EDGE_EDITOR_PERCENT) return 'editor';
+    return 'split';
+}
+
+function getCurrentViewMode() {
+    return document.body.classList.contains('view-editor') ? 'editor'
+        : document.body.classList.contains('view-preview') ? 'preview'
+        : 'split';
+}
+
+// Áp dụng chế độ xem: đổi class trên <body>, đánh dấu item active, lưu localStorage
+function applyViewMode(mode, persist = true) {
+    if (mode !== 'editor' && mode !== 'split' && mode !== 'preview') return;
+    document.body.classList.toggle('view-editor', mode === 'editor');
+    document.body.classList.toggle('view-split', mode === 'split');
+    document.body.classList.toggle('view-preview', mode === 'preview');
+    viewItems.forEach((item) => {
+        item.classList.toggle('active', item.dataset.view === mode);
+    });
+    if (persist) {
+        try {
+            localStorage.setItem(VIEW_STORAGE_KEY, mode);
+        } catch (e) {
+            // Bỏ qua nếu localStorage bị chặn
+        }
+    }
+}
+
+// ----- Dropdown chọn chế độ xem (cùng pattern với dropdown Export) -----
+function closeViewMenu() {
+    viewMenu.classList.add('hidden');
+    viewWrap.classList.remove('open');
+    btnView.setAttribute('aria-expanded', 'false');
+}
+
+btnView.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = viewMenu.classList.toggle('hidden');
+    viewWrap.classList.toggle('open', !isHidden);
+    btnView.setAttribute('aria-expanded', String(!isHidden));
+});
+
+document.addEventListener('click', (e) => {
+    if (!viewMenu.classList.contains('hidden') && !viewWrap.contains(e.target)) {
+        closeViewMenu();
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeViewMenu();
+});
+
+viewItems.forEach((item) => {
+    item.addEventListener('click', () => {
+        applyViewMode(item.dataset.view);
+        closeViewMenu();
+    });
+});
+
+// ----- Thanh ngăn cách kéo được (chỉ ở chế độ Split) -----
+let isDraggingResizer = false;
+
+function endResizerDrag() {
+    if (!isDraggingResizer) return;
+    isDraggingResizer = false;
+    paneResizer.classList.remove('dragging');
+    document.body.classList.remove('resizing');
+}
+
+paneResizer.addEventListener('pointerdown', (e) => {
+    if (getCurrentViewMode() !== 'split') return;
+    isDraggingResizer = true;
+    paneResizer.classList.add('dragging');
+    document.body.classList.add('resizing');
+    // setPointerCapture có thể ném NotFoundError với pointer không thật (automation)
+    try {
+        paneResizer.setPointerCapture(e.pointerId);
+    } catch (err) {
+        // Không giữ capture: vẫn kéo được, chỉ là PointerEvent đi lạc ngoài resizer
+    }
+    e.preventDefault();
+});
+
+paneResizer.addEventListener('pointermove', (e) => {
+    if (!isDraggingResizer) return;
+    const rect = workspace.getBoundingClientRect();
+    if (!(rect.width > 0)) return;
+    // Xét ngưỡng biên theo percent THÔ (chưa clamp), nếu clamp trước thì không bao giờ
+    // chạm được ngưỡng 2%/98% để chuyển chế độ.
+    const rawPercent = ((e.clientX - rect.left) / rect.width) * 100;
+    const mode = computeViewModeFromPercent(rawPercent);
+    if (mode !== 'split') {
+        // Kéo sát biên -> chuyển chế độ NGAY khi chạm ngưỡng
+        endResizerDrag();
+        applyViewMode(mode);
+        return;
+    }
+    workspace.style.setProperty('--split-editor-width', computeSplitPercent(e.clientX - rect.left, rect.width) + '%');
+});
+
+paneResizer.addEventListener('pointerup', endResizerDrag);
+paneResizer.addEventListener('pointercancel', endResizerDrag);
+
+// Khởi tạo chế độ xem lúc mở app: chỉ nhớ chế độ xem, không nhớ vị trí splitter
+// (splitter luôn mở 50/50). Chạy ngay khi script tải (scripts dùng `defer`).
+(function initViewModel() {
+    let saved = null;
+    try {
+        saved = localStorage.getItem(VIEW_STORAGE_KEY);
+    } catch (e) {
+        // Bỏ qua nếu localStorage bị chặn
+    }
+    applyViewMode(saved || DEFAULT_VIEW_MODE, false);
+})();
+
 // Nút Reset
 btnReset.addEventListener('click', () => {
     if (confirm("Are you sure you want to restore the sample text? This will overwrite your current content.")) {
@@ -2458,6 +2602,14 @@ function runSelfCheck() {
     assert('filename từ heading có dấu', deriveExportBaseName('# Trình soạn thảo Markdown Live\n\nnội dung') === 'trinh-soan-thao-markdown-live');
     assert('filename bỏ ký tự đặc biệt', deriveExportBaseName('# Tiêu đề (v1.2)!') === 'tieu-de-v12');
     assert('filename fallback khi không có heading', deriveExportBaseName('không có heading') === 'document');
+
+    assert('split clamp dưới ngưỡng', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
+    assert('split clamp trên ngưỡng', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);
+    assert('split giữa vùng', computeSplitPercent(500, 1000) === 50);
+    assert('split workspace rỗng -> 50', computeSplitPercent(10, 0) === 50);
+    assert('kéo sát trái -> preview', computeViewModeFromPercent(1) === 'preview');
+    assert('kéo sát phải -> editor', computeViewModeFromPercent(99) === 'editor');
+    assert('kéo giữa -> split', computeViewModeFromPercent(50) === 'split');
 
     assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
     assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);

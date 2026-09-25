@@ -112,6 +112,7 @@ const btnExport = document.getElementById('btn-export');
 const exportWrap = document.querySelector('.export-wrap');
 const exportMenu = document.getElementById('export-menu');
 const exportMdBtn = document.getElementById('export-md');
+const exportHtmlBtn = document.getElementById('export-html');
 const exportDocBtn = document.getElementById('export-doc');
 const exportPdfBtn = document.getElementById('export-pdf');
 const btnTheme = document.getElementById('btn-theme');
@@ -1798,6 +1799,91 @@ async function exportMarkdown() {
     }
 }
 
+// ----- Export HTML (file độc lập, mở được bằng bất kỳ trình duyệt nào) -----
+
+// CSS tối giản nhúng trong file HTML: trình duyệt không đọc được stylesheet của
+// app nên phải tự mang theo các định dạng cốt lõi (heading, bảng, code, trích dẫn,
+// alert). Tinh thần giống DOC_STYLES nhưng cho môi trường trình duyệt đầy đủ.
+const HTML_STYLES = `
+    body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #1f2328; background: #fff; }
+    h1 { font-size: 2em; } h2 { font-size: 1.5em; } h3 { font-size: 1.25em; }
+    h4 { font-size: 1em; } h5 { font-size: .875em; } h6 { font-size: .85em; color: #59636e; }
+    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    th, td { border: 1px solid #d1d9e0; padding: 6px 13px; text-align: left; }
+    th { background: #f6f8fa; font-weight: bold; }
+    pre { background: #f6f8fa; border-radius: 6px; padding: 12px; overflow-x: auto; font-family: Consolas, "Courier New", monospace; font-size: 85%; }
+    code { font-family: Consolas, "Courier New", monospace; background: #f6f8fa; padding: .2em .4em; border-radius: 6px; font-size: 85%; }
+    pre code { background: none; padding: 0; font-size: 100%; }
+    blockquote { border-left: 4px solid #d1d9e0; margin-left: 0; padding-left: 12px; color: #59636e; }
+    img { max-width: 100%; height: auto; }
+    a { color: #0969da; }
+    hr { border: none; border-top: 1px solid #d1d9e0; }
+    .markdown-alert { border-left: 4px solid #0969da; background: #f6f8fa; padding: 8px 12px; }
+    .markdown-alert-title { font-weight: bold; }
+    .markdown-alert-tip { border-left-color: #1a7f37; }
+    .markdown-alert-important { border-left-color: #8250df; }
+    .markdown-alert-warning { border-left-color: #9a6700; }
+    .markdown-alert-caution { border-left-color: #d1242f; }
+    svg { max-width: 100%; height: auto; }
+`;
+
+// Bọc nội dung HTML trong khung file độc lập (doctype + meta UTF-8 + title + style).
+// Hàm thuần để self-check được. Title được escape để không bẻ gãy cấu trúc <title>.
+function buildStandaloneHtml(bodyHtml, title) {
+    const safeTitle = String(title || 'Document')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<!DOCTYPE html>\n<html lang="en">\n<head>\n'
+        + '<meta charset="UTF-8">\n'
+        + '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        + '<title>' + safeTitle + '</title>\n'
+        + '<style>' + HTML_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
+}
+
+// Lấy text của heading cấp 1 đầu tiên làm <title> cho file HTML.
+// Hàm thuần để self-check được.
+function deriveDocumentTitle(markdown) {
+    const heading = markdown.match(/^\s{0,3}#\s+(.+?)\s*$/m);
+    return (heading ? heading[1] : '').trim() || 'Document';
+}
+
+// Gỡ icon Lucide trong tiêu đề GFM alert (đã render thành <svg class="lucide">,
+// trình duyệt bên ngoài không có lib lucide để vẽ lại). Chỉ xóa đúng class lucide
+// để KHÔNG đụng tới SVG của sơ đồ Mermaid — file HTML cần giữ nguyên SVG đó.
+// Giữ checkbox task list nguyên bản vì input checkbox hiển thị được sẵn.
+function stripLucideIcons(container) {
+    container.querySelectorAll('svg.lucide').forEach((el) => el.remove());
+}
+
+async function exportHtml() {
+    const text = markdownInput.value;
+    if (!text.trim()) {
+        showToast("Content is empty, nothing to export.");
+        return;
+    }
+    showToast("Generating HTML file...");
+
+    // Clone Preview đã render hoàn chỉnh (giống exportDoc, nhưng giữ nguyên SVG
+    // Mermaid vì trình duyệt nào cũng vẽ được SVG, không cần chuyển sang PNG).
+    renderMarkdown();
+    await whenMermaidIdle(8000);
+    const clone = previewOutput.cloneNode(true);
+
+    stripLucideIcons(clone);
+
+    // KaTeX -> MathML thuần: file không mang CSS của KaTeX nên phải thay span.katex
+    // bằng <math> mà mọi trình duyệt hiện đại hiển thị trực tiếp được.
+    convertKatexForDoc(clone);
+
+    const html = buildStandaloneHtml(clone.innerHTML, deriveDocumentTitle(text));
+    try {
+        const saved = await saveTextFile(html, deriveExportBaseName(text), 'html', 'text/html;charset=utf-8');
+        if (saved) showToast("HTML file exported!");
+    } catch (err) {
+        console.error('HTML export failed:', err);
+        showToast("An error occurred while exporting the HTML file.");
+    }
+}
+
 // ----- Export DOC (Word-compatible HTML) -----
 
 // Chuyển mọi <foreignObject> (nhãn HTML của Mermaid) bên trong SVG clone thành <text>
@@ -2076,6 +2162,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 exportMdBtn.addEventListener('click', () => { closeExportMenu(); exportMarkdown(); });
+exportHtmlBtn.addEventListener('click', () => { closeExportMenu(); exportHtml(); });
 exportDocBtn.addEventListener('click', () => { closeExportMenu(); exportDoc(); });
 exportPdfBtn.addEventListener('click', () => { closeExportMenu(); exportPdf(); });
 
@@ -2649,6 +2736,15 @@ function runSelfCheck() {
     const fitTall = fitDocImageSize(500, 1800);
     assert('doc cap thu ảnh cao về 900 giữ tỉ lệ', fitTall.width === 250 && fitTall.height === 900);
     assert('doc cap bỏ qua kích thước lạ', fitDocImageSize(0, 0).width === 0);
+
+    const standalone = buildStandaloneHtml('<p>x</p>', 'Tiêu đề <đẹp>');
+    assert('html standalone có doctype', standalone.startsWith('<!DOCTYPE html>'));
+    assert('html standalone có meta UTF-8', standalone.includes('charset="UTF-8"'));
+    assert('html standalone giữ body', standalone.includes('<p>x</p>'));
+    assert('html standalone escape title', standalone.includes('<title>Tiêu đề &lt;đẹp&gt;</title>'));
+    assert('html standalone title fallback', buildStandaloneHtml('<p>x</p>', '').includes('<title>Document</title>'));
+    assert('title từ heading cấp 1', deriveDocumentTitle('# Báo cáo tháng 9\nnội dung') === 'Báo cáo tháng 9');
+    assert('title fallback khi không có heading', deriveDocumentTitle('không có heading') === 'Document');
 
     // ----- Format bar: helpers thuần -----
     assert('heading nhận diện H2 có thụt lề', getHeadingLevel('  ## Tiêu đề') === 2);

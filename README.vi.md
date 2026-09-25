@@ -40,15 +40,19 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 ## Tính năng kỹ thuật
 
 - **Dual-Pane Bidirectional Sync:** Soạn thảo song song cùng màn hình render với độ trễ gần như bằng 0.
+- **Ba chế độ xem & chia màn hình linh hoạt:** Chuyển đổi tức thì giữa **Editor**, **Split** và **Preview** qua menu thả xuống trên thanh công cụ, hoặc kéo thanh chia giữa hai khung để tùy chỉnh độ rộng — kéo sát về một bên sẽ tự động chuyển chế độ xem.
 - **GFM Alert Specifications:** Tương thích chuẩn Markdown Alerts của GitHub (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`).
 - **LaTeX Math Rendering:** Tích hợp KaTeX parser cho công thức nội dòng (`$...$`) và dạng khối (`$$...$$`).
 - **Diagrams as Code:** Tích hợp Mermaid.js engine biên dịch biểu đồ luồng (Flowchart), biểu đồ tuần tự (Sequence), biểu đồ quan hệ (ERD).
 - **Code Syntax Highlighting:** Tự động phát hiện và định dạng mã nguồn đa ngôn ngữ thông qua Highlight.js.
 - **Dynamic Syntax Overlay:** Khung textarea được xử lý đồng bộ màu cú pháp Markdown trực tiếp.
-- **Formatting Toolbar:** Thanh công cụ một chạm phía trên khung soạn thảo cho Tiêu đề, Danh sách, In đậm, In nghiêng, Gạch ngang, Liên kết và Bảng, giúp bạn định dạng Markdown mà không cần nhớ cú pháp.
-- **Multi-Format Export:** Xuất nội dung ra Markdown (`.md`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
+- **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ với Undo/Redo/Clear, Tiêu đề, Danh sách, In đậm, In nghiêng, Gạch ngang, Liên kết, Bảng, các thẻ HTML nội dòng (Superscript, Subscript, `<kbd>`, `<mark>`), code/công thức nội dòng và dạng khối, Blockquote, và mẫu sơ đồ Mermaid — không cần nhớ cú pháp.
+- **Chèn bảng & liên kết trực quan:** Dựng bảng bằng cách rê chuột trên lưới 5×5 (hoặc chọn kích thước tùy chỉnh cho bảng lớn hơn), và chèn liên kết qua hộp thoại riêng với ô nhập văn bản/URL.
+- **Đếm ký tự trực tiếp:** Phần đầu khung EDITOR hiển thị số ký tự theo thời gian thực khi bạn gõ.
+- **Multi-Format Export:** Xuất nội dung ra Markdown (`.md`), HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
 - **File Import:** Mở file Markdown từ máy tính (`.md`, `.markdown`, `.txt`) trực tiếp vào trình soạn thảo.
 - **Light/Dark Theme:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ lựa chọn giữa các lần mở ứng dụng.
+- **Tự động lưu phiên làm việc:** Nội dung Markdown và chế độ xem gần nhất được lưu cục bộ và tự động khôi phục ở lần mở ứng dụng tiếp theo.
 
 ---
 
@@ -118,12 +122,21 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 
 | Nút | Chức năng |
 | :--- | :--- |
+| **View** | Chuyển đổi giữa chế độ **Editor**, **Split** và **Preview** |
 | **Sync Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview |
-| **Reset** | Khôi phục nội dung ví dụ mặc định |
+| **Reset** | Khôi phục nội dung ví dụ mặc định (có xác nhận trước khi thực hiện) |
 | **Copy** | Sao chép toàn bộ nội dung Markdown vào clipboard |
 | **Import** | Nhập file Markdown từ máy vào trình soạn thảo |
-| **Export** | Mở menu xuất nội dung ra **Markdown** (`.md`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
+| **Export** | Mở menu xuất nội dung ra **Markdown** (`.md`), **HTML** (`.html`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
+
+### Chế độ xem & chia màn hình
+
+- **Editor** — soạn thảo toàn màn hình, không hiển thị bản xem trước.
+- **Split** — Editor và Preview hiển thị song song (mặc định).
+- **Preview** — chỉ hiển thị kết quả render, toàn màn hình.
+
+Ở chế độ **Split**, kéo thanh chia dọc giữa hai khung để thay đổi độ rộng tùy ý; kéo sát về một bên sẽ tự động chuyển sang chế độ **Editor** hoặc **Preview**. Ứng dụng ghi nhớ chế độ xem gần nhất giữa các lần mở (riêng độ rộng khung không được lưu, luôn mở lại ở tỉ lệ 50/50).
 
 ### Thanh công cụ định dạng
 
@@ -131,16 +144,27 @@ Thanh công cụ định dạng nằm phía trên khung **EDITOR**. Bôi đen đ
 
 | Nút | Chức năng | Kết quả Markdown | Phím tắt |
 | :--- | :--- | :--- | :--- |
+| **Undo** / **Redo** | Lùi lại hoặc làm lại lịch sử chỉnh sửa | — | `Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y` |
+| **Clear** | Xóa toàn bộ nội dung khung soạn thảo (có xác nhận) | — | — |
 | **Headings** | Chọn cấp độ tiêu đề từ danh sách | `# Heading 1` ... `###### Heading 6` | — |
 | **Lists** | Chọn loại danh sách: gạch đầu dòng, đánh số hoặc task list | `- item`, `1. item`, `- [ ] task` | — |
 | **B** (Bold) | In đậm đoạn văn bản đang chọn | `**text**` | `Ctrl`/`Cmd` + `B` |
 | *I* (Italic) | In nghiêng đoạn văn bản đang chọn | `*text*` | `Ctrl`/`Cmd` + `I` |
 | ~~S~~ (Strikethrough) | Gạch ngang giữa đoạn văn bản đang chọn | `~~text~~` | `Ctrl`/`Cmd` + `Shift` + `X` |
-| **Link** | Chèn liên kết; phần `url` được bôi đen sẵn để dán nhanh | `[text](url)` | `Ctrl`/`Cmd` + `K` |
-| **Table** | Chèn mẫu bảng Markdown tại vị trí con trỏ | `\| Column \| Column \|` | — |
+| **Link** | Mở hộp thoại nhập văn bản hiển thị và URL, sau đó chèn liên kết | `[text](url)` | — |
+| **Table** | Chọn kích thước bằng lưới trực quan 5×5, hoặc chọn **Custom size** cho bảng lớn hơn | `\| Column \| Column \|` | — |
+| **HTML Inline** | Bọc đoạn chọn bằng Superscript, Subscript, `<kbd>` (phím bàn phím), hoặc `<mark>` (highlight) | `<sup>`, `<sub>`, `<kbd>`, `<mark>` | — |
+| **Inline Code** | Bọc đoạn chọn thành code nội dòng | `` `code` `` | `Ctrl`/`Cmd` + `E` |
+| **Code Block** | Chèn khối mã nguồn (fenced code block) | ` ```js ... ``` ` | — |
+| **Inline Math** | Bọc đoạn chọn thành công thức LaTeX nội dòng | `$E = mc^2$` | — |
+| **Math Block** | Chèn khối công thức LaTeX dạng hiển thị | `$$ ... $$` | — |
+| **Blockquote** | Biến (các) dòng hiện tại thành trích dẫn | `> text` | — |
+| **Mermaid Diagram** | Chèn mẫu khởi tạo sơ đồ Mermaid | ` ```mermaid ... ``` ` | — |
 
 > [!TIP]
 > Mọi thao tác trên thanh công cụ đều hoạt động với Undo/Redo (`Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y`), và bản xem trước được cập nhật tức thì sau mỗi thao tác.
+>
+> Nút **Link** trên thanh công cụ mở hộp thoại để nhập văn bản và URL, trong khi phím tắt `Ctrl`/`Cmd` + `K` chèn nhanh `[link](url)` ngay tại vị trí con trỏ với `url` được bôi đen sẵn để dán — dùng cách nào tiện hơn tùy bạn.
 
 ### Phím tắt trong Editor
 

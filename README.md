@@ -40,15 +40,19 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 ## Technical Features
 
 - **Dual-Pane Bidirectional Sync:** Side-by-side editing and preview with near-zero latency.
+- **Three View Modes & Resizable Panes:** Instantly switch between **Editor**, **Split**, and **Preview** from a toolbar dropdown, or drag the divider between the panes to any width — dragging it all the way to an edge switches modes automatically.
 - **GFM Alert Specifications:** Fully compatible with GitHub Markdown Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`).
 - **LaTeX Math Rendering:** Integrated KaTeX parser for both inline (`$...$`) and block (`$$...$$`) math formulas.
 - **Diagrams as Code:** Integrated Mermaid.js engine supporting Flowcharts, Sequence Diagrams, and Entity Relationship Diagrams (ERDs).
 - **Code Syntax Highlighting:** Automatic detection and multi-language syntax formatting powered by Highlight.js.
 - **Dynamic Syntax Overlay:** Textarea synchronized with real-time Markdown syntax highlighting directly in the editor.
-- **Formatting Toolbar:** One-click toolbar above the editor for Headings, Lists, Bold, Italic, Strikethrough, Links, and Tables, so you can format Markdown without memorizing the syntax.
-- **Multi-Format Export:** Export content as Markdown (`.md`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
+- **Full Editing Toolkit:** A dedicated toolbar for Undo/Redo/Clear, Headings, Lists, Bold, Italic, Strikethrough, Links, Tables, inline HTML tags (Superscript, Subscript, `<kbd>`, `<mark>`), inline/block code, inline/block math, Blockquotes, and Mermaid diagram snippets — no need to memorize the syntax.
+- **Visual Table & Link Insertion:** Build tables by hovering a 5×5 grid (or pick a custom size for larger tables), and insert links through a dialog with separate text/URL fields.
+- **Live Character Counter:** The editor pane header shows a real-time character count as you type.
+- **Multi-Format Export:** Export content as Markdown (`.md`), standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
 - **File Import:** Open a local Markdown file (`.md`, `.markdown`, `.txt`) directly into the editor.
 - **Light/Dark Theme:** Automatic system theme detection, manual theme switching, and state persistence between sessions.
+- **Auto-Save Session:** Your Markdown content and last-used view mode are saved locally and restored automatically the next time you launch the app.
 
 ---
 
@@ -118,12 +122,21 @@ After launching the application, type or paste your Markdown content into the **
 
 | Action | Description |
 | :--- | :--- |
+| **View** | Switch between **Editor**, **Split**, and **Preview** modes |
 | **Sync Scroll** | Toggle synchronized scrolling between Editor and Preview |
-| **Reset** | Restore the default template content |
+| **Reset** | Restore the default template content (confirmation required) |
 | **Copy** | Copy the full raw Markdown content to the clipboard |
 | **Import** | Load a Markdown file from your device into the editor |
-| **Export** | Open a menu to export content as **Markdown** (`.md`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
+| **Export** | Open a menu to export content as **Markdown** (`.md`), **HTML** (`.html`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
 | **Theme** | Toggle between Light and Dark themes |
+
+### View Modes & Resizing Panes
+
+- **Editor** — full-width editing with no live preview.
+- **Split** — Editor and Preview side by side (default).
+- **Preview** — full-width rendered output only.
+
+In **Split** mode, drag the vertical divider between the two panes to resize them freely; dragging it all the way to either edge switches to **Editor** or **Preview** automatically. The app remembers your last-used view mode between sessions (the pane width itself is not saved and always reopens at 50/50).
 
 ### Formatting Toolbar
 
@@ -131,16 +144,27 @@ The formatting toolbar sits above the **EDITOR** pane. Select some text and clic
 
 | Button | Description | Markdown Output | Shortcut |
 | :--- | :--- | :--- | :--- |
+| **Undo** / **Redo** | Step backward or forward through your edit history | — | `Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y` |
+| **Clear** | Empty the entire editor (confirmation required) | — | — |
 | **Headings** | Choose a heading level from the list | `# Heading 1` ... `###### Heading 6` | — |
 | **Lists** | Choose a list type: bullet, numbered, or task list | `- item`, `1. item`, `- [ ] task` | — |
 | **B** (Bold) | Make the selected text bold | `**text**` | `Ctrl`/`Cmd` + `B` |
 | *I* (Italic) | Make the selected text italic | `*text*` | `Ctrl`/`Cmd` + `I` |
 | ~~S~~ (Strikethrough) | Strike through the selected text | `~~text~~` | `Ctrl`/`Cmd` + `Shift` + `X` |
-| **Link** | Insert a link; the `url` placeholder is highlighted for quick pasting | `[text](url)` | `Ctrl`/`Cmd` + `K` |
-| **Table** | Insert a Markdown table template at the cursor | `\| Column \| Column \|` | — |
+| **Link** | Opens a dialog to enter display text and a URL, then inserts the link | `[text](url)` | — |
+| **Table** | Pick dimensions on a visual 5×5 grid, or choose **Custom size** for larger tables | `\| Column \| Column \|` | — |
+| **HTML Inline** | Wrap the selection in Superscript, Subscript, `<kbd>` (keyboard key), or `<mark>` (highlight) | `<sup>`, `<sub>`, `<kbd>`, `<mark>` | — |
+| **Inline Code** | Wrap the selection as inline code | `` `code` `` | `Ctrl`/`Cmd` + `E` |
+| **Code Block** | Insert a fenced code block | ` ```js ... ``` ` | — |
+| **Inline Math** | Wrap the selection as inline LaTeX | `$E = mc^2$` | — |
+| **Math Block** | Insert a LaTeX display block | `$$ ... $$` | — |
+| **Blockquote** | Turn the current line(s) into a blockquote | `> text` | — |
+| **Mermaid Diagram** | Insert a starter Mermaid diagram block | ` ```mermaid ... ``` ` | — |
 
 > [!TIP]
 > All toolbar actions work with Undo/Redo (`Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y`), and the preview updates instantly after each action.
+>
+> The toolbar **Link** button opens a dialog for entering text and a URL, while the `Ctrl`/`Cmd` + `K` shortcut instead inserts `[link](url)` inline with `url` pre-selected for quick pasting — use whichever is faster for you.
 
 ### Editor Shortcuts
 

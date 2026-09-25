@@ -1548,7 +1548,10 @@ const btnView = document.getElementById('btn-view');
 const viewMenu = document.getElementById('view-menu');
 const viewItems = Array.from(document.querySelectorAll('.view-item'));
 
-// Giới hạn độ rộng editor khi kéo thanh ngăn cách: 20% - 80% của workspace
+// Media query khớp với layout dọc trong style.css (@media max-width 768px)
+const VERTICAL_LAYOUT_MQ = '(max-width: 768px)';
+
+// Giới hạn kích thước editor khi kéo thanh ngăn cách: 20% - 80% của workspace
 const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 80;
 // Kéo editor sát mép trái (dưới 2%) -> Preview; sát mép phải (trên 98%) -> Editor
@@ -1650,10 +1653,15 @@ paneResizer.addEventListener('pointerdown', (e) => {
 paneResizer.addEventListener('pointermove', (e) => {
     if (!isDraggingResizer) return;
     const rect = workspace.getBoundingClientRect();
-    if (!(rect.width > 0)) return;
+    // Chọn trục theo layout hiện tại (dọc khi màn hình nhỏ), kiểm mỗi lần move
+    // nên kéo vắt qua ngưỡng resize cửa sổ cũng không lỗi.
+    const vertical = window.matchMedia(VERTICAL_LAYOUT_MQ).matches;
+    const size = vertical ? rect.height : rect.width;
+    if (!(size > 0)) return;
+    const point = vertical ? e.clientY - rect.top : e.clientX - rect.left;
     // Xét ngưỡng biên theo percent THÔ (chưa clamp), nếu clamp trước thì không bao giờ
     // chạm được ngưỡng 2%/98% để chuyển chế độ.
-    const rawPercent = ((e.clientX - rect.left) / rect.width) * 100;
+    const rawPercent = (point / size) * 100;
     const mode = computeViewModeFromPercent(rawPercent);
     if (mode !== 'split') {
         // Kéo sát biên -> chuyển chế độ NGAY khi chạm ngưỡng
@@ -1661,7 +1669,7 @@ paneResizer.addEventListener('pointermove', (e) => {
         applyViewMode(mode);
         return;
     }
-    workspace.style.setProperty('--split-editor-width', computeSplitPercent(e.clientX - rect.left, rect.width) + '%');
+    workspace.style.setProperty('--split-size', computeSplitPercent(point, size) + '%');
 });
 
 paneResizer.addEventListener('pointerup', endResizerDrag);
@@ -2610,6 +2618,10 @@ function runSelfCheck() {
     assert('kéo sát trái -> preview', computeViewModeFromPercent(1) === 'preview');
     assert('kéo sát phải -> editor', computeViewModeFromPercent(99) === 'editor');
     assert('kéo giữa -> split', computeViewModeFromPercent(50) === 'split');
+    // Cùng công thức % cho cả trục ngang lẫn dọc (màn hình nhỏ)
+    assert('drag dọc giữa -> 50', computeSplitPercent(500, 1000) === 50);
+    assert('drag dọc clamp dưới', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
+    assert('drag dọc clamp trên', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);
 
     assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
     assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);

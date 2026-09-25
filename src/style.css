@@ -742,7 +742,8 @@ body.view-split #pane-resizer {
     display: block;
 }
 
-/* Khi kéo: giữ mặc định sẵn của textarea/svg để không nuốt pointer */
+/* Khi kéo: giữ mặc định sẵn của textarea/svg để không nuốt pointer.
+   Cursor đổi theo trục kéo (dọc khi màn hình nhỏ) — xem media query cuối file */
 body.resizing {
     cursor: col-resize;
     user-select: none;
@@ -815,11 +816,11 @@ body.view-preview #btn-view .label-preview {
     height: auto;
     min-height: 0;
     overflow: hidden;
-    --split-editor-width: 50%;
+    --split-size: 50%;
 }
 
 body.view-split .editor-pane {
-    flex: 0 0 var(--split-editor-width);
+    flex: 0 0 var(--split-size);
     min-width: 0;
 }
 
@@ -1096,14 +1097,25 @@ body.view-editor .editor-pane {
     .editor-pane {
         border-right: none;
         border-bottom: 1px solid var(--border-color);
-        height: 50%;
     }
-    /* Layout dọc: thanh ngăn cách ngang không còn ý nghĩa, ẩn đi */
-    #pane-resizer {
-        display: none !important;
+    /* Layout dọc: thanh ngăn cách vẫn hiện, kéo theo trục dọc.
+       Kéo lên sát mép trên -> Preview; kéo xuống sát mép dưới -> Editor
+       (ngưỡng 2%/98% do script.js xử lý, cùng công thức % với trục ngang).
+       Giữ selector body.view-split để resizer ẩn khi đã vào preview/editor. */
+    body.view-split #pane-resizer {
+        display: block;
+        cursor: row-resize;
     }
     body.view-split .editor-pane {
-        flex: 1 1 50%;
+        flex: 0 0 var(--split-size);
+        min-height: 0;
+    }
+    body.view-split .preview-pane {
+        flex: 1;
+        min-height: 0;
+    }
+    body.resizing {
+        cursor: row-resize;
     }
 }
 

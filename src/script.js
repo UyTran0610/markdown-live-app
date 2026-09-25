@@ -2185,6 +2185,8 @@ const btnRedo = document.getElementById('btn-redo');
 const btnClear = document.getElementById('btn-clear');
 const btnCodeInline = document.getElementById('btn-code-inline');
 const btnCodeBlock = document.getElementById('btn-code-block');
+const btnHtml = document.getElementById('btn-html');
+const htmlMenu = document.getElementById('html-menu');
 const btnMathInline = document.getElementById('btn-math-inline');
 const btnMathBlock = document.getElementById('btn-math-block');
 const btnQuote = document.getElementById('btn-quote');
@@ -2258,11 +2260,51 @@ function escapeLinkText(text) {
     return text.replace(/([\[\]])/g, '\\$1');
 }
 
+// Bọc/gỡ thẻ HTML inline (sup/sub/kbd/mark) quanh vùng chọn trong editor.
+// Trả về { text, selStart, selEnd } cho applyEditorChange, hoặc null nếu không đổi gì.
+// ponytail: toggle theo cặp thẻ trọn vẹn (như wrapOrToggleFormat với **), không
+// xử lý thẻ lồng nhau — nâng cấp sau: parse DOM thật nếu cần.
+function wrapHtmlTag(val, selStart, selEnd, tag) {
+    const open = '<' + tag + '>';
+    const close = '</' + tag + '>';
+    const oLen = open.length;
+    const cLen = close.length;
+    const selected = val.substring(selStart, selEnd);
+
+    // Vùng chọn đã bọc trọn cặp thẻ -> gỡ thẻ
+    if (selected.length >= oLen + cLen && selected.startsWith(open) && selected.endsWith(close)) {
+        const unwrapped = selected.substring(oLen, selected.length - cLen);
+        return { text: val.substring(0, selStart) + unwrapped + val.substring(selEnd), selStart, selEnd: selStart + unwrapped.length };
+    }
+    // Thẻ nằm ngay ngoài vùng chọn -> gỡ thẻ, giữ vùng chọn nội dung
+    if (selStart >= oLen && selEnd + cLen <= val.length
+        && val.substring(selStart - oLen, selStart) === open
+        && val.substring(selEnd, selEnd + cLen) === close) {
+        return {
+            text: val.substring(0, selStart - oLen) + selected + val.substring(selEnd + cLen),
+            selStart: selStart - oLen,
+            selEnd: selEnd - oLen
+        };
+    }
+    // Bọc mới (hoặc chèn placeholder khi không có vùng chọn)
+    if (selStart === selEnd) {
+        const placeholder = 'text';
+        const insert = open + placeholder + close;
+        return { text: val.substring(0, selStart) + insert + val.substring(selEnd), selStart: selStart + oLen, selEnd: selStart + oLen + placeholder.length };
+    }
+    return {
+        text: val.substring(0, selStart) + open + selected + close + val.substring(selEnd),
+        selStart: selStart + oLen,
+        selEnd: selEnd + oLen
+    };
+}
+
 // ----- Mở / đóng dropdown của format bar -----
 const formatMenus = [
     { btn: btnHeading, wrap: btnHeading.parentElement, menu: headingMenu },
     { btn: btnList, wrap: btnList.parentElement, menu: listMenu },
-    { btn: btnTable, wrap: btnTable.parentElement, menu: tableMenu }
+    { btn: btnTable, wrap: btnTable.parentElement, menu: tableMenu },
+    { btn: btnHtml, wrap: btnHtml.parentElement, menu: htmlMenu }
 ];
 
 function closeFormatMenus() {
@@ -2296,6 +2338,18 @@ btnStrike.addEventListener('click', () => { wrapOrToggleFormat('~~'); markdownIn
 // ----- Inline code / Inline math: tái sử dụng wrapOrToggleFormat -----
 btnCodeInline.addEventListener('click', () => { wrapOrToggleFormat('`', 'code'); markdownInput.focus(); });
 btnMathInline.addEventListener('click', () => { wrapOrToggleFormat('$', 'E = mc^2'); markdownInput.focus(); });
+
+// ----- Dropdown HTML inline: bọc/gỡ <sup>/<sub>/<kbd>/<mark> qua wrapHtmlTag -----
+btnHtml.addEventListener('click', () => toggleFormatMenu(formatMenus[3]));
+
+htmlMenu.querySelectorAll('.format-item').forEach((item) => {
+    item.addEventListener('click', () => {
+        closeFormatMenus();
+        markdownInput.focus();
+        const r = wrapHtmlTag(markdownInput.value, markdownInput.selectionStart, markdownInput.selectionEnd, item.dataset.html);
+        if (r) applyEditorChange(r.text, r.selStart, r.selEnd);
+    });
+});
 
 // ----- Code block / Math block / Mermaid: chèn khối fence tại con trỏ -----
 btnCodeBlock.addEventListener('click', () => { insertBlockFence('code'); markdownInput.focus(); });
@@ -2757,6 +2811,17 @@ function runSelfCheck() {
     assert('heading giữ nguyên thụt lề', setHeadingLevel('  # a', 2).line === '  ## a');
     assert('heading tạo mới trên dòng thường', setHeadingLevel('văn bản', 2).line === '## văn bản');
     assert('heading dòng thường + gỡ là no-op', setHeadingLevel('văn bản', 0) === null);
+
+    assert('html bọc vùng chọn', wrapHtmlTag('ab', 0, 2, 'sup').text === '<sup>ab</sup>');
+    assert('html bọc giữ vùng chọn', (() => { const r = wrapHtmlTag('ab', 0, 2, 'sub'); return r.selStart === 5 && r.selEnd === 7; })());
+    assert('html placeholder khi không chọn', (() => { const r = wrapHtmlTag('', 0, 0, 'kbd'); return r.text === '<kbd>text</kbd>' && r.selStart === 5 && r.selEnd === 9; })());
+    assert('html gỡ thẻ khi bọc trọn cặp', wrapHtmlTag('<sup>ab</sup>', 0, 13, 'sup').text === 'ab');
+    assert('html gỡ thẻ nằm ngoài vùng chọn', (() => { const r = wrapHtmlTag('<mark>ab</mark>', 6, 8, 'mark'); return r.text === 'ab' && r.selStart === 0 && r.selEnd === 2; })());
+    assert('html bọc lại sau khi gỡ (toggle về ban đầu)', (() => {
+        const a = wrapHtmlTag('ab', 0, 2, 'mark');
+        const b = wrapHtmlTag(a.text, a.selStart, a.selEnd, 'mark');
+        return b.text === 'ab';
+    })());
     assert('heading giữ # trong nội dung', setHeadingLevel('#hashtag', 1).line === '# #hashtag');
     assert('list parse task', parseListLine('- [x] việc').kind === 'task' && parseListLine('- [x] việc').rest === 'việc');
     assert('list parse numbered', parseListLine('2. mục').kind === 'numbered');

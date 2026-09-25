@@ -189,6 +189,30 @@
                 <button id="btn-link" class="btn-icon" title="Insert link (Ctrl+K)" aria-label="Insert link">
                     <i data-lucide="link-2"></i>
                 </button>
+                <div class="format-wrap">
+                    <button id="btn-table" class="btn-icon" title="Insert table" aria-haspopup="menu" aria-expanded="false">
+                        <i data-lucide="table-2"></i>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div id="table-menu" class="format-menu table-picker hidden" role="menu" aria-label="Table size">
+                        <div class="table-grid">
+                            <!-- 24 ô lưới được sinh sẵn bằng JS (5x5, ô cuối là Custom size) -->
+                        </div>
+                        <button class="format-item" data-table="custom" role="menuitem"><i data-lucide="table-2"></i><span>Custom size</span></button>
+                    </div>
+                </div>
+                <div class="format-wrap">
+                    <button id="btn-html" class="btn-icon" title="HTML inline (Sup / Sub / Kbd / Mark)" aria-haspopup="menu" aria-expanded="false">
+                        <i data-lucide="braces"></i>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div id="html-menu" class="format-menu hidden" role="menu" aria-label="HTML inline elements">
+                        <button class="format-item" data-html="sup" role="menuitem" title="Wrap selection in <sup>"><i data-lucide="superscript"></i><span>Superscript</span></button>
+                        <button class="format-item" data-html="sub" role="menuitem" title="Wrap selection in <sub>"><i data-lucide="subscript"></i><span>Subscript</span></button>
+                        <button class="format-item" data-html="kbd" role="menuitem" title="Wrap selection in <kbd>"><i data-lucide="keyboard"></i><span>Keyboard key</span></button>
+                        <button class="format-item" data-html="mark" role="menuitem" title="Wrap selection in <mark>"><i data-lucide="highlighter"></i><span>Highlight</span></button>
+                    </div>
+                </div>
                 <button id="btn-code-inline" class="btn-icon" title="Inline code (Ctrl+E)" aria-label="Inline code">
                     <i data-lucide="code"></i>
                 </button>
@@ -207,18 +231,6 @@
                 <button id="btn-mermaid" class="btn-icon" title="Mermaid diagram" aria-label="Mermaid diagram">
                     <i data-lucide="workflow"></i>
                 </button>
-                <div class="format-wrap">
-                    <button id="btn-table" class="btn-icon" title="Insert table" aria-haspopup="menu" aria-expanded="false">
-                        <i data-lucide="table-2"></i>
-                        <i data-lucide="chevron-down" class="chevron"></i>
-                    </button>
-                    <div id="table-menu" class="format-menu table-picker hidden" role="menu" aria-label="Table size">
-                        <div class="table-grid">
-                            <!-- 24 ô lưới được sinh sẵn bằng JS (5x5, ô cuối là Custom size) -->
-                        </div>
-                        <button class="format-item" data-table="custom" role="menuitem"><i data-lucide="table-2"></i><span>Custom size</span></button>
-                    </div>
-                </div>
             </div>
             <div class="editor-container">
                 <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"><code id="editor-highlight-code"></code></pre>

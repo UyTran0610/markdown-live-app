@@ -256,9 +256,9 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    row-gap: 6px;
-    padding: 2px 16px;
+    gap: 6px;
+    row-gap: 4px;
+    padding: 2px 6px;
     background-color: var(--pane-header-bg);
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s, border-color 0.2s;

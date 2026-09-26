@@ -256,7 +256,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     row-gap: 4px;
     padding: 2px 6px;
     background-color: var(--pane-header-bg);
@@ -309,6 +309,12 @@ body {
     opacity: 0.7;
     margin-left: -2px;
     transition: transform 0.15s;
+}
+
+/* Cho phép các nút có mũi tên (H1, List, Table, HTML) tự giãn độ rộng và có đệm 2 bên cân đối */
+.format-wrap .btn-icon {
+    width: auto;
+    padding: 0 6px;
 }
 
 .format-wrap.open .btn-icon .chevron {
@@ -717,7 +723,7 @@ body {
     position: relative;
     flex: 0 0 5px;
     cursor: col-resize;
-    background: transparent;
+    background: var(--border-color);
     transition: background-color 0.15s;
     touch-action: none;
     z-index: 10;
@@ -942,12 +948,12 @@ body.view-editor .editor-pane {
 }
 
 #markdown-input::-webkit-scrollbar-thumb {
-    background: var(--border-color);
+    background: var(--text-muted);
     border-radius: 5px;
 }
 
 #markdown-input::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: var(--text-secondary);
 }
 
 #editor-highlight {

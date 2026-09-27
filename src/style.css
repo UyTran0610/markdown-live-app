@@ -1223,6 +1223,8 @@ body.view-editor .editor-pane {
     .app-header,
     .editor-pane,
     .pane-header,
+    .dialog-overlay,
+    #pane-resizer,
     .toast {
         display: none !important;
     }

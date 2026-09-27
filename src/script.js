@@ -640,8 +640,18 @@ function highlightMarkdown(text) {
 }
 
 // Cập nhật lớp nền tô màu cú pháp phía sau khung soạn thảo
+// ponytail: quá ngưỡng thì thay bằng text thô (1 text node) thay vì ~24 regex/dòng
+// mỗi khung hình; KHÔNG được bỏ hẳn vì #markdown-input có color:transparent,
+// không có lớp highlight thì chữ biến mất hoàn toàn.
+// nâng cấp sau: highlight lười (chỉ vùng nhìn thấy) thay vì cả tài liệu.
+const EDITOR_HIGHLIGHT_MAX_CHARS = 300000;
 function updateEditorHighlight() {
-    editorHighlightCode.innerHTML = highlightMarkdown(markdownInput.value) + '\n';
+    const text = markdownInput.value;
+    if (text.length > EDITOR_HIGHLIGHT_MAX_CHARS) {
+        editorHighlightCode.textContent = text + '\n';
+        return;
+    }
+    editorHighlightCode.innerHTML = highlightMarkdown(text) + '\n';
 }
 
 // Gộp nhiều lệnh gọi liên tiếp (do gõ nhanh) thành 1 lần tô màu duy nhất mỗi khung hình,
@@ -748,6 +758,32 @@ if (typeof DOMPurify !== 'undefined') {
     });
 }
 
+// Sinh slug cho tiêu đề (kiểu GitHub: chữ thường, bỏ dấu câu, khoảng trắng -> '-').
+// marked v14 đã bỏ tuỳ chọn headerIds nên tiêu đề render ra không có id, khiến
+// liên kết neo nội bộ [mục](#muc-luc) không bao giờ tìm thấy đích.
+// Hàm thuần để self-check được.
+function slugifyHeading(text) {
+    return String(text).trim().toLowerCase()
+        .replace(/[^\p{L}\p{N}\s-]/gu, '')
+        .replace(/\s+/g, '-');
+}
+
+// Gán id cho mọi tiêu đề trong container (id phải duy nhất -> tiêu đề trùng nhau
+// thêm hậu tố -1, -2). Chỉ đọc textContent rồi gán bằng .id, không parse HTML nên
+// không mở ra đường XSS mới.
+function assignHeadingIds(container) {
+    const used = new Set();
+    container.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
+        const base = slugifyHeading(h.textContent);
+        if (!base) return;
+        let id = base;
+        let n = 1;
+        while (used.has(id)) id = base + '-' + n++;
+        used.add(id);
+        h.id = id;
+    });
+}
+
 // Cập nhật kết quả Preview từ Markdown sang HTML (Đảm bảo an toàn XSS)
 function renderMarkdown() {
     // Đánh dấu phiên bản của lượt render này (xem giải thích ở khai báo renderVersion).
@@ -777,6 +813,8 @@ function renderMarkdown() {
     });
 
     previewOutput.innerHTML = cleanHtml;
+    // Gán id tiêu đề SAU khi sanitize: id là thuộc tính DOM, không đi qua HTML parser.
+    assignHeadingIds(previewOutput);
     charCounter.textContent = `${rawText.length} characters`;
 
     // LƯU Ý: KHÔNG khôi phục scrollTop ngay ở đây. Các bước bên dưới (GFM alerts, hljs,
@@ -792,7 +830,9 @@ function renderMarkdown() {
     // 4. Tô màu mã nguồn (Syntax Highlighting) bằng Highlight.js
     // ponytail: bo highlight khi preview >300k ky tu (O(blocks x size) moi lan go);
     // nang cap sau: highlight rieng tung khoi thay doi hoac worker.
-    const isHugePreview = (previewOutput.textContent || '').length > 300000;
+    // Đo bằng cleanHtml (đã nằm sẵn trong RAM) chứ không phải
+    // previewOutput.textContent: đọc textContent phải serialize lại cả cây DOM.
+    const isHugePreview = cleanHtml.length > 300000;
     if (typeof hljs !== 'undefined' && !isHugePreview) {
         previewOutput.querySelectorAll('pre code').forEach((block) => {
             const hasLanguage = Array.from(block.classList).some(cls => cls.startsWith('language-'));
@@ -959,11 +999,16 @@ const editorHistory = {
     }
 };
 
-// Đồng bộ giao diện sau khi thực hiện thao tác chỉnh sửa văn bản
+// Đồng bộ giao diện sau khi thực hiện thao tác chỉnh sửa văn bản.
+// Mọi thay đổi qua applyEditorChange (Enter, Tab, 14 nút format, hộp thoại link/bảng,
+// Ctrl+B/I/K/D/E) đều đi qua đây -> lưu bộ nhớ tạm luôn, không chỉ nhờ 'input'.
+// Nếu không, những thay đổi đó chỉ được ghi khi beforeunload/visibilitychange,
+// tức là crash / kill cứng là mất.
 function syncEditorAfterChange() {
     charCounter.textContent = `${markdownInput.value.length} characters`;
     scheduleEditorHighlight();
     debouncedRender();
+    debouncedSaveContent();
 }
 
 // Áp dụng thay đổi văn bản và ghi nhận trạng thái vào lịch sử
@@ -1533,6 +1578,8 @@ previewOutput.addEventListener('click', async (e) => {
 btnSync.addEventListener('click', () => {
     isSyncScrollEnabled = !isSyncScrollEnabled;
     btnSync.classList.toggle('active', isSyncScrollEnabled);
+    // aria theo class .active: nếu không set, màn hình đọc luôn "pressed".
+    btnSync.setAttribute('aria-pressed', String(isSyncScrollEnabled));
     showToast(isSyncScrollEnabled ? "Sync scroll enabled" : "Sync scroll disabled");
 });
 
@@ -1604,8 +1651,7 @@ function closeViewMenu() {
     btnView.setAttribute('aria-expanded', 'false');
 }
 
-btnView.addEventListener('click', (e) => {
-    e.stopPropagation();
+btnView.addEventListener('click', () => {
     const isHidden = viewMenu.classList.toggle('hidden');
     viewWrap.classList.toggle('open', !isHidden);
     btnView.setAttribute('aria-expanded', String(!isHidden));
@@ -1750,11 +1796,15 @@ function downloadBlob(blob, filename) {
 // Trả về true nếu đã lưu, false nếu người dùng bấm Cancel.
 // Lưu ý: KHÔNG được đặt tên isTauri - Tauri core đã inject biến global isTauri
 // vào WebView (withGlobalTauri), trùng tên sẽ gây SyntaxError chết cả file script.
-// Chi mo http(s)/mailto/tel/ftp ra trinh duyet he thong; chan
+// Chi mo http(s)/mailto/tel ra trinh duyet he thong; chan
 // javascript:/data:/file:/blob: ngay ca khi sanitizer bi lot.
+// ponytail: khong mo `ftp:` - ACL cua plugin opener (gen/schemas/acl-manifests.json)
+// chi chap nhan mailto/tel/http/https, nen ftp luon bi tu choi: link thay vi
+// mo duoc thi ton tai hon la bo khoi regex.
+// nang cap sau: them sms:/geo:/mailto-cap khi biet ACL chap nhan gi.
 function isSafeExternalUrl(href) {
     const url = String(href || '').trim();
-    return /^(https?|ftp):\/\/\S/i.test(url) || /^(mailto|tel):\S/i.test(url);
+    return /^(https?):\/\/\S/i.test(url) || /^(mailto|tel):\S/i.test(url);
 }
 const tauriDialogPlugin = () => (window.__TAURI__ ? window.__TAURI__.dialog : undefined);
 const tauriFsPlugin = () => (window.__TAURI__ ? window.__TAURI__.fs : undefined);
@@ -1768,7 +1818,16 @@ async function saveTextFile(contents, baseName, ext, mimeType) {
             filters: [{ name: ext.toUpperCase() + ' file', extensions: [ext] }]
         });
         if (!path) return false; // người dùng bấm Cancel
-        await window.__TAURI__.fs.writeTextFile(path, contents);
+        try {
+            await window.__TAURI__.fs.writeTextFile(path, contents);
+        } catch (err) {
+            // ACL của plugin fs chỉ cho ghi trong $HOME (src-tauri/capabilities/default.json),
+            // còn hộp thoại Save As hiện cả ổ đĩa/mạng/USB -> chọn ngoài $HOME sẽ bị từ chối.
+            // Báo rõ nguyên nhân thay vì để lỗi chung chung "An error occurred while exporting".
+            console.error('Write failed:', err);
+            showToast('Could not write there. This build can only save inside your home folder - pick another location.');
+            return false;
+        }
         return true;
     }
 
@@ -1804,6 +1863,8 @@ async function exportMarkdown() {
 // CSS tối giản nhúng trong file HTML: trình duyệt không đọc được stylesheet của
 // app nên phải tự mang theo các định dạng cốt lõi (heading, bảng, code, trích dẫn,
 // alert). Tinh thần giống DOC_STYLES nhưng cho môi trường trình duyệt đầy đủ.
+// Phải kèm luôn sup/sub/kbd/mark/details + canh lề checkbox task list + canh giữa
+// Mermaid: app lấy các quy tắc đó từ vendor CSS, file độc lập thì không có.
 const HTML_STYLES = `
     body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #1f2328; background: #fff; }
     h1 { font-size: 2em; } h2 { font-size: 1.5em; } h3 { font-size: 1.25em; }
@@ -1825,6 +1886,14 @@ const HTML_STYLES = `
     .markdown-alert-warning { border-left-color: #9a6700; }
     .markdown-alert-caution { border-left-color: #d1242f; }
     svg { max-width: 100%; height: auto; }
+    .mermaid { display: flex; justify-content: center; align-items: center; background: transparent; border: none; }
+    sup, sub { font-size: .75em; }
+    kbd { font-family: Consolas, "Courier New", monospace; font-size: 85%; background: #f6f8fa; border: 1px solid #d1d9e0; border-bottom-width: 2px; border-radius: 6px; padding: .15em .4em; }
+    mark { background: #fff3bf; color: #24292f; padding: .1em .2em; }
+    details { border: 1px solid #d1d9e0; border-radius: 6px; padding: 8px 12px; margin: 10px 0; }
+    summary { font-weight: bold; cursor: pointer; }
+    li:has(> input[type="checkbox"]) { list-style-type: none; margin-left: -1.2em; }
+    li > input[type="checkbox"] { margin: 0 0.4em 0.2em 0; vertical-align: middle; }
 `;
 
 // Bọc nội dung HTML trong khung file độc lập (doctype + meta UTF-8 + title + style).
@@ -2085,13 +2154,21 @@ async function exportDoc() {
         }
     });
 
-    // Chuyển sơ đồ Mermaid thành ảnh PNG. Thứ tự pre.mermaid trong clone khớp 1-1
-    // với thứ tự trong DOM gốc nên có thể ánh xạ theo chỉ số.
+    // Chuyển sơ đồ Mermaid thành ảnh PNG. Ánh xạ theo CHÍNH node pre tương ứng
+    // (pre[i] -> svg con của nó) chứ không theo chỉ số vào danh sách svg: nếu một
+    // biểu đồ không có <svg> (mermaid lỗi, DOMPurify dọn rỗng, hoặc whenMermaidIdle
+    // timeout) thì danh sách svg lệch chỉ số và biểu đồ sau đó sẽ xuất ra ảnh
+    // của biểu đồ khác.
     const cloneMers = clone.querySelectorAll('pre.mermaid');
-    const origSvgs = previewOutput.querySelectorAll('pre.mermaid > svg');
+    const origPres = previewOutput.querySelectorAll('pre.mermaid');
     for (let i = 0; i < cloneMers.length; i++) {
+        const svg = origPres[i] && origPres[i].querySelector('svg');
+        if (!svg) {
+            console.warn('Mermaid diagram has no SVG yet, skipping image conversion:', i);
+            continue;
+        }
         try {
-            const { dataUrl, width, height } = await svgToPngDataUrl(origSvgs[i]);
+            const { dataUrl, width, height } = await svgToPngDataUrl(svg);
             const img = document.createElement('img');
             img.src = dataUrl;
             img.alt = 'Mermaid diagram';
@@ -2143,12 +2220,16 @@ async function exportPdf() {
 function closeExportMenu() {
     exportMenu.classList.add('hidden');
     exportWrap.classList.remove('open');
+    btnExport.setAttribute('aria-expanded', 'false');
 }
 
-btnExport.addEventListener('click', (e) => {
-    e.stopPropagation();
+// KHÔNG stopPropagation: listener document bên dưới kiểm tra "bấm ra ngoài wrap"
+// nên vẫn đóng được menu khác (format/view) đang mở. Gọi stopPropagation ở đây
+// (và ở btnView) làm hai dropdown cùng mở được, chồng lên nhau.
+btnExport.addEventListener('click', () => {
     const isHidden = exportMenu.classList.toggle('hidden');
     exportWrap.classList.toggle('open', !isHidden);
+    btnExport.setAttribute('aria-expanded', String(!isHidden));
 });
 
 // Đóng menu khi bấm ra ngoài hoặc nhấn Esc
@@ -2236,13 +2317,14 @@ function parseListLine(line) {
 }
 
 // Xây dựng nội dung bảng Markdown kích thước rows x cols.
+// rows = số DÒNG THÂN bảng (tối thiểu 1, để luôn có ô để gõ nội dung).
 // ponytail: header để trống cho người dùng điền sau khi chèn;
 // nâng cấp sau: điền tên cột từ lựa chọn văn bản hiện tại nếu có.
 function buildTableMarkdown(rows, cols) {
     const r = Math.max(1, Math.min(99, rows | 0));
     const c = Math.max(1, Math.min(99, cols | 0));
     const out = ['|' + ' Head |'.repeat(c), '|' + ' --- |'.repeat(c)];
-    for (let i = 1; i < r; i++) out.push('|' + '  |'.repeat(c));
+    for (let i = 0; i < r; i++) out.push('|' + '  |'.repeat(c));
     return out.join('\n');
 }
 
@@ -2451,7 +2533,8 @@ function applyHeadingLevel(level) {
     const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
     let lineEnd = val.indexOf('\n', selEnd);
     if (lineEnd === -1) lineEnd = val.length;
-    const lines = val.substring(lineStart, lineEnd).split('\n');
+    const original = val.substring(lineStart, lineEnd);
+    const lines = original.split('\n');
 
     // Toggle: nếu TẤT CẢ dòng đã cùng level yêu cầu thì gỡ heading thay vì đặt lại
     const allSame = lines.every((line) => getHeadingLevel(line) === level);
@@ -2463,9 +2546,13 @@ function applyHeadingLevel(level) {
         delta += res.delta;
         return res.line;
     });
-    if (delta === 0) return; // không có gì thay đổi
+    const replacedText = newLines.join('\n');
+    // Gate no-op bằng so sánh TEXT chứ không so tổng delta: delta là tổng CÓ DẤU,
+    // nên vài dòng cộng và các dòng khác bớt cùng số ký tự sẽ triệt tiêu nhau
+    // (vd ['### a','bbbb'] + H1: -2 +2 = 0 nhưng vẫn phải đổi).
+    if (replacedText === original) return; // không có gì thay đổi
 
-    const newText = val.substring(0, lineStart) + newLines.join('\n') + val.substring(lineEnd);
+    const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
     applyEditorChange(newText, lineStart, Math.max(lineStart, selEnd + delta));
 }
 
@@ -2477,7 +2564,8 @@ function applyListStyle(style) {
     const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
     let lineEnd = val.indexOf('\n', selEnd);
     if (lineEnd === -1) lineEnd = val.length;
-    const lines = val.substring(lineStart, lineEnd).split('\n');
+    const original = val.substring(lineStart, lineEnd);
+    const lines = original.split('\n');
 
     let delta = 0;
     let num = 0; // đánh số tăng dần trong phạm vi vùng chọn
@@ -2510,11 +2598,15 @@ function applyListStyle(style) {
         delta += newLine.length - line.length;
         return newLine;
     });
-    if (delta === 0) return;
+    const replacedText = newLines.join('\n');
+    // Gate no-op bằng so sánh TEXT chứ không so tổng delta: delta là tổng CÓ DẤU,
+    // nên vài dòng cộng và các dòng khác bớt cùng số ký tự sẽ triệt tiêu nhau
+    // (vd ['- aaa','bbb'] + Bulleted: -2 +2 = 0 nhưng vẫn phải đổi).
+    if (replacedText === original) return;
 
     // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi giữa có dòng trống;
     // nâng cấp sau: restart về 1 khi gặp đoạn văn mới (dòng trống).
-    const newText = val.substring(0, lineStart) + newLines.join('\n') + val.substring(lineEnd);
+    const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
 
     // Giữ nguyên vùng bôi đen: marker được thêm/xoá ở ĐẦU dòng, nên selection mới
     // được tính bằng cách dịch theo delta độ dài của từng dòng (cùng cách handleEditorTab).
@@ -2766,6 +2858,7 @@ function runSelfCheck() {
 
     assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
     assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);
+    assert('safe url chặn ftp (ACL opener không nhận)', isSafeExternalUrl('ftp://host/f.md') === false);
     assert('safe url blocks javascript', isSafeExternalUrl('javascript:alert(1)') === false);
     assert('safe url blocks padded data', isSafeExternalUrl('  DATA:text/html,<h1>x</h1>') === false);
     assert('safe url blocks relative', isSafeExternalUrl('/local/path') === false);
@@ -2777,6 +2870,8 @@ function runSelfCheck() {
         assert('sanitize keeps mermaid labels', probe.includes('probe-label'));
     }
     assert('import gate allows md', isImportableFile({ name: 'a.md', type: '' }) === true);
+    assert('import gate allows mdown', isImportableFile({ name: 'a.mdown', type: '' }) === true);
+    assert('import gate allows mkd', isImportableFile({ name: 'a.mkd', type: '' }) === true);
     assert('import gate allows extensionless', isImportableFile({ name: 'README', type: '' }) === true);
     assert('import gate rejects exe', isImportableFile({ name: 'a.exe', type: '' }) === false);
     const wordHtml = buildWordHtml('<p>x</p>');
@@ -2829,8 +2924,9 @@ function runSelfCheck() {
     assert('list từ chối dòng thường', parseListLine('chữ') === null);
     assert('list từ chối dòng trống', parseListLine('') === null);
     assert('list từ chối -5 không cách', parseListLine('-5') === null);
-    assert('bảng 2x2 đúng cú pháp', buildTableMarkdown(2, 2) === '| Head | Head |\n| --- | --- |\n|  |  |');
-    assert('bảng kẹp giới hạn 1..99', buildTableMarkdown(5, 0) === '| Head |\n| --- |\n|  |\n|  |\n|  |\n|  |');
+    assert('bảng 2x2 đúng cú pháp', buildTableMarkdown(2, 2) === '| Head | Head |\n| --- | --- |\n|  |  |\n|  |  |');
+    assert('bảng 1x1 vẫn có dòng thân để gõ', buildTableMarkdown(1, 1) === '| Head |\n| --- |\n|  |');
+    assert('bảng kẹp giới hạn 1..99', buildTableMarkdown(5, 0) === '| Head |\n| --- |\n|  |\n|  |\n|  |\n|  |\n|  |');
     assert('url thêm https khi trần', normalizeLinkUrl('example.com') === 'https://example.com');
     assert('url giữ scheme có sẵn', normalizeLinkUrl('mailto:a@b.com') === 'mailto:a@b.com');
     assert('url giữ anchor nội bộ', normalizeLinkUrl('#muc-luc') === '#muc-luc');
@@ -2844,6 +2940,34 @@ function runSelfCheck() {
     assert('fence math mặc định', buildBlockFence('math', '') === '$$\nf(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx\n$$');
     assert('fence mermaid mặc định', buildBlockFence('mermaid', '') === '```mermaid\ngraph TD\n    A[Start] --> B[End]\n```');
     assert('fence giữ nội dung có sẵn', buildBlockFence('code', 'a\nb') === '```js\na\nb\n```');
+
+    // ----- Regression: gate no-op phải so TEXT chứ không so tổng delta có dấu -----
+    // (delta triệt tiêu khi vài dòng cộng, vài dòng khác bớt cùng số ký tự)
+    (function () {
+        const saved = markdownInput.value;
+        const sel = [markdownInput.selectionStart, markdownInput.selectionEnd];
+        const run = (text, fn) => {
+            markdownInput.value = text;
+            markdownInput.setSelectionRange(0, text.length);
+            fn();
+            return markdownInput.value;
+        };
+        assert('heading delta 0 vẫn áp dụng', run('### a\nbbbb', () => applyHeadingLevel(1)) === '# a\n# bbbb');
+        assert('bullet delta 0 vẫn áp dụng', run('- aaa\nbbb', () => applyListStyle('bullet')) === 'aaa\n- bbb');
+        assert('numbered delta 0 vẫn áp dụng', run('1. a\nbbb', () => applyListStyle('numbered')) === 'a\n1. bbb');
+        markdownInput.value = saved;
+        markdownInput.setSelectionRange(sel[0], sel[1]);
+    })();
+
+    // ----- Regression: liên kết neo nội bộ cần id trên tiêu đề -----
+    assert('slug heading bỏ dấu câu', slugifyHeading('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');
+    (function () {
+        const host = document.createElement('div');
+        host.innerHTML = '<h2>Giới thiệu</h2><h2>Giới thiệu</h2>';
+        assignHeadingIds(host);
+        assert('tiêu đề có id để neo', host.querySelector('h2').id === 'giới-thiệu');
+        assert('tiêu đề trùng -> id duy nhất', host.querySelectorAll('h2')[1].id === 'giới-thiệu-1');
+    })();
 
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');

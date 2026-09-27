@@ -1,4 +1,4 @@
-name: Build & Release Portable App
+name: Build & Release App
 
 on:
   push:
@@ -75,14 +75,16 @@ jobs:
       # - name: Generate App Icons
       #   run: npm run tauri icon icon.png
 
-      # Build bản release độc lập (bỏ qua bước đóng gói NSIS/MSI)
-      - name: Build Portable Executable
-        run: npm run tauri -- build --no-bundle
+      # Build cả bản portable (.exe chạy thẳng) LẪN bản installer (NSIS .exe + MSI)
+      # vì bundle.active đã bật trong tauri.conf.json và không còn truyền --no-bundle nữa.
+      - name: Build Portable Executable + Installers
+        run: npm run tauri -- build
 
-      # Đổi tên file cho rõ ràng và tạo thêm bản nén .zip
+      # Đổi tên các file output cho rõ ràng: bản portable và 2 bản installer
       - name: Prepare Release Artifacts
         shell: pwsh
         run: |
+          # --- Bản portable (.exe chạy trực tiếp, không cần cài đặt) ---
           if (Test-Path "src-tauri/target/release/Markdown Live.exe") {
             Copy-Item "src-tauri/target/release/Markdown Live.exe" -Destination "Markdown-Live-Portable.exe"
           } elseif (Test-Path "src-tauri/target/release/markdown-live.exe") {
@@ -92,10 +94,25 @@ jobs:
             exit 1
           }
 
-          # Nén thêm bản .zip dự phòng cho người dùng
-          Compress-Archive -Path "Markdown-Live-Portable.exe" -DestinationPath "Markdown-Live-Portable.zip"
+          # --- Bản installer NSIS (.exe cài đặt) ---
+          $nsis = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($nsis) {
+            Copy-Item $nsis.FullName -Destination "Markdown-Live-Setup.exe"
+          } else {
+            Write-Error "Không tìm thấy installer NSIS (.exe) trong target/release/bundle/nsis!"
+            exit 1
+          }
 
-      # Đẩy file trực tiếp sang mục GitHub Releases
+          # --- Bản installer MSI ---
+          $msi = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter *.msi -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($msi) {
+            Copy-Item $msi.FullName -Destination "Markdown-Live-Setup.msi"
+          } else {
+            Write-Error "Không tìm thấy installer MSI (.msi) trong target/release/bundle/msi!"
+            exit 1
+          }
+
+      # Đẩy tất cả các file (portable + 2 installer) sang mục GitHub Releases
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
@@ -105,6 +122,7 @@ jobs:
           prerelease: false
           files: |
             Markdown-Live-Portable.exe
-            Markdown-Live-Portable.zip
+            Markdown-Live-Setup.exe
+            Markdown-Live-Setup.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

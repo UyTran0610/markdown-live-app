@@ -2118,6 +2118,22 @@ function convertKatexForDoc(container) {
     });
 }
 
+// Word/LibreOffice biến MỌI thuộc tính id thành "bookmark" (dấu ngoặc xám hiện ở đầu
+// đề mục). assignHeadingIds() gán id cho tiêu đề chỉ để liên kết neo hoạt động trong app,
+// nên khi xuất DOC ta gỡ id của các tiêu đề mà không có liên kết neo (#...) nào trỏ tới.
+// Tiêu đề có link nội bộ trỏ tới vẫn giữ id để liên kết trong Word còn dùng được.
+function stripUnusedHeadingIds(container) {
+    const linked = new Set();
+    container.querySelectorAll('a[href^="#"]').forEach((a) => {
+        const raw = a.getAttribute('href').slice(1);
+        linked.add(raw);
+        try { linked.add(decodeURIComponent(raw)); } catch (e) { /* href hỏng: giữ nguyên bản thô */ }
+    });
+    container.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
+        if (h.id && !linked.has(h.id)) h.removeAttribute('id');
+    });
+}
+
 // Ảnh với URL remote giữ nguyên <img src> (Word tự tải).
 async function exportDoc() {
     const text = markdownInput.value;
@@ -2131,6 +2147,9 @@ async function exportDoc() {
     renderMarkdown();
     await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
+
+    // Gỡ id của tiêu đề để Word không tạo bookmark (ký hiệu lạ ở đầu đề mục)
+    stripUnusedHeadingIds(clone);
 
     // Bỏ icon Lucide (Word không hiểu) và thay checkbox bằng ký hiệu Unicode
     clone.querySelectorAll('svg').forEach((el) => el.remove());

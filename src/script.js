@@ -1,4 +1,3 @@
-// Default Markdown content shown on load or after pressing Reset
 const defaultMarkdown = `# Markdown Live Editor
 
 Welcome to **Markdown Live**! This app lets you write and preview Markdown content in real time.
@@ -96,7 +95,6 @@ helloWorld();
 Try editing the content in the left pane and watch it update instantly on the right!
 `;
 
-// Lấy các phần tử DOM
 const markdownInput = document.getElementById('markdown-input');
 const previewOutput = document.getElementById('preview-output');
 const charCounter = document.getElementById('char-counter');
@@ -118,20 +116,17 @@ const exportPdfBtn = document.getElementById('export-pdf');
 const btnTheme = document.getElementById('btn-theme');
 const toast = document.getElementById('toast');
 
-// Các thẻ <link> có thể hoán đổi phiên bản sáng/tối (được thiết lập ban đầu ở <head>)
 const markdownThemeLink = document.getElementById('theme-markdown-css');
 const hljsThemeLink = document.getElementById('theme-hljs-css');
 const THEME_STORAGE_KEY = 'markdown-live-theme';
-// Key lưu nội dung Editor vào bộ nhớ tạm (localStorage) để giữ lại sau khi tắt/mở lại app
 const CONTENT_STORAGE_KEY = 'markdown-live-content';
 
-// Khởi tạo trạng thái ứng dụng
 let isSyncScrollEnabled = true;
 let activeScrollSource = null;
 let mermaidTimeout = null;
 let mermaidScheduled = false;
 let pendingMermaidJobs = 0;
-// Cho export PDF/DOC doi bieu do ve xong thay vi doan mo 200ms.
+// Export chờ Mermaid vẽ xong thay vì đoán mốc 200ms.
 function whenMermaidIdle(timeoutMs = 8000) {
     return new Promise((resolve) => {
         const start = Date.now();
@@ -143,20 +138,14 @@ function whenMermaidIdle(timeoutMs = 8000) {
     });
 }
 
-// Đếm số thứ tự mỗi lần renderMarkdown() được gọi. Việc vẽ Mermaid là bất đồng bộ
-// (setTimeout + Promise), nên nếu người dùng gõ tiếp trong lúc nó đang chạy, một lượt
-// render MỚI có thể hoàn tất và khôi phục đúng scrollTop TRƯỚC KHI lượt render CŨ (đã lỗi
-// thời) vẽ xong và tự ý ghi đè scrollTop bằng giá trị cũ của nó. renderVersion giúp lượt
-// render cũ nhận ra mình đã lỗi thời để bỏ qua việc khôi phục scroll, tránh cộng dồn sai lệch.
+// Đánh số mỗi lượt renderMarkdown(). Mermaid vẽ bất đồng bộ nên lượt cũ (đã lỗi thời) có thể
+// ghi đè scrollTop sau khi lượt mới đã khôi phục đúng; so renderVersion để lượt cũ bỏ qua.
 let renderVersion = 0;
 
-// Cache kết quả vẽ Mermaid theo đúng nội dung mã nguồn: nếu 1 khối biểu đồ không
-// thay đổi giữa 2 lần render, ta dùng lại SVG đã vẽ thay vì bắt mermaid.run() tính lại
-// từ đầu (thao tác tốn 50-200ms/biểu đồ). Cache sẽ bị xoá mỗi khi đổi theme vì màu
-// sắc SVG đã vẽ gắn liền với theme lúc vẽ.
+// Cache SVG Mermaid theo mã nguồn: khối không đổi thì dùng lại, khỏi chạy mermaid.run() (50-200ms/biểu đồ).
+// Xoá khi đổi theme vì màu SVG gắn với theme lúc vẽ.
 const mermaidCache = new Map();
-// ponytail: gioi han dem theo so muc + tong so ky tu (60 muc SVG lon = bo nho vo han);
-// nang cap sau: LRU theo bytes thuc te neu so do cuc lon pho bien.
+// ponytail: giới hạn theo số mục + tổng ký tự để tránh phình bộ nhớ; nâng cấp sau: LRU theo bytes thực tế.
 const MERMAID_CACHE_LIMIT = 60;
 const MERMAID_CACHE_MAX_CHARS = 600000;
 let mermaidCacheChars = 0;
@@ -179,26 +168,20 @@ function clearMermaidCache() {
     mermaidCache.clear();
     mermaidCacheChars = 0;
 }
-// DOMPurify loai bo <foreignObject> theo mac dinh, nhung nhan cua so do Mermaid
-// (htmlLabels) nam trong do -> thieu ADD_TAGS nay chu trong flowchart bien mat.
+// DOMPurify mặc định bỏ <foreignObject>, mà nhãn Mermaid (htmlLabels) nằm trong đó
+// -> thiếu ADD_TAGS này thì chữ trong flowchart biến mất.
 const MERMAID_SANITIZE_CONFIG = {
     USE_PROFILES: { html: true, svg: true },
     ADD_ATTR: ['target', 'rel'],
     ADD_TAGS: ['foreignObject'],
+    // Chỉ cho scheme http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn scheme lạ như javascript:)
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
 };
 
-// ==========================================================================
-// CHUYỂN ĐỔI GIAO DIỆN SÁNG / TỐI (Light / Dark Theme)
-// ==========================================================================
-
-// Lấy theme hiện tại đang áp dụng trên thẻ <html> (đã được thiết lập sớm ở <head>)
 function getCurrentTheme() {
     return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
 }
 
-// Áp dụng theme: cập nhật thuộc tính data-theme, hoán đổi CSS bên ngoài (markdown/hljs)
-// và đồng bộ theme của Mermaid. persist=true khi người dùng chủ động bấm nút chuyển đổi.
 function syncWindowTheme(theme) {
     try {
         if (window.__TAURI__ && window.__TAURI__.window) window.__TAURI__.window.getCurrentWindow().setTheme(theme).catch(() => {});
@@ -227,28 +210,24 @@ function applyTheme(theme, persist) {
         try {
             localStorage.setItem(THEME_STORAGE_KEY, theme);
         } catch (e) {
-            // Bỏ qua nếu trình duyệt chặn localStorage (ví dụ chế độ ẩn danh)
+            // Bỏ qua nếu localStorage bị chặn
         }
     }
 }
 
-// Đẩy theme khởi động (đã chọn ở <head>) xuống khung cửa sổ Tauri; bỏ qua khi mở bằng trình duyệt thường.
 syncWindowTheme(getCurrentTheme());
 
-// Nút Bật/Tắt giao diện Sáng / Tối
 if (btnTheme) {
     btnTheme.addEventListener('click', () => {
         const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
         applyTheme(nextTheme, true);
-        // Xoá cache Mermaid vì SVG cũ mang màu của theme trước, không dùng lại được
+        // Xoá cache: SVG cũ mang màu của theme trước
         clearMermaidCache();
-        // Vẽ lại Preview để cập nhật màu Highlight.js / Mermaid theo theme mới
         if (typeof renderMarkdown === 'function') renderMarkdown();
         showToast(nextTheme === 'dark' ? "Switched to Dark theme" : "Switched to Light theme");
     });
 }
 
-// Tự động chuyển theme theo hệ thống nếu người dùng chưa từng chọn thủ công
 if (window.matchMedia) {
     const darkSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     darkSchemeQuery.addEventListener('change', (event) => {
@@ -265,11 +244,6 @@ if (window.matchMedia) {
     });
 }
 
-// ==========================================================================
-// TÔ MÀU CÚ PHÁP MARKDOWN TRONG EDITOR (Syntax Highlighting cho khung soạn thảo)
-// ==========================================================================
-
-// Bảng màu cho các loại GFM Alert, dùng chung tông màu với phần Preview
 const alertHighlightColors = {
     NOTE: 'var(--alert-note-color)',
     TIP: 'var(--alert-tip-color)',
@@ -278,109 +252,114 @@ const alertHighlightColors = {
     CAUTION: 'var(--alert-caution-color)'
 };
 
-// Escape các ký tự HTML đặc biệt để tránh phá vỡ cấu trúc thẻ khi chèn span
 function escapeHtml(str) {
+    // Escape & trước, nếu không các &lt; &gt; vừa tạo sẽ bị escape lặp
     return str
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 }
 
-// Xử lý các cú pháp định dạng nằm trong một dòng (in đậm, in nghiêng, code, liên kết...)
 function highlightInline(text) {
     const store = [];
+    // Cất HTML đã tô vào store và trả về token; rule sau không đụng lại, cuối hàm mới khôi phục.
     const protect = (html) => {
         const token = `\u0000T${store.length}\u0000`;
         store.push(html);
         return token;
     };
 
-    // 0. Ký tự thoát (Escape characters): \* \_ \[ \] \$ \~ \# ...
+    // Thứ tự rule quan trọng: kết quả mỗi rule được protect() thành token nên rule sau không đụng lại;
+    // rule đặc thù/dài phải đứng trước (vd *** trước ** và *).
+    // Ký tự thoát: \* \_ \[ \] \$ \~ \# ...
+    // (&lt; &gt; &amp; liệt kê riêng vì text đã được escape HTML từ trước, nên \< thành \&lt;)
     text = text.replace(/\\(&lt;|&gt;|&amp;|[\\`*_{}\[\]()#+\-.!~$~|^])/g, (m, char) =>
         protect(`<span class="md-escape">\\${char}</span>`));
 
-    // 1. Code inline: `code`
+    // Code inline: `code` (dấu ` mở và đóng phải cùng độ dài)
     text = text.replace(/(`+)([^`]+?)\1/g, (m, ticks, content) =>
         protect(`<span class="md-code-inline">${ticks}${content}${ticks}</span>`));
 
-    // 2. Công thức toán dạng khối trên 1 dòng: $$...$$
+    // Công thức dạng khối trên 1 dòng: $$...$$
     text = text.replace(/(\$\$)([^$\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-math">${d}${c}${d}</span>`));
 
-    // 3. Công thức toán dạng inline: $...$
+    // Công thức inline: $...$
     text = text.replace(/(\$)([^$\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-math">${d}${c}${d}</span>`));
 
-    // 4. Tham chiếu Footnote: [^id]
+    // Tham chiếu footnote: [^id]
     text = text.replace(/(\[\^)([^\]]+?)(\])/g, (m, ob, id, cb) =>
         protect(`<span class="md-footnote-ref"><span class="md-footnote-marker">${ob}</span><span class="md-footnote-id">${id}</span><span class="md-footnote-marker">${cb}</span></span>`));
 
-    // 5. Ảnh: ![alt](url)
+    // Ảnh: ![alt](url)
     text = text.replace(/(!)(\[)([^\]]*)(\])(\()([^)]*)(\))/g, (m, bang, ob, alt, cb, op, url, cp) =>
         protect(`<span class="md-link-marker">${bang}${ob}</span><span class="md-link-text">${alt}</span><span class="md-link-marker">${cb}${op}</span><span class="md-link-url">${url}</span><span class="md-link-marker">${cp}</span>`));
 
-    // 6. Reference Link usage: [text][id] hoặc [text][]
+    // Reference link: [text][id] hoặc [text][]
     text = text.replace(/(\[)([^\]]+?)(\])(\s*)(\[)([^\]]*?)(\])/g, (m, ob1, txt, cb1, sp, ob2, id, cb2) =>
         protect(`<span class="md-link-marker">${ob1}</span><span class="md-link-text">${txt}</span><span class="md-link-marker">${cb1}${sp}${ob2}</span><span class="md-ref-id">${id}</span><span class="md-link-marker">${cb2}</span>`));
 
-    // 7. Liên kết thông thường: [text](url)
+    // Liên kết thường: [text](url)
     text = text.replace(/(\[)([^\]]*)(\])(\()([^)]*)(\))/g, (m, ob, t, cb, op, url, cp) =>
         protect(`<span class="md-link-marker">${ob}</span><span class="md-link-text">${t}</span><span class="md-link-marker">${cb}${op}</span><span class="md-link-url">${url}</span><span class="md-link-marker">${cp}</span>`));
 
-    // 8. Autolinks dạng ngoặc nhọn: <https://...> hoặc <email@example.com>
+    // Autolink trong ngoặc nhọn: <https://...> hoặc <email@example.com>
     text = text.replace(/(&lt;)(https?:\/\/[^\s&]+|mailto:[^\s&]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(&gt;)/gi, (m, ob, link, cb) =>
         protect(`<span class="md-link-marker">${ob}</span><span class="md-autolink">${link}</span><span class="md-link-marker">${cb}</span>`));
 
-    // 9. Autolinks URL trần: https://... hoặc http://...
+    // Autolink URL trần: https://...
     text = text.replace(/\b(https?:\/\/[^\s<>()"']+)/gi, (m, url) =>
         protect(`<span class="md-autolink">${url}</span>`));
 
-    // 10. In đậm + in nghiêng: ***text*** hoặc ___text___
+    // In đậm + nghiêng: ***text*** hoặc ___text___
     text = text.replace(/(\*\*\*|___)([^*_\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-bolditalic">${d}${c}${d}</span>`));
 
-    // Helpers cho emphasis lồng nhau: content cho phép delimiter đơn lẻ bên trong,
-    // và content được xử lý italic đệ quy trước khi bọc span ngoài (tránh token che mất inner).
+    // Emphasis lồng nhau: content cho phép delimiter đơn bên trong và được xử lý italic đệ quy
+    // trước khi bọc span ngoài (tránh token che mất phần trong).
+    // Mẫu nội dung (?:[^*\n]|\*(?!\*))+? = ký tự bất kỳ trừ * và xuống dòng, hoặc một * đơn (không đi liền *);
+    // dấu + ? để khớp lười, dừng ở delimiter đóng gần nhất. Bản _ tương tự: (?:[^_\n]|_(?!_))+?
+    // underItalicOnce: _text_ (cần word boundary)
     const underItalicOnce = (s) => s.replace(/\b(_)((?:[^_\n]|_(?!_))+?)\1\b/g, (m2, d2, c2) =>
         protect(`<span class="md-italic">${d2}${c2}${d2}</span>`));
+    // starItalicOnce: *text* (cho phép _text_ lồng bên trong)
     const starItalicOnce = (s) => s.replace(/(\*)((?:[^*\n]|\*(?!\*))+?)\1/g, (m2, d2, c2) =>
         protect(`<span class="md-italic">${d2}${underItalicOnce(c2)}${d2}</span>`));
 
-    // 11. In đậm: **text** (cho phép * đơn bên trong cho nested italic)
+    // In đậm: **text** (cho phép * đơn bên trong để lồng italic)
     text = text.replace(/(\*\*)((?:[^*\n]|\*(?!\*))+?)\1/g, (m, d, c) =>
         protect(`<span class="md-bold">${d}${underItalicOnce(starItalicOnce(c))}${d}</span>`));
 
-    // 11b. In đậm: __text__ (cho phép _ đơn bên trong, yêu cầu word boundary)
+    // In đậm: __text__ (cho phép _ đơn bên trong, cần word boundary)
     text = text.replace(/\b(__)((?:[^_\n]|_(?!_))+?)\1\b/g, (m, d, c) =>
         protect(`<span class="md-bold">${d}${underItalicOnce(starItalicOnce(c))}${d}</span>`));
 
-    // 12. In nghiêng: *text* (cho phép _ bên trong, xử lý đệ quy trước khi bọc)
+    // In nghiêng: *text* (chạy sau bold nên ** đã thành token)
     text = starItalicOnce(text);
 
-    // 12b. In nghiêng: _text_ (cho phép * bên trong đã xử lý ở rule 12, yêu cầu word boundary)
+    // In nghiêng: _text_ (cần word boundary nên không khớp giữa snake_case)
     text = underItalicOnce(text);
 
-    // 13. Gạch ngang giữa chữ: ~~text~~
+    // Gạch ngang: ~~text~~
     text = text.replace(/(~~)([^~\n]+?)\1/g, (m, d, c) =>
         protect(`<span class="md-strikethrough">${d}${c}${d}</span>`));
 
-    // 14. Keyboard shortcut (kbd): <kbd>Ctrl</kbd>
+    // Thẻ HTML inline <kbd>, <mark>, <sup>, <sub>: tô riêng thẻ và nội dung
+    // Nội dung ([^&]+) không chứa '&' (text đã escape) nên không khớp khi bên trong còn thẻ/entity khác.
     text = text.replace(/(&lt;)(kbd&gt;)([^&]+)(&lt;\/)(kbd&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
         protect(`<span class="md-kbd-marker">${ob1}${tagOpen}</span><span class="md-kbd">${content}</span><span class="md-kbd-marker">${cb1}${tagClose}</span>`));
 
-    // 15. Highlighted text (mark): <mark>text</mark>
     text = text.replace(/(&lt;)(mark&gt;)([^&]+)(&lt;\/)(mark&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
         protect(`<span class="md-mark-marker">${ob1}${tagOpen}</span><span class="md-mark">${content}</span><span class="md-mark-marker">${cb1}${tagClose}</span>`));
 
-    // 16. Superscript: <sup>text</sup>
     text = text.replace(/(&lt;)(sup&gt;)([^&]+)(&lt;\/)(sup&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
         protect(`<span class="md-sup-marker">${ob1}${tagOpen}</span><span class="md-sup">${content}</span><span class="md-sup-marker">${cb1}${tagClose}</span>`));
 
-    // 17. Subscript: <sub>text</sub>
     text = text.replace(/(&lt;)(sub&gt;)([^&]+)(&lt;\/)(sub&gt;)/gi, (m, ob1, tagOpen, content, cb1, tagClose) =>
         protect(`<span class="md-sub-marker">${ob1}${tagOpen}</span><span class="md-sub">${content}</span><span class="md-sub-marker">${cb1}${tagClose}</span>`));
 
-    // 18. Details/Accordion block: <details>...</details> and <summary>...</summary>
+    // <details> / <summary>: chỉ tô riêng thẻ mở/đóng, phần chữ bên trong xử lý như văn bản thường
     text = text.replace(/(&lt;details&gt;)/gi, 
         protect(`<span class="md-details-marker">&lt;details&gt;</span>`));
     text = text.replace(/(&lt;\/details&gt;)/gi, 
@@ -390,72 +369,78 @@ function highlightInline(text) {
     text = text.replace(/(&lt;\/summary&gt;)/gi, 
         protect(`<span class="md-summary-marker">&lt;/summary&gt;</span>`));
 
-    // 19. HTML comments trên 1 dòng: <!-- ... -->
+    // HTML comment trên 1 dòng: <!-- ... -->
     text = text.replace(/(&lt;!--)([\s\S]*?)(--&gt;)/g, (m) =>
         protect(`<span class="md-html-comment">${m}</span>`));
 
-    // 20. Anchor: <a href="...">text</a> (href -> md-link-url, text -> md-link-text)
+    // Mẫu thuộc tính HTML dùng lặp ở các rule thẻ bên dưới: (?:\s+tên(?:\s*=\s*giá trị)?)*
+    // với giá trị là "...", '...' hoặc không nháy (không chứa khoảng trắng, nháy, < >).
+    // Thẻ <a href="...">text</a>: href -> md-link-url, nội dung -> md-link-text
     text = text.replace(/(&lt;)(a)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(&gt;)([\s\S]*?)(&lt;\/)(a)(&gt;)/gi,
         (m, ob, tag, attrs, cb, content, cb2, tag2, cb3) => {
+            // Tô href="..." (giá trị có nháy kép, nháy đơn hoặc không nháy)
             const hlAttrs = attrs.replace(/(^|\s)(href)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'<>]+)/i,
                 `$1<span class="md-link-marker">$2$3</span><span class="md-link-url">$4</span>`);
             return protect(`<span class="md-link-marker">${ob}${tag}${hlAttrs}${cb}</span><span class="md-link-text">${content}</span><span class="md-link-marker">${cb2}${tag2}${cb3}</span>`);
         });
 
-    // 21. Images: <img src="..." alt="..." ...> (thứ tự thuộc tính bất kỳ)
+    // Thẻ <img src="..." alt="...">: src -> md-link-url, alt -> md-link-text (thuộc tính theo thứ tự bất kỳ)
     text = text.replace(/(&lt;)(img)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(\s*\/?)(&gt;)/gi,
         (m, ob, tag, attrs, slash, cb) => {
+            // Tô src giống href ở trên
             let hlAttrs = attrs.replace(/(^|\s)(src)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'<>]+)/i,
                 `$1<span class="md-link-marker">$2$3</span><span class="md-link-url">$4</span>`);
+            // Tô alt như văn bản liên kết
             hlAttrs = hlAttrs.replace(/(^|\s)(alt)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'<>]+)/i,
                 `$1<span class="md-link-marker">$2$3</span><span class="md-link-text">$4</span>`);
             return protect(`<span class="md-html-tag-marker">${ob}${tag}${hlAttrs}${slash}${cb}</span>`);
         });
 
-    // 22. Void tags: <br>, <hr>, <input type="checkbox" ...>
+    // Void tag: <br>, <hr>, <input ...> (thuộc tính theo mẫu trên, có thể tự đóng '/>')
     text = text.replace(/(&lt;)(br|hr|input)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(\s*\/?)(&gt;)/gi, (m) =>
         protect(`<span class="md-html-void">${m}</span>`));
 
-    // 23. Paired tags (open/content/close): inline + block containers + raw tables
+    // Cặp thẻ có nội dung trên cùng 1 dòng: <div>…</div>, <table>, <b>, <code>, ... (thuộc tính theo mẫu trên)
     text = text.replace(/(&lt;)(div|span|p|table|tr|td|th|thead|tbody|b|strong|i|em|u|code|small)((?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*)(&gt;)([\s\S]*?)(&lt;\/)(\2)(\s*)(&gt;)/gi,
         (m, ob, tag, attrs, cb, content, cb2, tag2, sp, cb3) =>
             protect(`<span class="md-html-tag-marker">${ob}${tag}${attrs}${cb}</span><span class="md-html-tag-content">${content}</span><span class="md-html-tag-marker">${cb2}${tag2}${sp}${cb3}</span>`));
 
-    // 24. Lone block tags: <div align="center">, </div>, <table>... (không có cặp trên cùng dòng)
+    // Thẻ khối lẻ không có cặp trên cùng dòng: <div align="center">, </div>, <table>, ... (thuộc tính theo mẫu trên)
     text = text.replace(/(&lt;\/?(?:div|span|p|table|tr|td|th|thead|tbody)(?:\s+[a-zA-Z-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>]+))?)*\s*\/?&gt;)/gi, (m) =>
         protect(`<span class="md-html-tag-marker">${m}</span>`));
 
+    // Trả token về HTML thật. Lặp vì token có thể lồng nhau (span ngoài chứa token của span trong).
     let previous;
     do {
         previous = text;
+        // Token do protect() tạo có dạng \u0000T<số>\u0000
         text = text.replace(/\u0000T(\d+)\u0000/g, (m, idx) => store[Number(idx)]);
     } while (text !== previous);
 
     return text;
 }
 
-// Xử lý cú pháp ở cấp độ dòng (tiêu đề, trích dẫn, danh sách, gạch ngang, bảng biểu, footnote...)
 function highlightMarkdownLine(line) {
-    // Đường kẻ ngang (Horizontal Rule): ---, ***, ___
+    // Đường kẻ ngang: 3 ký tự - * _ trở lên cùng loại (cho phép xen khoảng trắng)
     if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
         return `<span class="md-hr">${escapeHtml(line)}</span>`;
     }
 
-    // Chú thích chân trang (Footnote definition): [^1]: Nội dung
+    // Định nghĩa footnote: [^id]: nội dung
     let m = line.match(/^(\s{0,3})(\[\^)([^\]]+)(\]:)(\s*)(.*)$/);
     if (m) {
         const [, indent, ob, fnId, cb, space, content] = m;
         return `${escapeHtml(indent)}<span class="md-footnote-marker">${ob}</span><span class="md-footnote-id">${escapeHtml(fnId)}</span><span class="md-footnote-marker">${cb}</span>${escapeHtml(space)}${highlightInline(escapeHtml(content))}`;
     }
 
-    // Liên kết tham chiếu (Reference link definition): [id]: url "optional title"
+    // Định nghĩa reference link: [id]: url "title" (id không chứa ^ để khỏi nhầm footnote)
     m = line.match(/^(\s{0,3})(\[)([^\]^]+)(\])(:)(\s*)(\S+)(?:(\s+)(.*))?$/);
     if (m) {
         const [, indent, ob, id, cb, colon, sp1, url, sp2 = '', title = ''] = m;
         return `${escapeHtml(indent)}<span class="md-link-marker">${ob}</span><span class="md-ref-id">${escapeHtml(id)}</span><span class="md-link-marker">${cb}${colon}</span>${escapeHtml(sp1)}<span class="md-link-url">${escapeHtml(url)}</span>${escapeHtml(sp2)}${title ? `<span class="md-ref-title">${escapeHtml(title)}</span>` : ''}`;
     }
 
-    // Tiêu đề dạng ATX: #, ##, ### ...
+    // Tiêu đề ATX: 1-6 dấu # rồi khoảng trắng
     m = line.match(/^(\s{0,3})(#{1,6})(\s+)(.*)$/);
     if (m) {
         const [, indent, hashes, space, content] = m;
@@ -463,10 +448,11 @@ function highlightMarkdownLine(line) {
         return `${escapeHtml(indent)}<span class="md-header-marker">${hashes}</span>${escapeHtml(space)}<span class="md-header md-header-${level}">${highlightInline(escapeHtml(content))}</span>`;
     }
 
-    // Trích dẫn / GFM Alerts (Blockquote): > ...
+    // Trích dẫn: một hoặc nhiều dấu >
     m = line.match(/^(\s{0,3}>+\s?)(.*)$/);
     if (m) {
         const [, marker, rest] = m;
+        // GFM alert: [!NOTE] | [!TIP] | [!IMPORTANT] | [!WARNING] | [!CAUTION]
         const alertMatch = rest.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](.*)$/i);
         if (alertMatch) {
             const type = alertMatch[1].toUpperCase();
@@ -476,7 +462,7 @@ function highlightMarkdownLine(line) {
         return `<span class="md-quote-marker">${escapeHtml(marker)}</span><span class="md-quote-text">${highlightInline(escapeHtml(rest))}</span>`;
     }
 
-    // Task-list (Danh sách công việc có checkbox): - [ ] hoặc - [x]
+    // Task list: marker danh sách + [ ] hoặc [x]
     m = line.match(/^(\s*)([-*+]|\d+[.)])(\s+)(\[(?: |x|X)\])(\s+)(.*)$/);
     if (m) {
         const [, indent, marker, sp1, checkbox, sp2, content] = m;
@@ -485,37 +471,37 @@ function highlightMarkdownLine(line) {
         return `${escapeHtml(indent)}<span class="md-list-marker">${escapeHtml(marker)}</span>${escapeHtml(sp1)}<span class="md-task-checkbox ${checkClass}">${escapeHtml(checkbox)}</span>${escapeHtml(sp2)}${highlightInline(escapeHtml(content))}`;
     }
 
-    // Danh sách thông thường (List item): -, *, +, hoặc số thứ tự "1."
+    // List item: -, *, + hoặc số kèm . / )
     m = line.match(/^(\s*)([-*+]|\d+[.)])(\s+)(.*)$/);
     if (m) {
         const [, indent, marker, space, content] = m;
         return `${escapeHtml(indent)}<span class="md-list-marker">${escapeHtml(marker)}</span>${escapeHtml(space)}${highlightInline(escapeHtml(content))}`;
     }
 
-    // Dòng thuộc bảng biểu (chứa dấu |)
     if (line.includes('|')) {
-        // Dòng phân tách header/body: |---|:---:|---:| (tô riêng, không qua highlightInline)
+        // Dòng phân tách bảng: |---|:---:|---:|
         if (/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line)) {
+            // Thay | bằng placeholder để chỉ tô phần gạch/dấu :, rồi trả | về đã tô riêng ở cuối
             return escapeHtml(line)
-                .replace(/\|/g, '\u0000P\u0000')
-                .replace(/:?-+:?/g, '<span class="md-table-separator">$&</span>')
+                .replace(/\|/g, '\u0000P\u0000')  // | -> placeholder
+                .replace(/:?-+:?/g, '<span class="md-table-separator">$&</span>')  // phần gạch kèm dấu : căn lề tuỳ chọn
                 .split('\u0000P\u0000').join('<span class="md-table-pipe">|</span>');
         }
-        // Tokenize inline code first to preserve pipes inside code
+        // Token hoá inline code trước để dấu | trong code không bị tô như dấu bảng.
         const codeStore = [];
         let escapedLine = escapeHtml(line);
         
-        // Protect inline code containing pipes
+        // Tách inline code (`...`) ra token để dấu | trong code không bị tô
         escapedLine = escapedLine.replace(/(`+)([^`]+?)\1/g, (m, ticks, content) => {
             const token = `\u0000CODE_${codeStore.length}\u0000`;
             codeStore.push(`${ticks}${content}${ticks}`);
             return token;
         });
         
-        // Now safe to highlight table pipes
+        // Tô các dấu | của bảng
         escapedLine = escapedLine.replace(/\|/g, '<span class="md-table-pipe">|</span>');
         
-        // Restore inline code tokens
+        // Trả token inline code về lại
         escapedLine = escapedLine.replace(/\u0000CODE_(\d+)\u0000/g, (m, idx) => {
             return `<span class="md-code-inline">${codeStore[Number(idx)]}</span>`;
         });
@@ -523,12 +509,9 @@ function highlightMarkdownLine(line) {
         return highlightInline(escapedLine);
     }
 
-    // Dòng văn bản thông thường (paragraph)
     return highlightInline(escapeHtml(line));
 }
 
-// Hàm quét toàn bộ nội dung Markdown: khối code (```...```), khối toán ($$...$$),
-// HTML comments (<!-- ... -->), indented code, setext headings (=== / ---)
 function highlightMarkdown(text) {
     const lines = text.split('\n');
     let inFence = false;
@@ -536,20 +519,18 @@ function highlightMarkdown(text) {
     let inHtmlComment = false;
     let inIndentedCode = false;
 
-    // Dòng văn bản thuần (ứng viên cho setext title): không blank/block
-    // (heading, list, quote, table, hr, footnote, refdef, fence, math, code, comment...)
     const isPlainPara = (s) => {
         if (!s || !s.trim()) return false;
-        if (/^\s{0,3}(=+|-+)\s*$/.test(s)) return false;
-        if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(s)) return false;
-        if (/^\s{0,3}#{1,6}\s+/.test(s)) return false;
-        if (/^\s{0,3}>/.test(s)) return false;
-        if (/^\s*([-*+]|\d+[.)])\s+/.test(s)) return false;
-        if (/^\s{0,3}\[\^/.test(s)) return false;
-        if (/^\s{0,3}\[[^\]^]+\]:/.test(s)) return false;
-        if (/^\s{0,3}(`{3,}|~{3,})/.test(s)) return false;
-        if (/^\s*\$\$/.test(s)) return false;
-        if (/^(    |\t)/.test(s)) return false;
+        if (/^\s{0,3}(=+|-+)\s*$/.test(s)) return false;               // gạch dưới setext
+        if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(s)) return false;  // đường kẻ ngang
+        if (/^\s{0,3}#{1,6}\s+/.test(s)) return false;                 // tiêu đề ATX
+        if (/^\s{0,3}>/.test(s)) return false;                         // trích dẫn
+        if (/^\s*([-*+]|\d+[.)])\s+/.test(s)) return false;            // danh sách
+        if (/^\s{0,3}\[\^/.test(s)) return false;                      // định nghĩa footnote
+        if (/^\s{0,3}\[[^\]^]+\]:/.test(s)) return false;              // định nghĩa reference link
+        if (/^\s{0,3}(`{3,}|~{3,})/.test(s)) return false;             // fence code
+        if (/^\s*\$\$/.test(s)) return false;                          // khối toán $$
+        if (/^(    |\t)/.test(s)) return false;                        // indented code
         if (s.includes('|')) return false;
         if (s.includes('<!--') || s.includes('-->')) return false;
         return true;
@@ -559,14 +540,14 @@ function highlightMarkdown(text) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        // HTML comments nhiều dòng: nuốt mọi dòng cho tới -->
-        // (đặt trước fence để ``` nằm trong comment vẫn là comment)
+        // Đặt trước fence để ``` nằm trong HTML comment vẫn là comment.
         if (inHtmlComment) {
             outputLines.push(`<span class="md-html-comment">${escapeHtml(line)}</span>`);
             if (line.includes('-->')) inHtmlComment = false;
             continue;
         }
 
+        // Fence code: ``` hoặc ~~~ (từ 3 ký tự), phần còn lại là info string
         const fenceMatch = line.match(/^(\s{0,3})(`{3,}|~{3,})(.*)$/);
         if (fenceMatch) {
             inIndentedCode = false;
@@ -588,6 +569,7 @@ function highlightMarkdown(text) {
         }
 
         if (inMathBlock) {
+            // Dòng đóng khối toán: chỉ có $$ hoặc kết thúc bằng $$
             if (/^\s*\$\$\s*$/.test(line) || line.trim().endsWith('$$')) {
                 inMathBlock = false;
             }
@@ -595,8 +577,8 @@ function highlightMarkdown(text) {
             continue;
         }
 
-        // Indented code: 4 spaces / 1 tab. Không chen giữa paragraph/list nên chỉ mở
-        // sau dòng trắng (hoặc đầu file); dòng trắng không kết thúc block.
+        // Indented code chỉ mở sau dòng trắng/đầu file (không chen giữa paragraph/list);
+        // dòng trắng không kết thúc block.
         if (/^(    |\t)/.test(line)) {
             if (inIndentedCode || i === 0 || !lines[i - 1].trim()) {
                 inIndentedCode = true;
@@ -610,22 +592,22 @@ function highlightMarkdown(text) {
             inIndentedCode = false;
         }
 
-        // Mở HTML comment nhiều dòng (không có --> trên cùng dòng)
         if (line.includes('<!--') && !line.includes('-->')) {
             inHtmlComment = true;
             outputLines.push(`<span class="md-html-comment">${escapeHtml(line)}</span>`);
             continue;
         }
 
+        // Mở khối toán nhiều dòng: bắt đầu bằng $$ nhưng không đóng ngay trên cùng dòng
         if (/^\s*\$\$/.test(line) && !/^\s*\$\$.+\$\$\s*$/.test(line)) {
             inMathBlock = true;
             outputLines.push(`<span class="md-math">${escapeHtml(line)}</span>`);
             continue;
         }
 
-        // Setext headings: dòng === (H1) / --- (H2) sau 1 paragraph thuần.
-        // Đặt trước highlightMarkdownLine để --- sau paragraph thành H2 thay vì <hr>.
+        // Setext heading: đặt trước highlightMarkdownLine để --- sau paragraph thành H2 chứ không phải <hr>.
         const setextMatch = line.match(/^\s{0,3}(=+|-+)\s*$/);
+        // Loại trường hợp chỉ có đúng 1 dấu '-' (không coi là gạch dưới setext)
         if (setextMatch && i > 0 && isPlainPara(lines[i - 1]) && !/^\s{0,3}-\s*$/.test(line)) {
             const level = setextMatch[1][0] === '=' ? 1 : 2;
             outputLines[i - 1] = `<span class="md-header md-header-${level}">${outputLines[i - 1]}</span>`;
@@ -639,10 +621,8 @@ function highlightMarkdown(text) {
     return outputLines.join('\n');
 }
 
-// Cập nhật lớp nền tô màu cú pháp phía sau khung soạn thảo
-// ponytail: quá ngưỡng thì thay bằng text thô (1 text node) thay vì ~24 regex/dòng
-// mỗi khung hình; KHÔNG được bỏ hẳn vì #markdown-input có color:transparent,
-// không có lớp highlight thì chữ biến mất hoàn toàn.
+// ponytail: quá ngưỡng thì dùng text thô (1 text node) thay vì ~24 regex/dòng mỗi khung hình. KHÔNG được
+// bỏ hẳn lớp này vì #markdown-input có color:transparent (không có highlight thì chữ biến mất).
 // nâng cấp sau: highlight lười (chỉ vùng nhìn thấy) thay vì cả tài liệu.
 const EDITOR_HIGHLIGHT_MAX_CHARS = 300000;
 function updateEditorHighlight() {
@@ -654,8 +634,7 @@ function updateEditorHighlight() {
     editorHighlightCode.innerHTML = highlightMarkdown(text) + '\n';
 }
 
-// Gộp nhiều lệnh gọi liên tiếp (do gõ nhanh) thành 1 lần tô màu duy nhất mỗi khung hình,
-// tránh chặn (block) luồng chính ngay trong handler của sự kiện 'input' -> giảm độ trễ gõ phím.
+// Gộp các lần gọi liên tiếp (gõ nhanh) thành 1 lần tô màu mỗi khung hình, không chặn handler 'input'.
 let editorHighlightRAF = null;
 function scheduleEditorHighlight() {
     if (editorHighlightRAF !== null) return;
@@ -665,7 +644,6 @@ function scheduleEditorHighlight() {
     });
 }
 
-// Hàm hiển thị thông báo Toast
 let toastTimer = null;
 function showToast(message) {
     toast.textContent = message;
@@ -676,7 +654,6 @@ function showToast(message) {
     }, 2500);
 }
 
-// Lấy icon Lucide cho GFM Alert
 function getAlertIcon(type) {
     switch (type) {
         case 'NOTE': return 'info';
@@ -688,7 +665,6 @@ function getAlertIcon(type) {
     }
 }
 
-// Lấy tiêu đề hiển thị cho GFM Alert
 function getAlertTitle(type) {
     switch (type) {
         case 'NOTE': return 'Note';
@@ -700,16 +676,17 @@ function getAlertTitle(type) {
     }
 }
 
-// Xử lý các khối blockquote để định dạng thành GFM Alerts (phong cách GitHub)
 function processGFMAlerts() {
     previewOutput.querySelectorAll('blockquote').forEach((bq) => {
         const firstP = bq.querySelector('p');
         if (firstP) {
             const htmlContent = firstP.innerHTML.trim();
+            // Marker [!TYPE] ở đầu đoạn (có thể kèm <br> theo sau)
             const match = htmlContent.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?\s*/i);
             
             if (match) {
                 const type = match[1].toUpperCase();
+                // Gỡ marker [!TYPE] khỏi nội dung
                 firstP.innerHTML = firstP.innerHTML.replace(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?\s*/i, '');
                 bq.classList.add('markdown-alert', `markdown-alert-${type.toLowerCase()}`);
                 
@@ -724,29 +701,29 @@ function processGFMAlerts() {
     });
 }
 
-// Bảo mật bổ sung cho DOMPurify
 if (typeof DOMPurify !== 'undefined') {
     DOMPurify.addHook('afterSanitizeAttributes', (node) => {
         const tag = (node.tagName || '').toUpperCase();
-        // SVG <a> co tagName viet thuong + xlink:href: chan tren moi phan tu.
+        // SVG <a> có tagName viết thường + xlink:href: chặn trên mọi phần tử.
         const url = node.getAttribute
             ? (node.getAttribute('href') || node.getAttribute('xlink:href')) : null;
+        // Chặn scheme nguy hiểm: javascript:, data:, vbscript:
         if (url != null && /^\s*(javascript|data|vbscript):/i.test(url)) {
             node.removeAttribute('href');
             node.removeAttribute('xlink:href');
             return;
         }
-        // Form/iframe khong co cho trong preview: bo thuoc tinh dieu huong.
+        // Form/iframe không có chỗ trong preview: bỏ thuộc tính điều hướng.
         node.removeAttribute('formaction');
         if (tag === 'FORM') node.removeAttribute('action');
         if (tag === 'IFRAME') node.removeAttribute('srcdoc');
         if (tag === 'A' && node.hasAttribute('href')) {
             const href = node.getAttribute('href') || '';
+            // Chặn scheme nguy hiểm trên thẻ <a>
             if (/^\s*(javascript|data|vbscript):/i.test(href)) {
                 node.removeAttribute('href');
                 return;
             }
-            // Chỉ mở tab mới với liên kết ra ngoài; liên kết neo nội bộ (#muc-luc) giữ nguyên trong tab hiện tại
             if (href.startsWith('#')) {
                 node.removeAttribute('target');
                 node.removeAttribute('rel');
@@ -758,19 +735,17 @@ if (typeof DOMPurify !== 'undefined') {
     });
 }
 
-// Sinh slug cho tiêu đề (kiểu GitHub: chữ thường, bỏ dấu câu, khoảng trắng -> '-').
-// marked v14 đã bỏ tuỳ chọn headerIds nên tiêu đề render ra không có id, khiến
-// liên kết neo nội bộ [mục](#muc-luc) không bao giờ tìm thấy đích.
-// Hàm thuần để self-check được.
+// Slug kiểu GitHub (chữ thường, bỏ dấu câu, khoảng trắng -> '-'). marked v14 bỏ tuỳ chọn headerIds nên
+// tiêu đề không có id và liên kết neo [mục](#muc-luc) không tìm thấy đích.
 function slugifyHeading(text) {
+    // Bỏ ký tự không phải chữ/số/khoảng trắng/'-' (hỗ trợ Unicode), rồi đổi khoảng trắng thành '-'
     return String(text).trim().toLowerCase()
         .replace(/[^\p{L}\p{N}\s-]/gu, '')
         .replace(/\s+/g, '-');
 }
 
-// Gán id cho mọi tiêu đề trong container (id phải duy nhất -> tiêu đề trùng nhau
-// thêm hậu tố -1, -2). Chỉ đọc textContent rồi gán bằng .id, không parse HTML nên
-// không mở ra đường XSS mới.
+// id phải duy nhất (tiêu đề trùng thêm hậu tố -1, -2). Chỉ đọc textContent rồi gán .id,
+// không parse HTML nên không mở thêm đường XSS.
 function assignHeadingIds(container) {
     const used = new Set();
     container.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
@@ -784,22 +759,16 @@ function assignHeadingIds(container) {
     });
 }
 
-// Cập nhật kết quả Preview từ Markdown sang HTML (Đảm bảo an toàn XSS)
 function renderMarkdown() {
-    // Đánh dấu phiên bản của lượt render này (xem giải thích ở khai báo renderVersion).
     const myRenderVersion = ++renderVersion;
 
     const rawText = markdownInput.value;
 
-    // Lưu lại vị trí cuộn hiện tại của Preview TRƯỚC khi thay nội dung.
     const previousPreviewScrollTop = previewOutput.scrollTop;
     
-    // 1. Chuyển đổi Markdown sang HTML
     const dirtyHtml = marked.parse(rawText);
 
-    // 2. Bảo mật XSS: Khử độc HTML bằng DOMPurify
-    // Fail-closed: DOMPurify chua tai duoc thi hien thi van ban thuan,
-    // khong bao gio innerHTML HTML chua loc.
+    // Fail-closed: chưa tải được DOMPurify thì hiển thị văn bản thuần, không bao giờ innerHTML HTML chưa lọc.
     if (typeof DOMPurify === 'undefined') {
         previewOutput.textContent = rawText;
         charCounter.textContent = `${rawText.length} characters`;
@@ -809,29 +778,24 @@ function renderMarkdown() {
     const cleanHtml = DOMPurify.sanitize(dirtyHtml, {
         USE_PROFILES: { html: true, mathMl: true, svg: true },
         ADD_ATTR: ['target', 'rel'],
+        // Chỉ cho scheme http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn scheme lạ như javascript:)
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
     });
 
     previewOutput.innerHTML = cleanHtml;
-    // Gán id tiêu đề SAU khi sanitize: id là thuộc tính DOM, không đi qua HTML parser.
+    // Gán id SAU khi sanitize: id là thuộc tính DOM, không đi qua HTML parser.
     assignHeadingIds(previewOutput);
     charCounter.textContent = `${rawText.length} characters`;
 
-    // LƯU Ý: KHÔNG khôi phục scrollTop ngay ở đây. Các bước bên dưới (GFM alerts, hljs,
-    // mermaid, lucide icons) vẫn có thể làm thay đổi chiều cao nội dung; nếu khôi phục
-    // scrollTop ngay bây giờ rồi các bước đó chèn thêm chiều cao ở phía TRÊN vị trí đang
-    // xem, preview sẽ bị đẩy lệch và trông như "cuộn dần lên" sau mỗi lần gõ phím.
-    // Ta chỉ khôi phục scrollTop MỘT LẦN duy nhất, sau khi mọi thay đổi đồng bộ về
-    // chiều cao đã hoàn tất (xem lệnh gọi restorePreviewScrollTop() ở cuối hàm này).
+    // KHÔNG khôi phục scrollTop ở đây: các bước sau (GFM alerts, hljs, mermaid, lucide) còn đổi chiều cao;
+    // nếu chèn thêm chiều cao phía TRÊN vị trí đang xem thì preview bị đẩy lệch, trông như "cuộn dần lên"
+    // sau mỗi lần gõ. Chỉ khôi phục MỘT lần ở cuối hàm (restorePreviewScrollTop).
 
-    // 3. Chuyển đổi các khối blockquote đặc biệt thành GFM Alerts
     processGFMAlerts();
 
-    // 4. Tô màu mã nguồn (Syntax Highlighting) bằng Highlight.js
-    // ponytail: bo highlight khi preview >300k ky tu (O(blocks x size) moi lan go);
-    // nang cap sau: highlight rieng tung khoi thay doi hoac worker.
-    // Đo bằng cleanHtml (đã nằm sẵn trong RAM) chứ không phải
-    // previewOutput.textContent: đọc textContent phải serialize lại cả cây DOM.
+    // ponytail: bỏ highlight khi preview >300k ký tự (O(blocks x size) mỗi lần gõ); nâng cấp sau: highlight
+    // riêng từng khối thay đổi hoặc dùng worker. Đo bằng cleanHtml (đã có sẵn trong RAM) vì đọc textContent
+    // phải serialize lại cả cây DOM.
     const isHugePreview = cleanHtml.length > 300000;
     if (typeof hljs !== 'undefined' && !isHugePreview) {
         previewOutput.querySelectorAll('pre code').forEach((block) => {
@@ -842,11 +806,8 @@ function renderMarkdown() {
         });
     }
     
-    // 5. Xử lý các khối code Mermaid và vẽ biểu đồ
     if (typeof mermaid !== 'undefined') {
         const mermaidBlocks = previewOutput.querySelectorAll('pre code.language-mermaid');
-        // Chỉ những khối có nội dung THỰC SỰ mới (chưa có trong cache) mới cần mermaid.run() vẽ lại;
-        // khối trùng nội dung với lần render trước sẽ dùng ngay SVG đã lưu, không tốn CPU tính toán lại.
         const nodesToRender = [];
         const codeByNode = new Map();
 
@@ -877,9 +838,8 @@ function renderMarkdown() {
             pendingMermaidJobs++;
             mermaidTimeout = setTimeout(() => {
                 mermaidScheduled = false;
-                // Mermaid có thể phóng to chiều cao rất nhiều so với khối code chữ ban đầu.
-                // Ghi lại scrollTop NGAY TRƯỚC lúc thay thế nội dung để khôi phục lại đúng
-                // vị trí đang xem sau khi biểu đồ được vẽ xong (tránh preview bị "nhảy"/trôi lên).
+                // Mermaid có thể làm khối cao hơn nhiều so với code chữ ban đầu: ghi scrollTop NGAY TRƯỚC khi thay
+                // nội dung để khôi phục đúng vị trí đang xem sau khi vẽ xong (tránh preview bị nhảy/trôi lên).
                 const scrollTopBeforeMermaid = previewOutput.scrollTop;
                 const scrollGenBeforeMermaid = previewScrollGen;
 
@@ -887,10 +847,8 @@ function renderMarkdown() {
                     nodes: nodesToRender,
                     suppressErrors: true
                 }).then(() => {
-                    // Lưu lại SVG vừa vẽ để tái sử dụng cho các lần render sau
                     nodesToRender.forEach((node) => {
-                        // Mermaid sinh SVG chua qua loc (click/href javascript:):
-                        // loc lai truoc khi tin va cache.
+                        // Mermaid sinh SVG chưa qua lọc (click/href javascript:): lọc lại trước khi tin và cache.
                         if (typeof DOMPurify !== 'undefined' && node.innerHTML) {
                             node.innerHTML = DOMPurify.sanitize(node.innerHTML, MERMAID_SANITIZE_CONFIG);
                         }
@@ -899,14 +857,10 @@ function renderMarkdown() {
                             cacheMermaidResult(code, node.innerHTML);
                         }
                     });
-                    // Nếu đã có một lượt renderMarkdown() MỚI hơn chạy trong lúc Mermaid
-                    // đang vẽ (ví dụ người dùng gõ tiếp), thì lượt render hiện tại đã lỗi
-                    // thời: các node vừa vẽ không còn nằm trong DOM hiển thị nữa, và
-                    // scrollTopBeforeMermaid cũng không còn phản ánh đúng vị trí hiện tại
-                    // của Preview. Bỏ qua việc khôi phục scroll trong trường hợp này để
-                    // tránh ghi đè lên vị trí cuộn đúng mà lượt render mới hơn đã thiết lập.
+                    // Có lượt renderMarkdown() mới hơn chạy trong lúc Mermaid vẽ (vd người dùng gõ tiếp): lượt này đã lỗi
+                    // thời, scrollTopBeforeMermaid không còn đúng. Bỏ qua khôi phục scroll để khỏi ghi đè vị trí của lượt mới.
                     if (myRenderVersion !== renderVersion) return;
-                    // Nguoi dung da cuon trong luc ve: giu vi tri moi, khong ghi de.
+                    // Người dùng đã cuộn trong lúc vẽ: giữ vị trí mới, không ghi đè.
                     if (scrollGenBeforeMermaid !== previewScrollGen) return;
                     restorePreviewScrollTop(scrollTopBeforeMermaid);
                 }).catch((err) => {
@@ -918,32 +872,22 @@ function renderMarkdown() {
         }
     }
 
-    // 6. Cập nhật và vẽ lại tất cả icon từ Lucide
-    // Scope to preview container only to avoid scanning entire DOM
     if (typeof lucide !== 'undefined') {
         lucide.createIcons({ root: previewOutput });
     }
 
-    // Khôi phục vị trí cuộn đã lưu từ đầu hàm, giới hạn trong phạm vi có thể cuộn của
-    // nội dung mới. Đặt ở đây (SAU khi GFM alerts, hljs, mermaid-từ-cache và lucide icon
-    // đã chạy xong) để những thay đổi chiều cao đồng bộ ở trên không làm preview bị lệch.
+    // Khôi phục scroll một lần, sau khi mọi thay đổi chiều cao đồng bộ ở trên đã xong.
     restorePreviewScrollTop(previousPreviewScrollTop);
 }
 
-// Khôi phục scrollTop của Preview về đúng giá trị mong muốn, giới hạn trong phạm vi
-// có thể cuộn thực tế của nội dung hiện tại (nội dung có thể đã ngắn/dài hơn trước).
 function restorePreviewScrollTop(desiredScrollTop) {
     const maxPreviewScrollTop = Math.max(previewOutput.scrollHeight - previewOutput.clientHeight, 0);
     previewOutput.scrollTop = Math.min(desiredScrollTop, maxPreviewScrollTop);
 }
 
-// ==========================================================================
-// BỘ QUẢN LÝ TIỆN ÍCH & PHÍM TẮT TRÌNH SOẠN THẢO (Editor Actions & Shortcuts)
-// ==========================================================================
 const TAB_SIZE = 4;
 const TAB_SPACES = ' '.repeat(TAB_SIZE);
 
-// Quản lý lịch sử Undo / Redo cho Editor
 const editorHistory = {
     stack: [],
     index: -1,
@@ -973,9 +917,8 @@ const editorHistory = {
 
     undo(el) {
         if (this.index <= 0 && this.stack.length <= 1) return;
-        // Nếu nội dung hiện tại chưa kịp lưu vào lịch sử, lưu lại trước khi lùi.
-        // Lưu ý: push() đã tự tăng this.index khi thêm state mới, nên KHÔNG được
-        // giảm index thêm ở đây nữa - nếu không Undo sẽ lùi tới 2 bước thay vì 1.
+        // Lưu nội dung chưa kịp vào lịch sử trước khi lùi. push() đã tự tăng this.index nên KHÔNG giảm thêm,
+        // nếu không Undo sẽ lùi 2 bước thay vì 1.
         if (this.stack[this.index] && this.stack[this.index].val !== el.value) {
             this.push(el.value, el.selectionStart, el.selectionEnd);
         }
@@ -999,11 +942,9 @@ const editorHistory = {
     }
 };
 
-// Đồng bộ giao diện sau khi thực hiện thao tác chỉnh sửa văn bản.
-// Mọi thay đổi qua applyEditorChange (Enter, Tab, 14 nút format, hộp thoại link/bảng,
-// Ctrl+B/I/K/D/E) đều đi qua đây -> lưu bộ nhớ tạm luôn, không chỉ nhờ 'input'.
-// Nếu không, những thay đổi đó chỉ được ghi khi beforeunload/visibilitychange,
-// tức là crash / kill cứng là mất.
+// Mọi thay đổi qua applyEditorChange (Enter, Tab, nút format, hộp thoại, phím tắt) đều đi qua đây nên
+// lưu bộ nhớ tạm ngay, không chỉ nhờ 'input'; nếu không chỉ ghi khi beforeunload/visibilitychange và
+// crash / kill cứng là mất.
 function syncEditorAfterChange() {
     charCounter.textContent = `${markdownInput.value.length} characters`;
     scheduleEditorHighlight();
@@ -1011,7 +952,6 @@ function syncEditorAfterChange() {
     debouncedSaveContent();
 }
 
-// Áp dụng thay đổi văn bản và ghi nhận trạng thái vào lịch sử
 function applyEditorChange(newText, newStart, newEnd) {
     editorHistory.saveCurrentState(markdownInput);
     markdownInput.value = newText;
@@ -1020,21 +960,18 @@ function applyEditorChange(newText, newStart, newEnd) {
     syncEditorAfterChange();
 }
 
-// Xử lý phím Tab và Shift + Tab (Thụt lề / Hủy thụt lề)
 function handleEditorTab(e) {
     e.preventDefault();
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
     const selEnd = markdownInput.selectionEnd;
 
-    // Trường hợp con trỏ đơn, không chọn nhiều dòng và không ấn Shift: chèn 4 khoảng trắng
     if (selStart === selEnd && !e.shiftKey) {
         const newText = val.substring(0, selStart) + TAB_SPACES + val.substring(selEnd);
         applyEditorChange(newText, selStart + TAB_SIZE, selStart + TAB_SIZE);
         return;
     }
 
-    // Trường hợp bôi đen nhiều dòng hoặc Shift + Tab
     const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
     let lineEnd = val.indexOf('\n', selEnd);
     if (lineEnd === -1) lineEnd = val.length;
@@ -1049,11 +986,9 @@ function handleEditorTab(e) {
         let newLine = line;
 
         if (!e.shiftKey) {
-            // Thụt lề vào trong
             newLine = TAB_SPACES + line;
             delta = TAB_SIZE;
         } else {
-            // Hủy thụt lề ra ngoài
             if (line.startsWith(TAB_SPACES)) {
                 newLine = line.substring(TAB_SIZE);
                 delta = -TAB_SIZE;
@@ -1061,6 +996,7 @@ function handleEditorTab(e) {
                 newLine = line.substring(1);
                 delta = -1;
             } else {
+                // Tối đa 4 khoảng trắng đầu dòng
                 const spaces = line.match(/^ {1,4}/);
                 if (spaces) {
                     newLine = line.substring(spaces[0].length);
@@ -1082,7 +1018,6 @@ function handleEditorTab(e) {
     applyEditorChange(newText, newSelStart, newSelEnd);
 }
 
-// Xử lý phím Enter thông minh (Auto-indent & Tự động tiếp tục danh sách)
 function handleEditorEnter(e) {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -1091,10 +1026,13 @@ function handleEditorEnter(e) {
     const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
     const currentLine = val.substring(lineStart, selStart);
 
-    // 1. Kiểm tra trường hợp dòng danh sách rỗng (người dùng muốn thoát khỏi danh sách)
+    // Dòng task list rỗng: - [ ]
     const emptyTaskMatch = currentLine.match(/^(\s*[-*+]\s+\[[ xX]\]\s*)$/);
+    // Dòng bullet rỗng: -, *, +
     const emptyUlMatch = currentLine.match(/^(\s*[-*+]\s*)$/);
+    // Dòng số thứ tự rỗng: 1. hoặc 1)
     const emptyOlMatch = currentLine.match(/^(\s*\d+[.)]\s*)$/);
+    // Dòng trích dẫn rỗng: >
     const emptyBqMatch = currentLine.match(/^(\s*>+\s*)$/);
 
     if (emptyTaskMatch || emptyUlMatch || emptyOlMatch || emptyBqMatch) {
@@ -1104,11 +1042,12 @@ function handleEditorEnter(e) {
         return;
     }
 
-    // 2. Danh sách công việc (Task list): - [ ] hoặc - [x]
+    // Task list có nội dung: marker + [ ]/[x] + chữ
     const taskMatch = currentLine.match(/^(\s*)([-*+]|\d+[.)])(\s+\[[ xX]\]\s+)(.*)$/);
     if (taskMatch) {
         e.preventDefault();
         const [, indent, bullet, marker] = taskMatch;
+        // Dòng mới luôn bắt đầu với checkbox chưa tick
         const cleanMarker = marker.replace(/\[[xX]\]/, '[ ]');
         const insert = '\n' + indent + bullet + cleanMarker;
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
@@ -1116,7 +1055,7 @@ function handleEditorEnter(e) {
         return;
     }
 
-    // 3. Danh sách không thứ tự (Unordered list): -, *, +
+    // Bullet: -, *, +
     const ulMatch = currentLine.match(/^(\s*)([-*+]\s+)(.*)$/);
     if (ulMatch) {
         e.preventDefault();
@@ -1127,7 +1066,7 @@ function handleEditorEnter(e) {
         return;
     }
 
-    // 4. Danh sách có thứ tự (Ordered list): 1. , 2)
+    // Số thứ tự: 1. hoặc 1)
     const olMatch = currentLine.match(/^(\s*)(\d+)([.)]\s+)(.*)$/);
     if (olMatch) {
         e.preventDefault();
@@ -1139,7 +1078,7 @@ function handleEditorEnter(e) {
         return;
     }
 
-    // 5. Trích dẫn (Blockquote): >
+    // Trích dẫn: > (có thể nhiều cấp)
     const bqMatch = currentLine.match(/^(\s*>+\s*)(.*)$/);
     if (bqMatch) {
         e.preventDefault();
@@ -1149,7 +1088,7 @@ function handleEditorEnter(e) {
         return;
     }
 
-    // 6. Giữ nguyên độ thụt lề của dòng hiện tại (Auto indentation)
+    // Phần thụt lề đầu dòng
     const indentMatch = currentLine.match(/^(\s+)/);
     if (indentMatch) {
         e.preventDefault();
@@ -1159,7 +1098,6 @@ function handleEditorEnter(e) {
     }
 }
 
-// Bọc hoặc hủy bọc đoạn văn bản bằng ký hiệu Markdown (Bold, Italic, Code, Strikethrough...)
 function wrapOrToggleFormat(wrapper, placeholder = '') {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -1167,7 +1105,6 @@ function wrapOrToggleFormat(wrapper, placeholder = '') {
     const selected = val.substring(selStart, selEnd);
     const wLen = wrapper.length;
 
-    // Kiểm tra nếu nội dung đang chọn đã được bọc bởi wrapper
     if (selected.length >= 2 * wLen && selected.startsWith(wrapper) && selected.endsWith(wrapper)) {
         const unwrapped = selected.substring(wLen, selected.length - wLen);
         const newText = val.substring(0, selStart) + unwrapped + val.substring(selEnd);
@@ -1175,14 +1112,11 @@ function wrapOrToggleFormat(wrapper, placeholder = '') {
         return;
     }
 
-    // Kiểm tra nếu wrapper nằm ngay bên ngoài phạm vi đang chọn
     if (selStart >= wLen && selEnd + wLen <= val.length) {
         const before = val.substring(selStart - wLen, selStart);
         const after = val.substring(selEnd, selEnd + wLen);
-        // Đảm bảo cặp ký hiệu vừa tìm thấy không phải là MỘT PHẦN của một cặp dài hơn
-        // (vd: 1 dấu "*" đứng liền trong cặp "**" của bold không được coi là wrapper "*" của italic).
-        // Cách làm: xem thêm 1 ký tự nằm ngay ngoài "before"/"after" - nếu ký tự đó
-        // cũng trùng với wrapper thì nghĩa là chuỗi dấu thực tế dài hơn wrapper đang xét.
+        // Cặp ký hiệu tìm được không được là MỘT PHẦN của cặp dài hơn (vd '*' trong '**' của bold không phải
+        // wrapper '*' của italic): xem thêm 1 ký tự ngoài before/after, nếu trùng wrapper thì chuỗi dấu dài hơn.
         const extraBefore = selStart - wLen - 1 >= 0 ? val[selStart - wLen - 1] : '';
         const extraAfter = selEnd + wLen < val.length ? val[selEnd + wLen] : '';
         const isPartOfLongerWrapper = extraBefore === wrapper[wrapper.length - 1] || extraAfter === wrapper[0];
@@ -1193,7 +1127,6 @@ function wrapOrToggleFormat(wrapper, placeholder = '') {
         }
     }
 
-    // Bọc mới
     if (selStart === selEnd) {
         const insert = wrapper + placeholder + wrapper;
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
@@ -1206,7 +1139,6 @@ function wrapOrToggleFormat(wrapper, placeholder = '') {
     }
 }
 
-// Chèn hoặc bọc liên kết (Link)
 function handleEditorLink() {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -1216,8 +1148,7 @@ function handleEditorLink() {
     if (selStart === selEnd) {
         const insert = '[link](url)';
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
-        // Pre-select the word "url" so the user can paste their link over it.
-        // "[link](url)" -> "url" sits at index 7-10.
+        // Chọn sẵn chữ "url" (vị trí 7-10 trong "[link](url)") để người dùng dán link đè lên.
         applyEditorChange(newText, selStart + 7, selStart + 10);
     } else {
         const insert = `[${selected}](url)`;
@@ -1227,7 +1158,6 @@ function handleEditorLink() {
     }
 }
 
-// Nhân bản dòng hiện tại hoặc đoạn văn bản đang chọn (Duplicate line / selection)
 function handleEditorDuplicate() {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -1250,66 +1180,56 @@ function handleEditorDuplicate() {
     }
 }
 
-// Lắng nghe sự kiện bàn phím trên khung soạn thảo
 markdownInput.addEventListener('keydown', (e) => {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
     const key = e.key;
 
-    // 1. Phím tắt có Ctrl / Cmd
     if (isCmdOrCtrl) {
         const lowerKey = key.toLowerCase();
 
-        // Undo: Ctrl+Z
         if (lowerKey === 'z' && !e.shiftKey) {
             e.preventDefault();
             editorHistory.undo(markdownInput);
             return;
         }
 
-        // Redo: Ctrl+Y hoặc Ctrl+Shift+Z
         if (lowerKey === 'y' || (lowerKey === 'z' && e.shiftKey)) {
             e.preventDefault();
             editorHistory.redo(markdownInput);
             return;
         }
 
-        // Bold: Ctrl+B
         if (lowerKey === 'b') {
             e.preventDefault();
             wrapOrToggleFormat('**');
             return;
         }
 
-        // Italic: Ctrl+I
         if (lowerKey === 'i') {
             e.preventDefault();
             wrapOrToggleFormat('*');
             return;
         }
 
-        // Link: Ctrl+K
         if (lowerKey === 'k') {
             e.preventDefault();
             handleEditorLink();
             return;
         }
 
-        // Inline Code: Ctrl+E hoặc Ctrl+`
         if (lowerKey === 'e' || key === '`') {
             e.preventDefault();
             wrapOrToggleFormat('`');
             return;
         }
 
-        // Strikethrough: Ctrl+Shift+X
         if (e.shiftKey && lowerKey === 'x') {
             e.preventDefault();
             wrapOrToggleFormat('~~');
             return;
         }
 
-        // Duplicate line/selection: Ctrl+D
         if (lowerKey === 'd') {
             e.preventDefault();
             handleEditorDuplicate();
@@ -1317,13 +1237,11 @@ markdownInput.addEventListener('keydown', (e) => {
         }
     }
 
-    // 2. Phím Tab & Shift + Tab
     if (key === 'Tab') {
         handleEditorTab(e);
         return;
     }
 
-    // 3. Phím Enter
     if (key === 'Enter' && !e.shiftKey && !e.altKey && !isCmdOrCtrl) {
         handleEditorEnter(e);
         return;
@@ -1333,7 +1251,6 @@ markdownInput.addEventListener('keydown', (e) => {
     const selStart = markdownInput.selectionStart;
     const selEnd = markdownInput.selectionEnd;
 
-    // 4. Tự động bao bọc vùng chọn khi gõ ký tự mở / ký hiệu Markdown
     const wrapPairs = {
         '(': ')',
         '[': ']',
@@ -1357,7 +1274,6 @@ markdownInput.addEventListener('keydown', (e) => {
         return;
     }
 
-    // 5. Tự động đóng cặp ngoặc & nháy khi con trỏ không bôi đen
     const autoClosePairs = {
         '(': ')',
         '[': ']',
@@ -1368,12 +1284,12 @@ markdownInput.addEventListener('keydown', (e) => {
     };
 
     if (selStart === selEnd && autoClosePairs[key]) {
-        // Don't auto-close single quote after word characters (contractions)
+        // Không tự đóng nháy đơn sau ký tự chữ/số (don't, it's, user's).
         if (key === "'") {
             const charBefore = selStart > 0 ? val[selStart - 1] : '';
-            // Skip auto-close if preceded by alphanumeric (e.g., don't, it's, user's)
+            // \w: có chữ/số/_ ngay trước nháy đơn -> nháy trong từ, không tự đóng
             if (/\w/.test(charBefore)) {
-                return; // Let the quote be typed normally
+                return;
             }
         }
         e.preventDefault();
@@ -1384,7 +1300,6 @@ markdownInput.addEventListener('keydown', (e) => {
         return;
     }
 
-    // 6. Bỏ qua ký tự đóng nếu con trỏ đang đứng trước nó
     const closers = [')', ']', '}', '"', "'", '`'];
     if (selStart === selEnd && closers.includes(key) && selStart < val.length && val[selStart] === key) {
         e.preventDefault();
@@ -1392,7 +1307,6 @@ markdownInput.addEventListener('keydown', (e) => {
         return;
     }
 
-    // 7. Xóa cả cặp ngoặc khi nhấn Backspace giữa cặp ngoặc rỗng
     if (key === 'Backspace' && selStart === selEnd && selStart > 0 && selStart < val.length) {
         const charBefore = val[selStart - 1];
         const charAfter = val[selStart];
@@ -1404,7 +1318,6 @@ markdownInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Hàm áp dụng một đoạn văn bản bất kỳ vào Editor (dùng chung cho nạp mặc định / nạp dữ liệu đã lưu)
 function applyContent(text) {
     markdownInput.value = text;
     editorHistory.stack = [];
@@ -1417,15 +1330,12 @@ function applyContent(text) {
     editorHighlight.scrollTop = 0;
 }
 
-// Hàm gán lại dữ liệu mặc định (dùng cho nút Reset)
 function loadDefaultContent() {
     applyContent(defaultMarkdown);
-    // Ghi đè luôn bộ nhớ tạm để nếu người dùng thoát app ngay sau khi Reset,
-    // lần mở lại sau vẫn thấy bản mẫu chứ không phải nội dung cũ đã bị xoá.
+    // Ghi đè luôn bộ nhớ tạm để thoát app ngay sau Reset vẫn mở lại bản mẫu chứ không phải nội dung cũ.
     saveContentToStorage();
 }
 
-// Hàm lưu nội dung hiện tại của Editor vào bộ nhớ tạm (localStorage)
 let quotaWarnedAt = 0;
 function saveContentToStorage() {
     try {
@@ -1440,8 +1350,6 @@ function saveContentToStorage() {
     }
 }
 
-// Hàm nạp nội dung khi khởi động ứng dụng: ưu tiên bản đã lưu trong bộ nhớ tạm,
-// nếu chưa có gì được lưu (lần đầu mở app) thì dùng văn bản mẫu mặc định.
 function loadInitialContent() {
     let savedContent = null;
     try {
@@ -1457,7 +1365,6 @@ function loadInitialContent() {
     }
 }
 
-// Hàm hoãn xử lý (Debounce) giúp tránh giật lag khi gõ văn bản
 function debounce(func, delay = 300) {
     let timeoutId;
     return function (...args) {
@@ -1469,17 +1376,14 @@ function debounce(func, delay = 300) {
 }
 
 const debouncedRender = debounce(renderMarkdown, 300);
-// Tự động lưu nội dung Editor vào bộ nhớ tạm sau khi người dùng ngừng gõ 400ms
 const debouncedSaveContent = debounce(saveContentToStorage, 400);
 
-// Sự kiện nhập liệu trong Editor
 markdownInput.addEventListener('input', (e) => {
     charCounter.textContent = `${markdownInput.value.length} characters`;
     scheduleEditorHighlight();
     debouncedRender();
     debouncedSaveContent();
 
-    // Tự động lưu snapshot vào lịch sử Undo/Redo khi người dùng gõ
     clearTimeout(editorHistory.typingTimer);
     const inputType = e.inputType || '';
     if (inputType.includes('Space') || inputType.includes('Line') || inputType.includes('history')) {
@@ -1491,7 +1395,6 @@ markdownInput.addEventListener('input', (e) => {
     }
 });
 
-// Đồng bộ cuộn trang (Sync Scroll) dựa trên phần trăm vị trí cuộn
 function handleScroll(source, target) {
     if (!isSyncScrollEnabled || activeScrollSource !== source) return;
 
@@ -1506,7 +1409,6 @@ function handleScroll(source, target) {
 markdownInput.addEventListener('mouseenter', () => activeScrollSource = markdownInput);
 previewOutput.addEventListener('mouseenter', () => activeScrollSource = previewOutput);
 
-// Also update activeScrollSource on focus, wheel, and keydown for keyboard navigation
 markdownInput.addEventListener('focus', () => activeScrollSource = markdownInput);
 previewOutput.addEventListener('focus', () => activeScrollSource = previewOutput);
 
@@ -1519,8 +1421,8 @@ previewOutput.addEventListener('keydown', () => activeScrollSource = previewOutp
 markdownInput.addEventListener('touchstart', () => activeScrollSource = markdownInput, { passive: true });
 previewOutput.addEventListener('touchstart', () => activeScrollSource = previewOutput, { passive: true });
 
-// Gộp các lần xử lý scroll-sync theo khung hình (rAF) để tránh đọc liên tục
-// scrollHeight/scrollTop (buộc trình duyệt tính lại layout) trên từng sự kiện scroll dồn dập.
+// Gộp scroll-sync theo khung hình (rAF) để tránh đọc scrollHeight/scrollTop (ép tính lại layout) trên
+// từng sự kiện scroll dồn dập.
 let editorScrollTicking = false;
 let previewScrollTicking = false;
 let previewScrollGen = 0;
@@ -1548,18 +1450,15 @@ previewOutput.addEventListener('scroll', () => {
     });
 });
 
-// Intercept external link clicks and open in system browser
-// This prevents WebView navigation issues in desktop apps
+// Chặn click liên kết ngoài và mở bằng trình duyệt hệ thống để tránh lỗi điều hướng của WebView (app desktop).
 previewOutput.addEventListener('click', async (e) => {
     const link = e.target.closest('a');
     if (link && link.getAttribute('href')) {
         const href = link.getAttribute('href');
-        // Bỏ qua các liên kết neo nội bộ (ví dụ: #muc-luc)
         if (!href.startsWith('#')) {
             e.preventDefault();
             if (!isSafeExternalUrl(href)) return;
             
-            // Use Tauri opener plugin in desktop app, fallback to window.open
             if (window.__TAURI__ && window.__TAURI__.opener) {
                 try {
                     await window.__TAURI__.opener.openUrl(href);
@@ -1574,7 +1473,6 @@ previewOutput.addEventListener('click', async (e) => {
     }
 });
 
-// Nút Bật/Tắt Sync Scroll
 btnSync.addEventListener('click', () => {
     isSyncScrollEnabled = !isSyncScrollEnabled;
     btnSync.classList.toggle('active', isSyncScrollEnabled);
@@ -1583,12 +1481,8 @@ btnSync.addEventListener('click', () => {
     showToast(isSyncScrollEnabled ? "Sync scroll enabled" : "Sync scroll disabled");
 });
 
-// ==========================================================================
-// CHẾ ĐỘ XEM (Editor / Split / Preview) + Thanh ngăn cách kéo được
-// ==========================================================================
-
 const VIEW_STORAGE_KEY = 'markdown-live-view';
-const DEFAULT_VIEW_MODE = 'split'; // Chế độ mặc định của ứng dụng
+const DEFAULT_VIEW_MODE = 'split';
 const workspace = document.querySelector('.workspace');
 const paneResizer = document.getElementById('pane-resizer');
 const viewWrap = document.querySelector('.view-wrap');
@@ -1596,24 +1490,20 @@ const btnView = document.getElementById('btn-view');
 const viewMenu = document.getElementById('view-menu');
 const viewItems = Array.from(document.querySelectorAll('.view-item'));
 
-// Media query khớp với layout dọc trong style.css (@media max-width 768px)
+// Phải khớp @media (max-width: 768px) trong style.css.
 const VERTICAL_LAYOUT_MQ = '(max-width: 768px)';
 
-// Giới hạn kích thước editor khi kéo thanh ngăn cách: 20% - 80% của workspace
 const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 80;
-// Kéo editor sát mép trái (dưới 2%) -> Preview; sát mép phải (trên 98%) -> Editor
 const VIEW_EDGE_PREVIEW_PERCENT = 2;
 const VIEW_EDGE_EDITOR_PERCENT = 98;
 
-// Hàm thuần (để self-check): tính % width của editor từ vị trí con trỏ, có clamp
 function computeSplitPercent(pointerX, workspaceWidth) {
     if (!(workspaceWidth > 0)) return 50;
     const percent = (pointerX / workspaceWidth) * 100;
     return Math.min(SPLIT_MAX_PERCENT, Math.max(SPLIT_MIN_PERCENT, percent));
 }
 
-// Hàm thuần (để self-check): quyết định chế độ xem từ vị trí kéo %
 function computeViewModeFromPercent(percent) {
     if (percent < VIEW_EDGE_PREVIEW_PERCENT) return 'preview';
     if (percent > VIEW_EDGE_EDITOR_PERCENT) return 'editor';
@@ -1626,7 +1516,6 @@ function getCurrentViewMode() {
         : 'split';
 }
 
-// Áp dụng chế độ xem: đổi class trên <body>, đánh dấu item active, lưu localStorage
 function applyViewMode(mode, persist = true) {
     if (mode !== 'editor' && mode !== 'split' && mode !== 'preview') return;
     document.body.classList.toggle('view-editor', mode === 'editor');
@@ -1644,7 +1533,6 @@ function applyViewMode(mode, persist = true) {
     }
 }
 
-// ----- Dropdown chọn chế độ xem (cùng pattern với dropdown Export) -----
 function closeViewMenu() {
     viewMenu.classList.add('hidden');
     viewWrap.classList.remove('open');
@@ -1673,7 +1561,6 @@ viewItems.forEach((item) => {
     });
 });
 
-// ----- Thanh ngăn cách kéo được (chỉ ở chế độ Split) -----
 let isDraggingResizer = false;
 
 function endResizerDrag() {
@@ -1688,7 +1575,7 @@ paneResizer.addEventListener('pointerdown', (e) => {
     isDraggingResizer = true;
     paneResizer.classList.add('dragging');
     document.body.classList.add('resizing');
-    // setPointerCapture có thể ném NotFoundError với pointer không thật (automation)
+    // setPointerCapture có thể ném NotFoundError với pointer giả (automation)
     try {
         paneResizer.setPointerCapture(e.pointerId);
     } catch (err) {
@@ -1700,18 +1587,16 @@ paneResizer.addEventListener('pointerdown', (e) => {
 paneResizer.addEventListener('pointermove', (e) => {
     if (!isDraggingResizer) return;
     const rect = workspace.getBoundingClientRect();
-    // Chọn trục theo layout hiện tại (dọc khi màn hình nhỏ), kiểm mỗi lần move
-    // nên kéo vắt qua ngưỡng resize cửa sổ cũng không lỗi.
+    // Chọn trục theo layout hiện tại (dọc khi màn hình nhỏ), kiểm mỗi lần move để kéo vắt qua ngưỡng
+    // resize cửa sổ cũng không lỗi.
     const vertical = window.matchMedia(VERTICAL_LAYOUT_MQ).matches;
     const size = vertical ? rect.height : rect.width;
     if (!(size > 0)) return;
     const point = vertical ? e.clientY - rect.top : e.clientX - rect.left;
-    // Xét ngưỡng biên theo percent THÔ (chưa clamp), nếu clamp trước thì không bao giờ
-    // chạm được ngưỡng 2%/98% để chuyển chế độ.
+    // Xét ngưỡng biên theo percent THÔ (chưa clamp); clamp trước thì không bao giờ chạm 2%/98%.
     const rawPercent = (point / size) * 100;
     const mode = computeViewModeFromPercent(rawPercent);
     if (mode !== 'split') {
-        // Kéo sát biên -> chuyển chế độ NGAY khi chạm ngưỡng
         endResizerDrag();
         applyViewMode(mode);
         return;
@@ -1722,8 +1607,7 @@ paneResizer.addEventListener('pointermove', (e) => {
 paneResizer.addEventListener('pointerup', endResizerDrag);
 paneResizer.addEventListener('pointercancel', endResizerDrag);
 
-// Khởi tạo chế độ xem lúc mở app: chỉ nhớ chế độ xem, không nhớ vị trí splitter
-// (splitter luôn mở 50/50). Chạy ngay khi script tải (scripts dùng `defer`).
+// Chỉ nhớ chế độ xem, không nhớ vị trí splitter (luôn mở 50/50). Chạy ngay vì script dùng `defer`.
 (function initViewModel() {
     let saved = null;
     try {
@@ -1734,7 +1618,6 @@ paneResizer.addEventListener('pointercancel', endResizerDrag);
     applyViewMode(saved || DEFAULT_VIEW_MODE, false);
 })();
 
-// Nút Reset
 btnReset.addEventListener('click', () => {
     if (confirm("Are you sure you want to restore the sample text? This will overwrite your current content.")) {
         loadDefaultContent();
@@ -1742,7 +1625,6 @@ btnReset.addEventListener('click', () => {
     }
 });
 
-// Nút Copy nội dung Markdown
 btnCopy.addEventListener('click', () => {
     const textToCopy = markdownInput.value;
     const copyPromise = (window.__TAURI__ && window.__TAURI__.clipboardManager)
@@ -1754,31 +1636,24 @@ btnCopy.addEventListener('click', () => {
         .catch(() => showToast("An error occurred while copying."));
 });
 
-// ==========================================================================
-// IMPORT & EXPORT (Markdown / DOC / PDF)
-// ==========================================================================
-
-// Tạo tên file (không phần mở rộng) từ heading cấp 1 đầu tiên trong Markdown.
-// Bỏ dấu tiếng Việt, thay khoảng trắng bằng gạch nối; không có heading thì dùng "document".
-// Hàm thuần để self-check được.
 function deriveExportBaseName(markdown) {
+    // Heading cấp 1 đầu tiên (cờ m: tìm ở bất kỳ dòng nào)
     const heading = markdown.match(/^\s{0,3}#\s+(.+?)\s*$/m);
     const raw = heading ? heading[1] : '';
     const slug = raw
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')   // bỏ dấu thanh/dấu phụ sau khi tách NFD
         .replace(/đ/gi, 'd')               // đ không bị tách trong NFD nên phải thay riêng
-        .replace(/[^\w\s-]/g, '')
+        .replace(/[^\w\s-]/g, '')          // bỏ ký tự đặc biệt (giữ chữ/số/_/khoảng trắng/-)
         .trim()
-        .replace(/\s+/g, '-')
-        .replace(/-{2,}/g, '-')
-        .replace(/^-+|-+$/g, '')
+        .replace(/\s+/g, '-')              // khoảng trắng -> '-'
+        .replace(/-{2,}/g, '-')            // gộp nhiều '-' liên tiếp
+        .replace(/^-+|-+$/g, '')           // bỏ '-' ở đầu/cuối
         .toLowerCase();
     return (slug || 'document').slice(0, 80);
 }
 
-// Tải một Blob về máy thông qua thẻ <a download> (fallback khi chạy ngoài Tauri,
-// ví dụ mở trực tiếp bằng trình duyệt). Lưu ý: WebView của Tauri CHẶN cơ chế này
+// Tải Blob qua <a download> (fallback khi chạy ngoài Tauri). Lưu ý: WebView của Tauri CHẶN cơ chế này
 // (wry không có download delegate), nên trong app phải dùng saveTextFile() bên dưới.
 function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -1791,39 +1666,35 @@ function downloadBlob(blob, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
-// Lưu văn bản ra file: trong app Tauri dùng hộp thoại "Save As" (plugin dialog) và
-// ghi file (plugin fs); ngoài Tauri thì fallback về <a download> của trình duyệt.
-// Trả về true nếu đã lưu, false nếu người dùng bấm Cancel.
-// Lưu ý: KHÔNG được đặt tên isTauri - Tauri core đã inject biến global isTauri
-// vào WebView (withGlobalTauri), trùng tên sẽ gây SyntaxError chết cả file script.
-// Chi mo http(s)/mailto/tel ra trinh duyet he thong; chan
-// javascript:/data:/file:/blob: ngay ca khi sanitizer bi lot.
-// ponytail: khong mo `ftp:` - ACL cua plugin opener (gen/schemas/acl-manifests.json)
-// chi chap nhan mailto/tel/http/https, nen ftp luon bi tu choi: link thay vi
-// mo duoc thi ton tai hon la bo khoi regex.
-// nang cap sau: them sms:/geo:/mailto-cap khi biet ACL chap nhan gi.
+// Chỉ mở http(s)/mailto/tel ra trình duyệt hệ thống; chặn javascript:/data:/file:/blob: kể cả khi sanitizer bị lọt.
+// ponytail: không mở `ftp:` vì ACL của plugin opener (gen/schemas/acl-manifests.json) chỉ chấp nhận
+// mailto/tel/http/https; nâng cấp sau: thêm sms:/geo:/... khi biết ACL chấp nhận gì.
 function isSafeExternalUrl(href) {
     const url = String(href || '').trim();
+    // http(s)://... hoặc mailto:/tel:...
     return /^(https?):\/\/\S/i.test(url) || /^(mailto|tel):\S/i.test(url);
 }
 const tauriDialogPlugin = () => (window.__TAURI__ ? window.__TAURI__.dialog : undefined);
 const tauriFsPlugin = () => (window.__TAURI__ ? window.__TAURI__.fs : undefined);
 const hasTauriBridge = () => !!(tauriDialogPlugin()?.save && tauriFsPlugin()?.writeTextFile);
+// KHÔNG đặt tên isTauri: Tauri core đã inject global isTauri vào WebView (withGlobalTauri),
+// trùng tên gây SyntaxError làm chết cả file script.
 const isTauriRuntime = () => !!window.__TAURI__;
 
+// Lưu văn bản: trong Tauri dùng hộp thoại Save As (plugin dialog) + ghi file (plugin fs); ngoài Tauri
+// fallback <a download>. Trả về true nếu đã lưu, false nếu người dùng bấm Cancel.
 async function saveTextFile(contents, baseName, ext, mimeType) {
     if (hasTauriBridge()) {
         const path = await window.__TAURI__.dialog.save({
             defaultPath: baseName + '.' + ext,
             filters: [{ name: ext.toUpperCase() + ' file', extensions: [ext] }]
         });
-        if (!path) return false; // người dùng bấm Cancel
+        if (!path) return false;
         try {
             await window.__TAURI__.fs.writeTextFile(path, contents);
         } catch (err) {
-            // ACL của plugin fs chỉ cho ghi trong $HOME (src-tauri/capabilities/default.json),
-            // còn hộp thoại Save As hiện cả ổ đĩa/mạng/USB -> chọn ngoài $HOME sẽ bị từ chối.
-            // Báo rõ nguyên nhân thay vì để lỗi chung chung "An error occurred while exporting".
+            // ACL plugin fs chỉ cho ghi trong $HOME (src-tauri/capabilities/default.json) mà hộp thoại Save As hiện cả
+            // ổ đĩa/mạng/USB -> chọn ngoài $HOME bị từ chối. Báo rõ nguyên nhân thay vì lỗi chung chung.
             console.error('Write failed:', err);
             showToast('Could not write there. This build can only save inside your home folder - pick another location.');
             return false;
@@ -1831,8 +1702,8 @@ async function saveTextFile(contents, baseName, ext, mimeType) {
         return true;
     }
 
-    // Fallback trinh duyet. Trong WebView Tauri ma thieu dialog/fs thi
-    // <a download> khong hoat dong: bao ro thay vi im lang "thanh cong".
+    // Fallback trình duyệt. Trong WebView Tauri mà thiếu dialog/fs thì <a download> không chạy:
+    // báo rõ thay vì im lặng "thành công".
     if (isTauriRuntime()) {
         showToast('Could not save the file: the app\'s file-saving plugin is missing.');
         return false;
@@ -1840,8 +1711,6 @@ async function saveTextFile(contents, baseName, ext, mimeType) {
     downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
     return true;
 }
-
-// ----- Export Markdown -----
 
 async function exportMarkdown() {
     const text = markdownInput.value;
@@ -1858,13 +1727,8 @@ async function exportMarkdown() {
     }
 }
 
-// ----- Export HTML (file độc lập, mở được bằng bất kỳ trình duyệt nào) -----
-
-// CSS tối giản nhúng trong file HTML: trình duyệt không đọc được stylesheet của
-// app nên phải tự mang theo các định dạng cốt lõi (heading, bảng, code, trích dẫn,
-// alert). Tinh thần giống DOC_STYLES nhưng cho môi trường trình duyệt đầy đủ.
-// Phải kèm luôn sup/sub/kbd/mark/details + canh lề checkbox task list + canh giữa
-// Mermaid: app lấy các quy tắc đó từ vendor CSS, file độc lập thì không có.
+// CSS tối giản nhúng trong file HTML (trình duyệt không đọc được stylesheet của app). Phải kèm cả
+// sup/sub/kbd/mark/details, canh lề checkbox task list và canh giữa Mermaid: app lấy các rule này từ vendor CSS.
 const HTML_STYLES = `
     body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #1f2328; background: #fff; }
     h1 { font-size: 2em; } h2 { font-size: 1.5em; } h3 { font-size: 1.25em; }
@@ -1896,9 +1760,8 @@ const HTML_STYLES = `
     li > input[type="checkbox"] { margin: 0 0.4em 0.2em 0; vertical-align: middle; }
 `;
 
-// Bọc nội dung HTML trong khung file độc lập (doctype + meta UTF-8 + title + style).
-// Hàm thuần để self-check được. Title được escape để không bẻ gãy cấu trúc <title>.
 function buildStandaloneHtml(bodyHtml, title) {
+    // Escape & < > để title không bẻ gãy thẻ <title>
     const safeTitle = String(title || 'Document')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return '<!DOCTYPE html>\n<html lang="en">\n<head>\n'
@@ -1908,17 +1771,14 @@ function buildStandaloneHtml(bodyHtml, title) {
         + '<style>' + HTML_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
 }
 
-// Lấy text của heading cấp 1 đầu tiên làm <title> cho file HTML.
-// Hàm thuần để self-check được.
 function deriveDocumentTitle(markdown) {
+    // Heading cấp 1 đầu tiên (cờ m: tìm ở bất kỳ dòng nào)
     const heading = markdown.match(/^\s{0,3}#\s+(.+?)\s*$/m);
     return (heading ? heading[1] : '').trim() || 'Document';
 }
 
-// Gỡ icon Lucide trong tiêu đề GFM alert (đã render thành <svg class="lucide">,
-// trình duyệt bên ngoài không có lib lucide để vẽ lại). Chỉ xóa đúng class lucide
-// để KHÔNG đụng tới SVG của sơ đồ Mermaid — file HTML cần giữ nguyên SVG đó.
-// Giữ checkbox task list nguyên bản vì input checkbox hiển thị được sẵn.
+// Gỡ icon Lucide của GFM alert (trình duyệt ngoài không có lib để vẽ lại); chỉ xoá đúng class lucide để
+// KHÔNG đụng SVG Mermaid, vì file HTML cần giữ nguyên SVG đó. Checkbox task list giữ nguyên.
 function stripLucideIcons(container) {
     container.querySelectorAll('svg.lucide').forEach((el) => el.remove());
 }
@@ -1931,16 +1791,14 @@ async function exportHtml() {
     }
     showToast("Generating HTML file...");
 
-    // Clone Preview đã render hoàn chỉnh (giống exportDoc, nhưng giữ nguyên SVG
-    // Mermaid vì trình duyệt nào cũng vẽ được SVG, không cần chuyển sang PNG).
+    // Clone Preview đã render xong (như exportDoc nhưng giữ nguyên SVG Mermaid, không cần chuyển sang PNG).
     renderMarkdown();
     await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
 
     stripLucideIcons(clone);
 
-    // KaTeX -> MathML thuần: file không mang CSS của KaTeX nên phải thay span.katex
-    // bằng <math> mà mọi trình duyệt hiện đại hiển thị trực tiếp được.
+    // KaTeX -> MathML thuần: file không mang CSS của KaTeX nên phải thay span.katex bằng <math>.
     convertKatexForDoc(clone);
 
     const html = buildStandaloneHtml(clone.innerHTML, deriveDocumentTitle(text));
@@ -1953,12 +1811,9 @@ async function exportHtml() {
     }
 }
 
-// ----- Export DOC (Word-compatible HTML) -----
-
-// Chuyển mọi <foreignObject> (nhãn HTML của Mermaid) bên trong SVG clone thành <text>
-// thuần SVG, vì canvas không vẽ được nội dung foreignObject (nhãn sơ đồ sẽ biến mất).
-// ponytail: mất định dạng đậm/nghiêng trong nhãn, chỉ giữ dòng chữ, màu và cỡ font;
-// nâng cấp sau: dựng text theo đúng kích thước/tọa độ từng span con của foreignObject.
+// Chuyển <foreignObject> (nhãn HTML của Mermaid) trong SVG clone thành <text> thuần SVG, vì canvas
+// không vẽ được foreignObject (nhãn sẽ biến mất). ponytail: mất đậm/nghiêng, chỉ giữ chữ, màu, cỡ font;
+// nâng cấp sau: dựng text theo kích thước/toạ độ từng span con.
 function flattenForeignObjects(svgClone, fallbackColor, fallbackFontSize) {
     const NS = 'http://www.w3.org/2000/svg';
     svgClone.querySelectorAll('foreignObject').forEach((fo) => {
@@ -1979,8 +1834,8 @@ function flattenForeignObjects(svgClone, fallbackColor, fallbackFontSize) {
         text.setAttribute('dominant-baseline', 'middle');
         text.setAttribute('fill', (div && div.style.color) || fallbackColor || '#000');
         text.setAttribute('font-size', fontSize);
-        // Mỗi dòng là một tspan, căn giữa theo chiều rộng/cao của foreignObject;
-        // vị trí tuyệt đối do transform của phần tử cha (được giữ nguyên) quyết định.
+        // Mỗi dòng là một tspan căn giữa theo foreignObject; vị trí tuyệt đối do transform
+        // của phần tử cha (được giữ nguyên) quyết định.
         const startY = y + h / 2 - ((lines.length - 1) * lineH) / 2;
         lines.forEach((line, i) => {
             const tspan = document.createElementNS(NS, 'tspan');
@@ -1993,10 +1848,10 @@ function flattenForeignObjects(svgClone, fallbackColor, fallbackFontSize) {
     });
 }
 
-// Vẽ một SVG (sơ đồ Mermaid) lên canvas ở độ phân giải 2x rồi trả về data-URL PNG
-// để nhúng trực tiếp vào file DOC (Word không hỗ trợ SVG inline).
-// Trả về kèm kích thước hiển thị (px) để exportDoc thu ảnh vừa trang Word.
+// Vẽ SVG (sơ đồ Mermaid) lên canvas 2x rồi trả data-URL PNG (Word không hỗ trợ SVG inline), kèm
+// kích thước hiển thị (px) để exportDoc thu ảnh vừa trang Word.
 async function svgToPngDataUrl(svg, scale = 2) {
+    // viewBox dạng 'x y w h' (ngăn cách bằng khoảng trắng hoặc dấu phẩy)
     const viewBox = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
     const rect = svg.getBoundingClientRect();
     const w = rect.width > 0 ? rect.width : (viewBox.length === 4 && viewBox[2] > 0 ? viewBox[2] : 800);
@@ -2024,13 +1879,10 @@ async function svgToPngDataUrl(svg, scale = 2) {
     return { dataUrl: canvas.toDataURL('image/png'), width: w, height: h };
 }
 
-// Word bỏ qua CSS max-width nên ảnh PNG 2x lớn hơn trang sẽ tràn lề.
-// Giữ nguyên ảnh nhỏ, thu ảnh lớn về vừa trang (rộng 650px / cao 900px,
-// nhỏ hơn khổ A4 trừ lề 15mm trong style.css) theo đúng tỉ lệ,
-// kèm width/height tường minh cho Word.
+// Word bỏ qua CSS max-width nên PNG 2x lớn hơn trang sẽ tràn lề: giữ ảnh nhỏ, thu ảnh lớn về vừa trang
+// (rộng 650px / cao 900px, nhỏ hơn A4 trừ lề 15mm trong style.css) theo tỉ lệ, kèm width/height tường minh.
 const DOC_IMG_MAX_WIDTH_PX = 650;
 const DOC_IMG_MAX_HEIGHT_PX = 900;
-// Hàm thuần để self-check được.
 function fitDocImageSize(w, h, maxW = DOC_IMG_MAX_WIDTH_PX, maxH = DOC_IMG_MAX_HEIGHT_PX) {
     w = Math.round(Number(w));
     h = Math.round(Number(h));
@@ -2039,23 +1891,23 @@ function fitDocImageSize(w, h, maxW = DOC_IMG_MAX_WIDTH_PX, maxH = DOC_IMG_MAX_H
     return { width: Math.round(w * s), height: Math.round(h * s) };
 }
 
-// ----- Ảnh trong file DOC: badge (shields.io...) bị Word kéo dãn -----
-// Nguyên nhân: badge là SVG remote, thẻ <img> không có width/height tường minh nên
-// Word tự đoán kích thước (cộng thêm CSS height:auto / max-height làm nó co giãn sai).
-// Cách xử lý: (1) luôn gắn width/height px tường minh cho MỌI ảnh, (2) đổi ảnh SVG
-// sang PNG (data-URL) vì Word xử lý PNG ổn định hơn SVG.
+// Badge (shields.io...) là SVG remote, <img> không có width/height tường minh nên Word tự đoán và kéo dãn.
+// Xử lý: (1) luôn gắn width/height px tường minh cho MỌI ảnh, (2) đổi ảnh SVG sang PNG data-URL
+// (Word xử lý PNG ổn định hơn SVG).
+// Các host chuyên phục vụ badge (luôn trả SVG)
 const DOC_SVG_HOSTS = /^https?:\/\/(?:img\.shields\.io|flat\.badgen\.net|badgen\.net|badge\.fury\.io|camo\.githubusercontent\.com)\//i;
 
-// Hàm thuần để self-check được: URL này nhiều khả năng trả về SVG?
-// (shields.io trả SVG dù URL không có đuôi .svg)
+// URL này có thể trả về SVG? (shields.io trả SVG dù URL không có đuôi .svg)
 function isSvgImageSrc(src) {
     src = String(src || '');
+    // data:image/svg, đuôi .svg (có thể kèm ?query/#hash), hoặc host badge
     return /^data:image\/svg/i.test(src) || /\.svg(?:[?#]|$)/i.test(src) || DOC_SVG_HOSTS.test(src);
 }
 
-// Kích thước hiển thị (px) của ảnh gốc trong Preview: ưu tiên thuộc tính width/height
-// do người dùng ghi (bỏ qua dạng %), rồi tới kích thước tự nhiên, cuối cùng là khung đang vẽ.
+// Kích thước hiển thị (px) của ảnh gốc trong Preview: ưu tiên width/height người dùng ghi (bỏ qua dạng %),
+// rồi tới kích thước tự nhiên, cuối cùng là khung đang vẽ.
 function getDocImageSize(orig) {
+    // Bỏ qua giá trị dạng % (không quy ra px được)
     const px = (v) => (v && !/%\s*$/.test(v)) ? (parseFloat(v) || 0) : 0;
     let w = px(orig.getAttribute('width'));
     let h = px(orig.getAttribute('height'));
@@ -2073,7 +1925,6 @@ function getDocImageSize(orig) {
     return { width: w, height: h };
 }
 
-// Chờ ảnh trong Preview tải xong (tối đa timeoutMs) để có naturalWidth/Height đúng.
 function waitForImageLoad(img, timeoutMs = 4000) {
     if (img.complete) return Promise.resolve();
     return new Promise((resolve) => {
@@ -2084,9 +1935,8 @@ function waitForImageLoad(img, timeoutMs = 4000) {
     });
 }
 
-// Vẽ ảnh SVG (remote hoặc data:) lên canvas ở độ phân giải 2x rồi trả về data-URL PNG.
-// Cần crossOrigin='anonymous' (shields.io có gửi CORS); nếu server không cho phép,
-// toDataURL() sẽ ném lỗi và nơi gọi giữ nguyên URL gốc (kèm kích thước tường minh).
+// Vẽ ảnh SVG (remote hoặc data:) lên canvas 2x -> data-URL PNG. Cần crossOrigin='anonymous' (shields.io có
+// gửi CORS); nếu server không cho phép, toDataURL() ném lỗi và nơi gọi giữ nguyên URL gốc (kèm kích thước).
 async function svgImageToPngDataUrl(src, w, h, scale = 2) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -2103,8 +1953,7 @@ async function svgImageToPngDataUrl(src, w, h, scale = 2) {
     return canvas.toDataURL('image/png');
 }
 
-// CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên
-// phải tự mang theo các định dạng cốt lõi (heading, bảng, code, trích dẫn, alert).
+// CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên phải tự mang theo định dạng cốt lõi.
 const DOC_STYLES = `
     body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
     h1 { font-size: 20pt; } h2 { font-size: 16pt; } h3 { font-size: 14pt; }
@@ -2126,8 +1975,6 @@ const DOC_STYLES = `
     .markdown-alert-caution { border-left-color: #d1242f; }
 `;
 
-// Bọc nội dung HTML trong khung file Word (namespace Office + meta UTF-8).
-// Hàm thuần để self-check được.
 function buildWordHtml(bodyHtml) {
     return '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
         + 'xmlns:w="urn:schemas-microsoft-com:office:word" '
@@ -2137,13 +1984,9 @@ function buildWordHtml(bodyHtml) {
         + '<style>' + DOC_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
 }
 
-// KaTeX render mỗi công thức thành 2 lớp: .katex-mathml (MathML chuẩn, ẩn bằng CSS
-// của katex.min.css) và .katex-html (hàng trăm span định vị bằng CSS). File DOC không
-// mang theo CSS đó nên Word in cả hai lớp ra thành chữ rác. Hàm này thay mỗi
-// span.katex bằng một <math> MathML thuần mà Word nhập trực tiếp thành phương trình.
-// Khối nhiều dòng (aligned/bmatrix...): MathML mặc định của KaTeX còn thưa (chỉ mrow),
-// nên render lại từ LaTeX nguồn (lấy trong <annotation encoding="application/x-tex">)
-// với output:'mathml' để có cây mtable đầy đủ mà Word hiểu là công thức nhiều dòng.
+// KaTeX render mỗi công thức thành 2 lớp (.katex-mathml và .katex-html); file DOC không mang CSS KaTeX nên
+// Word in cả hai ra chữ rác -> thay span.katex bằng <math> thuần. Khối nhiều dòng (aligned/bmatrix): MathML
+// mặc định chỉ có mrow nên render lại từ LaTeX nguồn (annotation x-tex) với output:'mathml' để có mtable.
 function convertKatexForDoc(container) {
     container.querySelectorAll('span.katex').forEach((el) => {
         let math = el.querySelector('.katex-mathml > math')
@@ -2151,8 +1994,7 @@ function convertKatexForDoc(container) {
             || el.querySelector(':scope > math');
         const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
         const tex = annotation ? annotation.textContent : '';
-        // Khối nhiều dòng: MathML mặc định của KaTeX (nhân bản .katex-mathml) thiếu
-        // cấu trúc dòng; render lại từ LaTeX nguồn cho ra MathML phẳng đầy đủ (mtable).
+        // Có \\ (xuống dòng) hoặc môi trường nhiều dòng (aligned, matrix, cases, ...)
         if (tex && /\\\\|\\begin\{(aligned|align|gather|cases|matrix|bmatrix|pmatrix|vmatrix|array)\}/.test(tex)
             && typeof katex !== 'undefined') {
             try {
@@ -2163,8 +2005,8 @@ function convertKatexForDoc(container) {
             } catch (e) { /* giữ math mặc định bên dưới */ }
         }
         if (math) {
-            // Word không hiểu <annotation>; bỏ annotation và mọi text node trần
-            // (DOMPurify ở preview có thể đã gỡ annotation nhưng chừa lại text của nó).
+            // Word không hiểu <annotation>; bỏ annotation và mọi text node trần (DOMPurify ở preview có thể đã gỡ
+            // annotation nhưng chừa lại text của nó).
             math.querySelectorAll('annotation').forEach((a) => a.remove());
             Array.from(math.childNodes)
                 .filter(n => n.nodeType === 3 && n.textContent.trim())
@@ -2182,10 +2024,8 @@ function convertKatexForDoc(container) {
     });
 }
 
-// Word/LibreOffice biến MỌI thuộc tính id thành "bookmark" (dấu ngoặc xám hiện ở đầu
-// đề mục). assignHeadingIds() gán id cho tiêu đề chỉ để liên kết neo hoạt động trong app,
-// nên khi xuất DOC ta gỡ id của các tiêu đề mà không có liên kết neo (#...) nào trỏ tới.
-// Tiêu đề có link nội bộ trỏ tới vẫn giữ id để liên kết trong Word còn dùng được.
+// Word/LibreOffice biến MỌI id thành "bookmark" (ngoặc xám ở đầu đề mục). assignHeadingIds() chỉ để neo
+// trong app, nên khi xuất DOC gỡ id của tiêu đề không có liên kết neo (#...) nào trỏ tới.
 function stripUnusedHeadingIds(container) {
     const linked = new Set();
     container.querySelectorAll('a[href^="#"]').forEach((a) => {
@@ -2207,23 +2047,18 @@ async function exportDoc() {
     }
     showToast("Generating DOC file...");
 
-    // Clone Preview đã render hoàn chỉnh (heading, bullet, đậm/nghiêng, bảng, alert...)
     renderMarkdown();
     await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
 
-    // Gỡ id của tiêu đề để Word không tạo bookmark (ký hiệu lạ ở đầu đề mục)
     stripUnusedHeadingIds(clone);
 
-    // Bỏ icon Lucide (Word không hiểu) và thay checkbox bằng ký hiệu Unicode
     clone.querySelectorAll('svg').forEach((el) => el.remove());
     clone.querySelectorAll('input[type="checkbox"]').forEach((el) => {
         el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
     });
 
-    // Gắn kích thước px tường minh cho MỌI ảnh (kể cả badge nhỏ) để Word không tự đoán
-    // rồi kéo dãn; ảnh quá khổ được thu về vừa trang. Badge SVG (shields.io...) đổi sang
-    // PNG data-URL. Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong preview theo chỉ số.
+    // Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong Preview theo chỉ số.
     const origImgs = previewOutput.querySelectorAll('img');
     const cloneImgs = clone.querySelectorAll('img');
     for (let idx = 0; idx < cloneImgs.length; idx++) {
@@ -2250,11 +2085,9 @@ async function exportDoc() {
         img.style.height = fit.height + 'px';
     }
 
-    // Chuyển sơ đồ Mermaid thành ảnh PNG. Ánh xạ theo CHÍNH node pre tương ứng
-    // (pre[i] -> svg con của nó) chứ không theo chỉ số vào danh sách svg: nếu một
-    // biểu đồ không có <svg> (mermaid lỗi, DOMPurify dọn rỗng, hoặc whenMermaidIdle
-    // timeout) thì danh sách svg lệch chỉ số và biểu đồ sau đó sẽ xuất ra ảnh
-    // của biểu đồ khác.
+    // Ánh xạ theo CHÍNH node pre (pre[i] -> svg con) chứ không theo chỉ số trong danh sách svg: nếu có biểu đồ
+    // không có <svg> (mermaid lỗi, DOMPurify dọn rỗng, whenMermaidIdle timeout) thì chỉ số lệch và biểu đồ
+    // sau đó xuất nhầm ảnh của biểu đồ khác.
     const cloneMers = clone.querySelectorAll('pre.mermaid');
     const origPres = previewOutput.querySelectorAll('pre.mermaid');
     for (let i = 0; i < cloneMers.length; i++) {
@@ -2268,8 +2101,7 @@ async function exportDoc() {
             const img = document.createElement('img');
             img.src = dataUrl;
             img.alt = 'Mermaid diagram';
-            // PNG vẽ ở 2x nên điểm ảnh gốc gấp đôi kích thước hiển thị, mà Word
-            // lại bỏ qua max-width: luôn gắn kích thước hiển thị tường minh.
+            // PNG vẽ ở 2x mà Word bỏ qua max-width: luôn gắn kích thước hiển thị tường minh.
             const fit = fitDocImageSize(width, height);
             if (fit.width > 0 && fit.height > 0) {
                 img.setAttribute('width', fit.width);
@@ -2283,8 +2115,6 @@ async function exportDoc() {
         }
     }
 
-    // Công thức KaTeX -> MathML thuần (Word nhập trực tiếp thành phương trình);
-    // chạy sau vòng lặp Mermaid vì các bước convert trên không đụng tới span.katex.
     convertKatexForDoc(clone);
 
     const html = buildWordHtml(clone.innerHTML);
@@ -2296,8 +2126,6 @@ async function exportDoc() {
         showToast("An error occurred while exporting the DOC file.");
     }
 }
-
-// ----- Export PDF (hộp thoại In của hệ thống, văn bản chọn được & tìm kiếm được) -----
 
 async function exportPdf() {
     showToast("Preparing the print page / exporting PDF...");
@@ -2311,24 +2139,20 @@ async function exportPdf() {
     window.print();
 }
 
-// ----- Dropdown Export -----
-
 function closeExportMenu() {
     exportMenu.classList.add('hidden');
     exportWrap.classList.remove('open');
     btnExport.setAttribute('aria-expanded', 'false');
 }
 
-// KHÔNG stopPropagation: listener document bên dưới kiểm tra "bấm ra ngoài wrap"
-// nên vẫn đóng được menu khác (format/view) đang mở. Gọi stopPropagation ở đây
-// (và ở btnView) làm hai dropdown cùng mở được, chồng lên nhau.
+// KHÔNG stopPropagation: listener document bên dưới cần thấy click để đóng menu khác (format/view) đang
+// mở; stopPropagation ở đây (và ở btnView) làm hai dropdown mở chồng lên nhau.
 btnExport.addEventListener('click', () => {
     const isHidden = exportMenu.classList.toggle('hidden');
     exportWrap.classList.toggle('open', !isHidden);
     btnExport.setAttribute('aria-expanded', String(!isHidden));
 });
 
-// Đóng menu khi bấm ra ngoài hoặc nhấn Esc
 document.addEventListener('click', (e) => {
     if (!exportMenu.classList.contains('hidden') && !exportWrap.contains(e.target)) {
         closeExportMenu();
@@ -2343,12 +2167,6 @@ exportHtmlBtn.addEventListener('click', () => { closeExportMenu(); exportHtml();
 exportDocBtn.addEventListener('click', () => { closeExportMenu(); exportDoc(); });
 exportPdfBtn.addEventListener('click', () => { closeExportMenu(); exportPdf(); });
 
-// ==========================================================================
-// THANH ĐỊNH DẠNG MARKDOWN (Format bar: Headings, Lists, Bold, Italic,
-// Strikethrough, Link, Table) — thay thế vị trí logo cũ trên header
-// ==========================================================================
-
-// ----- Tham chiếu DOM của format bar và hộp thoại -----
 const btnHeading = document.getElementById('btn-heading');
 const headingMenu = document.getElementById('heading-menu');
 const btnList = document.getElementById('btn-list');
@@ -2381,41 +2199,39 @@ const tableRowsInput = document.getElementById('table-rows');
 const tableInsertBtn = document.getElementById('table-insert');
 const tableCancelBtn = document.getElementById('table-cancel');
 
-// ----- Các hàm thuần (không đụng DOM, có assert trong self-check) -----
-
-// Đọc level heading của một dòng: 0 = không phải heading, 1..6
 function getHeadingLevel(line) {
+    // 0-3 khoảng trắng/tab, 1-6 dấu #, rồi khoảng trắng hoặc hết dòng
     const m = line.match(/^[ \t]{0,3}(#{1,6})(?:[ \t]+|$)/);
     return m ? m[1].length : 0;
 }
 
-// Đặt level heading của một dòng: "#..." mới thay hoàn toàn "#..." cũ;
-// level = 0 nghĩa là gỡ heading. Dòng thường (không phải heading) sẽ được THÊM
-// prefix khi level > 0. Trả về { line, delta }, hoặc null nếu không có gì thay đổi.
+// level = 0 nghĩa là gỡ heading. Trả về { line, delta }, hoặc null nếu không có gì thay đổi.
 function setHeadingLevel(line, level) {
+    // Như getHeadingLevel nhưng tách riêng phần thụt lề và khoảng trắng sau #
     const m = line.match(/^([ \t]{0,3})(#{1,6})([ \t]+|$)/);
+    // Dòng thường: lấy phần thụt lề đầu dòng
     const indent = m ? m[1] : (line.match(/^[ \t]*/) || [''])[0];
     const rest = m ? line.slice(m[0].length) : line.slice(indent.length);
-    if (!m && level === 0) return null; // dòng thường muốn gỡ heading: nothing to do
+    if (!m && level === 0) return null;
     const newLine = indent + (level > 0 ? '#'.repeat(level) + ' ' : '') + rest;
     if (newLine === line) return null;
     return { line: newLine, delta: newLine.length - line.length };
 }
 
-// Nhận diện marker danh sách ở đầu dòng, trả về { indent, marker, kind, rest }
-// với kind: 'bullet' | 'numbered' | 'task'; null nếu không phải dòng danh sách.
+// Trả về { indent, marker, kind, rest } (kind: bullet | numbered | task | quote),
+// hoặc null nếu không phải dòng danh sách.
 function parseListLine(line) {
+    // thụt lề, marker (-, *, +, 1. / 1) hoặc >), khoảng trắng, checkbox tuỳ chọn, phần còn lại
     const m = line.match(/^([ \t]*)([-*+]|\d+[.)]|>)([ \t]+)(\[[ xX]\][ \t]+)?(.*)$/);
     if (!m) return null;
     const [, indent, mark, sp, checkbox, rest] = m;
+    // Marker bắt đầu bằng chữ số -> danh sách có thứ tự
     const kind = checkbox ? 'task' : (mark === '>' ? 'quote' : (/^\d/.test(mark) ? 'numbered' : 'bullet'));
     return { indent, marker: mark + sp + (checkbox || ''), kind, rest };
 }
 
-// Xây dựng nội dung bảng Markdown kích thước rows x cols.
-// rows = số DÒNG THÂN bảng (tối thiểu 1, để luôn có ô để gõ nội dung).
-// ponytail: header để trống cho người dùng điền sau khi chèn;
-// nâng cấp sau: điền tên cột từ lựa chọn văn bản hiện tại nếu có.
+// rows = số dòng THÂN bảng (tối thiểu 1, để luôn có ô để gõ). ponytail: header để trống cho người dùng điền;
+// nâng cấp sau: điền tên cột từ vùng chọn hiện tại nếu có.
 function buildTableMarkdown(rows, cols) {
     const r = Math.max(1, Math.min(99, rows | 0));
     const c = Math.max(1, Math.min(99, cols | 0));
@@ -2424,24 +2240,22 @@ function buildTableMarkdown(rows, cols) {
     return out.join('\n');
 }
 
-// Chuẩn hoá URL người dùng nhập cho liên kết: thêm https:// nếu còn trần
-// (ponytail: kiểm tra scheme bằng regex đơn giản, đủ cho anchor/email/relative)
+// ponytail: kiểm tra scheme bằng regex đơn giản, đủ cho anchor/email/relative
 function normalizeLinkUrl(raw) {
     const url = String(raw || '').trim();
     if (!url) return '';
+    // Đã có scheme (http:, mailto:, ...), anchor # hoặc protocol-relative // thì giữ nguyên
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith('#') || url.startsWith('//')) return url;
     return 'https://' + url;
 }
 
-// Thoát dấu [ ] trong nhãn liên kết để không bẻ gãy cú pháp [text](url)
 function escapeLinkText(text) {
+    // Thêm \ trước [ và ]
     return text.replace(/([\[\]])/g, '\\$1');
 }
 
-// Bọc/gỡ thẻ HTML inline (sup/sub/kbd/mark) quanh vùng chọn trong editor.
-// Trả về { text, selStart, selEnd } cho applyEditorChange, hoặc null nếu không đổi gì.
-// ponytail: toggle theo cặp thẻ trọn vẹn (như wrapOrToggleFormat với **), không
-// xử lý thẻ lồng nhau — nâng cấp sau: parse DOM thật nếu cần.
+// ponytail: toggle theo cặp thẻ trọn vẹn (như wrapOrToggleFormat với **), không xử lý thẻ lồng nhau;
+// nâng cấp sau: parse DOM thật nếu cần.
 function wrapHtmlTag(val, selStart, selEnd, tag) {
     const open = '<' + tag + '>';
     const close = '</' + tag + '>';
@@ -2449,12 +2263,10 @@ function wrapHtmlTag(val, selStart, selEnd, tag) {
     const cLen = close.length;
     const selected = val.substring(selStart, selEnd);
 
-    // Vùng chọn đã bọc trọn cặp thẻ -> gỡ thẻ
     if (selected.length >= oLen + cLen && selected.startsWith(open) && selected.endsWith(close)) {
         const unwrapped = selected.substring(oLen, selected.length - cLen);
         return { text: val.substring(0, selStart) + unwrapped + val.substring(selEnd), selStart, selEnd: selStart + unwrapped.length };
     }
-    // Thẻ nằm ngay ngoài vùng chọn -> gỡ thẻ, giữ vùng chọn nội dung
     if (selStart >= oLen && selEnd + cLen <= val.length
         && val.substring(selStart - oLen, selStart) === open
         && val.substring(selEnd, selEnd + cLen) === close) {
@@ -2464,7 +2276,6 @@ function wrapHtmlTag(val, selStart, selEnd, tag) {
             selEnd: selEnd - oLen
         };
     }
-    // Bọc mới (hoặc chèn placeholder khi không có vùng chọn)
     if (selStart === selEnd) {
         const placeholder = 'text';
         const insert = open + placeholder + close;
@@ -2477,7 +2288,6 @@ function wrapHtmlTag(val, selStart, selEnd, tag) {
     };
 }
 
-// ----- Mở / đóng dropdown của format bar -----
 const formatMenus = [
     { btn: btnHeading, wrap: btnHeading.parentElement, menu: headingMenu },
     { btn: btnList, wrap: btnList.parentElement, menu: listMenu },
@@ -2508,16 +2318,13 @@ function anyFormatMenuOpen() {
     return formatMenus.some(({ menu }) => !menu.classList.contains('hidden'));
 }
 
-// ----- Bold / Italic / Strikethrough: dùng lại wrapOrToggleFormat có sẵn -----
 btnBold.addEventListener('click', () => { wrapOrToggleFormat('**'); markdownInput.focus(); });
 btnItalic.addEventListener('click', () => { wrapOrToggleFormat('*'); markdownInput.focus(); });
 btnStrike.addEventListener('click', () => { wrapOrToggleFormat('~~'); markdownInput.focus(); });
 
-// ----- Inline code / Inline math: tái sử dụng wrapOrToggleFormat -----
 btnCodeInline.addEventListener('click', () => { wrapOrToggleFormat('`', 'code'); markdownInput.focus(); });
 btnMathInline.addEventListener('click', () => { wrapOrToggleFormat('$', 'E = mc^2'); markdownInput.focus(); });
 
-// ----- Dropdown HTML inline: bọc/gỡ <sup>/<sub>/<kbd>/<mark> qua wrapHtmlTag -----
 btnHtml.addEventListener('click', () => toggleFormatMenu(formatMenus[3]));
 
 htmlMenu.querySelectorAll('.format-item').forEach((item) => {
@@ -2529,19 +2336,15 @@ htmlMenu.querySelectorAll('.format-item').forEach((item) => {
     });
 });
 
-// ----- Code block / Math block / Mermaid: chèn khối fence tại con trỏ -----
 btnCodeBlock.addEventListener('click', () => { insertBlockFence('code'); markdownInput.focus(); });
 btnMathBlock.addEventListener('click', () => { insertBlockFence('math'); markdownInput.focus(); });
 btnMermaid.addEventListener('click', () => { insertBlockFence('mermaid'); markdownInput.focus(); });
 
-// ----- Blockquote: dùng applyListStyle('quote') sau khi mở rộng cho '>' -----
 btnQuote.addEventListener('click', () => { applyListStyle('quote'); markdownInput.focus(); });
 
-// ----- Undo / Redo: tái sử dụng editorHistory (cùng cơ chế Ctrl+Z / Ctrl+Y) -----
 btnUndo.addEventListener('click', () => { editorHistory.undo(markdownInput); markdownInput.focus(); });
 btnRedo.addEventListener('click', () => { editorHistory.redo(markdownInput); markdownInput.focus(); });
 
-// ----- Clear: xoá trắng editor (vẫn undo được vì đi qua applyEditorChange) -----
 btnClear.addEventListener('click', () => {
     if (!markdownInput.value) {
         markdownInput.focus();
@@ -2552,7 +2355,6 @@ btnClear.addEventListener('click', () => {
     showToast('Editor cleared. Press Ctrl+Z to undo.');
 });
 
-// ----- Dropdown Headings -----
 btnHeading.addEventListener('click', () => toggleFormatMenu(formatMenus[0]));
 
 headingMenu.querySelectorAll('.format-item').forEach((item) => {
@@ -2563,7 +2365,6 @@ headingMenu.querySelectorAll('.format-item').forEach((item) => {
     });
 });
 
-// ----- Dropdown Lists -----
 btnList.addEventListener('click', () => toggleFormatMenu(formatMenus[1]));
 
 listMenu.querySelectorAll('.format-item').forEach((item) => {
@@ -2574,7 +2375,6 @@ listMenu.querySelectorAll('.format-item').forEach((item) => {
     });
 });
 
-// ----- Dropdown Table: lưới 5x5, ô góc dưới-phải là Custom size -----
 btnTable.addEventListener('click', () => toggleFormatMenu(formatMenus[2]));
 
 (function buildTableGrid() {
@@ -2614,14 +2414,12 @@ tableMenu.querySelector('[data-table="custom"]').addEventListener('click', () =>
     openTableDialog();
 });
 
-// Đánh dấu các ô lưới đã rê qua (count = null để bỏ hết)
 function highlightTableCells(grid, count) {
     for (let i = 0; i < grid.children.length; i++) {
         grid.children[i].classList.toggle('on', count !== null && i < count);
     }
 }
 
-// ----- Áp dụng heading cho (các) dòng đang chọn hoặc dòng con trỏ -----
 function applyHeadingLevel(level) {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -2632,7 +2430,6 @@ function applyHeadingLevel(level) {
     const original = val.substring(lineStart, lineEnd);
     const lines = original.split('\n');
 
-    // Toggle: nếu TẤT CẢ dòng đã cùng level yêu cầu thì gỡ heading thay vì đặt lại
     const allSame = lines.every((line) => getHeadingLevel(line) === level);
     const target = allSame ? 0 : level;
     let delta = 0;
@@ -2643,16 +2440,14 @@ function applyHeadingLevel(level) {
         return res.line;
     });
     const replacedText = newLines.join('\n');
-    // Gate no-op bằng so sánh TEXT chứ không so tổng delta: delta là tổng CÓ DẤU,
-    // nên vài dòng cộng và các dòng khác bớt cùng số ký tự sẽ triệt tiêu nhau
+    // So sánh TEXT chứ không so tổng delta: delta có dấu nên các dòng cộng/bớt cùng số ký tự triệt tiêu nhau
     // (vd ['### a','bbbb'] + H1: -2 +2 = 0 nhưng vẫn phải đổi).
-    if (replacedText === original) return; // không có gì thay đổi
+    if (replacedText === original) return;
 
     const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
     applyEditorChange(newText, lineStart, Math.max(lineStart, selEnd + delta));
 }
 
-// ----- Áp dụng kiểu danh sách cho (các) dòng đang chọn hoặc dòng con trỏ -----
 function applyListStyle(style) {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -2664,23 +2459,21 @@ function applyListStyle(style) {
     const lines = original.split('\n');
 
     let delta = 0;
-    let num = 0; // đánh số tăng dần trong phạm vi vùng chọn
+    let num = 0;
     const newLines = lines.map((line, i) => {
         const parsed = parseListLine(line);
+        // Dòng thường: lấy phần thụt lề đầu dòng
         const indent = parsed ? parsed.indent : (line.match(/^[ \t]*/) || [''])[0];
         const rest = parsed ? parsed.rest : line.slice(indent.length);
 
-        // Dòng trống trong vùng chọn nhiều dòng: giữ nguyên, không đánh dấu
         if (!parsed && rest.trim() === '' && lines.length > 1) return line;
 
-        // Cùng kiểu đang có: toggle bỏ marker (dòng đơn rỗng marker cũng bỏ)
         if (parsed && parsed.kind === style && (lines.length === 1 || parsed.rest.trim() !== '')) {
             const newLine = indent + rest;
             delta += newLine.length - line.length;
             return newLine;
         }
 
-        // Thêm mới hoặc đổi kiểu marker
         let marker;
         if (style === 'numbered') {
             num++;
@@ -2695,17 +2488,15 @@ function applyListStyle(style) {
         return newLine;
     });
     const replacedText = newLines.join('\n');
-    // Gate no-op bằng so sánh TEXT chứ không so tổng delta: delta là tổng CÓ DẤU,
-    // nên vài dòng cộng và các dòng khác bớt cùng số ký tự sẽ triệt tiêu nhau
-    // (vd ['- aaa','bbb'] + Bulleted: -2 +2 = 0 nhưng vẫn phải đổi).
+    // So sánh TEXT chứ không so tổng delta (xem lý do ở applyHeadingLevel).
     if (replacedText === original) return;
 
     // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi giữa có dòng trống;
-    // nâng cấp sau: restart về 1 khi gặp đoạn văn mới (dòng trống).
+    // nâng cấp sau: restart về 1 khi gặp đoạn văn mới.
     const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
 
-    // Giữ nguyên vùng bôi đen: marker được thêm/xoá ở ĐẦU dòng, nên selection mới
-    // được tính bằng cách dịch theo delta độ dài của từng dòng (cùng cách handleEditorTab).
+    // Giữ vùng bôi đen: marker thêm/xoá ở ĐẦU dòng nên selection mới tính bằng cách dịch theo delta độ dài
+    // của từng dòng (cùng cách handleEditorTab).
     const firstLineDelta = newLines[0].length - lines[0].length;
     const newSelStart = selStart > lineStart
         ? Math.max(lineStart, selStart + firstLineDelta)
@@ -2715,7 +2506,6 @@ function applyListStyle(style) {
     applyEditorChange(newText, newSelStart, newSelEnd);
 }
 
-// ----- Hộp thoại dùng chung (Link / Table custom size) -----
 let dialogReturnFocus = null;
 
 function openDialog(overlay, focusTarget) {
@@ -2774,7 +2564,6 @@ function insertTableFromDialog() {
     insertTableBlock(cols, rows);
 }
 
-// Chèn bảng Markdown tại con trỏ, đảm bảo có dòng mới bao quanh
 function insertTableBlock(cols, rows) {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -2787,11 +2576,9 @@ function insertTableBlock(cols, rows) {
     applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
 }
 
-// Xây dựng nội dung khối fence (code / math / mermaid). body rỗng sẽ thay bằng
-// placeholder để caret có chỗ đứng. Trả về string hoàn chỉnh nhiều dòng.
 function buildBlockFence(kind, body) {
-    // Chỉ thay placeholder khi body rỗng/toàn whitespace; giữ nguyên nội dung
-    // (kể cả thụt lề) vì selection bọc vào code block đã được indent sẵn.
+    // Chỉ thay placeholder khi body rỗng/toàn khoảng trắng; giữ nguyên nội dung (kể cả thụt lề) vì vùng chọn
+    // đưa vào code block đã được indent sẵn.
     const hasBody = body != null && String(body).trim() !== '';
     if (kind === 'math') {
         return '$$\n' + (hasBody ? body : 'f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx') + '\n$$';
@@ -2801,9 +2588,7 @@ function buildBlockFence(kind, body) {
     return '```' + lang + '\n' + (hasBody ? body : fallback) + '\n```';
 }
 
-// Chèn khối code / math / mermaid tại con trỏ, đảm bảo có dòng trống bao quanh
-// (cùng pattern với insertTableBlock). Có selection: nội dung khối là vùng chọn
-// (mỗi dòng của khối code lùi vào 4 space cho đúng cú pháp fence); không có:
+// Có vùng chọn: nội dung khối là vùng chọn (mỗi dòng code lùi 4 space đúng cú pháp fence); không có:
 // chèn placeholder và đặt caret vào dòng nội dung.
 function insertBlockFence(kind) {
     const val = markdownInput.value;
@@ -2827,7 +2612,6 @@ function langPrefixLen(kind) {
     return kind === 'mermaid' ? '```mermaid\n'.length : '```js\n'.length;
 }
 
-// ----- Sự kiện hộp thoại -----
 btnLink.addEventListener('click', openLinkDialog);
 
 linkUrlInput.addEventListener('input', () => {
@@ -2839,15 +2623,13 @@ linkCancelBtn.addEventListener('click', closeDialogs);
 tableInsertBtn.addEventListener('click', insertTableFromDialog);
 tableCancelBtn.addEventListener('click', closeDialogs);
 
-// Click nền overlay để đóng
 [linkDialog, tableDialog].forEach((overlay) => {
     overlay.addEventListener('mousedown', (e) => {
         if (e.target === overlay) closeDialogs();
     });
 });
 
-// Trong hộp thoại: Enter = nút chính, Esc = đóng, Tab = giữ vòng focus;
-// chặn mọi phím khác lọt xuống editor bên dưới.
+// Enter = nút chính, Esc = đóng, Tab giữ vòng focus; chặn mọi phím khác lọt xuống editor bên dưới.
 [linkDialog, tableDialog].forEach((overlay) => {
     overlay.addEventListener('keydown', (e) => {
         e.stopPropagation();
@@ -2870,7 +2652,6 @@ tableCancelBtn.addEventListener('click', closeDialogs);
     });
 });
 
-// ----- Đóng dropdown khi bấm ra ngoài hoặc Esc (cùng cơ chế menu Export) -----
 document.addEventListener('click', (e) => {
     if (anyFormatMenuOpen() && !e.target.closest('.format-wrap')) closeFormatMenus();
 });
@@ -2882,8 +2663,6 @@ document.addEventListener('keydown', (e) => {
         closeDialogs();
     }
 });
-
-// ----- Import file Markdown -----
 
 const IMPORTABLE_EXTS = ['md', 'markdown', 'mdown', 'mkd', 'txt'];
 function isImportableFile(file) {
@@ -2929,9 +2708,6 @@ importFileInput.addEventListener('change', () => {
     reader.readAsText(file, 'utf-8');
 });
 
-// ==========================================================================
-// SELF-CHECK (chỉ chạy khi URL có ?selfcheck - dùng console, không framework)
-// ==========================================================================
 function runSelfCheck() {
     const results = [];
     const assert = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} - ${name}`);
@@ -2947,7 +2723,6 @@ function runSelfCheck() {
     assert('kéo sát trái -> preview', computeViewModeFromPercent(1) === 'preview');
     assert('kéo sát phải -> editor', computeViewModeFromPercent(99) === 'editor');
     assert('kéo giữa -> split', computeViewModeFromPercent(50) === 'split');
-    // Cùng công thức % cho cả trục ngang lẫn dọc (màn hình nhỏ)
     assert('drag dọc giữa -> 50', computeSplitPercent(500, 1000) === 50);
     assert('drag dọc clamp dưới', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
     assert('drag dọc clamp trên', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);
@@ -2994,7 +2769,6 @@ function runSelfCheck() {
     assert('title từ heading cấp 1', deriveDocumentTitle('# Báo cáo tháng 9\nnội dung') === 'Báo cáo tháng 9');
     assert('title fallback khi không có heading', deriveDocumentTitle('không có heading') === 'Document');
 
-    // ----- Format bar: helpers thuần -----
     assert('heading nhận diện H2 có thụt lề', getHeadingLevel('  ## Tiêu đề') === 2);
     assert('heading nhận diện dòng thường', getHeadingLevel('nội dung') === 0);
     assert('heading nhận diện # không nội dung', getHeadingLevel('#') === 1);
@@ -3040,8 +2814,6 @@ function runSelfCheck() {
     assert('fence mermaid mặc định', buildBlockFence('mermaid', '') === '```mermaid\ngraph TD\n    A[Start] --> B[End]\n```');
     assert('fence giữ nội dung có sẵn', buildBlockFence('code', 'a\nb') === '```js\na\nb\n```');
 
-    // ----- Regression: gate no-op phải so TEXT chứ không so tổng delta có dấu -----
-    // (delta triệt tiêu khi vài dòng cộng, vài dòng khác bớt cùng số ký tự)
     (function () {
         const saved = markdownInput.value;
         const sel = [markdownInput.selectionStart, markdownInput.selectionEnd];
@@ -3058,7 +2830,6 @@ function runSelfCheck() {
         markdownInput.setSelectionRange(sel[0], sel[1]);
     })();
 
-    // ----- Regression: liên kết neo nội bộ cần id trên tiêu đề -----
     assert('slug heading bỏ dấu câu', slugifyHeading('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');
     (function () {
         const host = document.createElement('div');
@@ -3085,7 +2856,6 @@ function runSelfCheck() {
     assert('tspan đặt đúng tâm foreignObject', textEl && textEl.querySelector('tspan').getAttribute('x') === '60');
 
     if (typeof katex !== 'undefined') {
-        // Inline thường: dùng MathML có sẵn trong .katex-mathml, gỡ annotation.
         const inlineHost = document.createElement('div');
         inlineHost.innerHTML = katex.renderToString('E = mc^2', { throwOnError: false, output: 'htmlAndMathml' });
         convertKatexForDoc(inlineHost);
@@ -3093,7 +2863,6 @@ function runSelfCheck() {
         assert('katex inline chuyển thành <math> thuần', !!inlineMath && !inlineHost.querySelector('span.katex'));
         assert('katex inline bỏ annotation', !!inlineMath && !inlineMath.querySelector('annotation'));
 
-        // Khối nhiều dòng: phải render lại từ LaTeX nguồn ra MathML phẳng có mtable/mtr.
         const alignedHost = document.createElement('div');
         alignedHost.innerHTML = katex.renderToString(
             String.raw`\begin{aligned} a &= 1 \\ b &= 2 \end{aligned}`,
@@ -3104,7 +2873,6 @@ function runSelfCheck() {
         assert('katex aligned chuyển thành <math> có mtable', !!alignedMath && !!alignedMath.querySelector('mtable'));
         assert('katex aligned giữ đủ 2 dòng', !!alignedMath && alignedMath.querySelectorAll('mtr').length === 2);
 
-        // Text node trần (tàn dư của annotation bị DOMPurify gỡ ở preview) phải bị dọn.
         const strayHost = document.createElement('div');
         strayHost.innerHTML = katex.renderToString('E = mc^2', { throwOnError: false, output: 'mathml' });
         const strayMath = strayHost.querySelector('math');
@@ -3113,7 +2881,6 @@ function runSelfCheck() {
         const cleanedMath = strayHost.querySelector('math');
         assert('katex dọn text node trần trong <math>', !!cleanedMath && !Array.from(cleanedMath.childNodes).some(n => n.nodeType === 3 && n.textContent.trim()));
 
-        // KaTeX hỏng (không có .katex-mathml): phải thay bằng text thay vì để lại span rác.
         const brokenHost = document.createElement('div');
         brokenHost.innerHTML = '<span class="katex">fallback text</span>';
         convertKatexForDoc(brokenHost);
@@ -3129,7 +2896,6 @@ if (location.search.includes('selfcheck')) {
     window.addEventListener('DOMContentLoaded', runSelfCheck);
 }
 
-// Chạy khởi tạo ứng dụng khi trang web tải xong
 window.addEventListener('DOMContentLoaded', () => {
     try {
         if (typeof mermaid !== 'undefined') {
@@ -3143,23 +2909,19 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Guard: nếu lucide fail to load thì bỏ qua vẽ icon thay vì văng exception
-        // làm hỏng toàn bộ khởi tạo.
+        // Guard: lucide không tải được thì bỏ qua vẽ icon, không để exception làm hỏng toàn bộ khởi tạo.
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     } finally {
-        // Nạp nội dung CUỐI cùng: lần renderMarkdown() đầu tiên phải chạy sau khi
-        // mermaid đã initialize và marked đã gắn KaTeX extension, nếu không công
-        // thức toán ($...$ / $$...$$) ở lần mở app đầu tiên chỉ hiện chữ thô và
-        // phải gõ thêm mới render. Đặt trong finally để editor vẫn có nội dung
-        // dù khối init bên trên có ném lỗi.
+        // Nạp nội dung CUỐI: renderMarkdown() đầu tiên phải chạy sau khi mermaid initialize và marked gắn
+        // KaTeX extension, nếu không công thức ($...$ / $$...$$) lần mở đầu chỉ hiện chữ thô. Đặt trong finally
+        // để editor vẫn có nội dung dù khối init bên trên ném lỗi.
         loadInitialContent();
     }
 });
 
-// Lưu ngay lập tức (không debounce) khi cửa sổ chuẩn bị đóng lại,
-// để không bị mất vài trăm mili-giây nội dung gõ cuối cùng.
+// Lưu ngay (không debounce) khi cửa sổ sắp đóng để không mất nội dung gõ cuối cùng.
 window.addEventListener('beforeunload', saveContentToStorage);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {

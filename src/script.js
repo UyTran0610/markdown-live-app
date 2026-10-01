@@ -2039,6 +2039,70 @@ function fitDocImageSize(w, h, maxW = DOC_IMG_MAX_WIDTH_PX, maxH = DOC_IMG_MAX_H
     return { width: Math.round(w * s), height: Math.round(h * s) };
 }
 
+// ----- Ảnh trong file DOC: badge (shields.io...) bị Word kéo dãn -----
+// Nguyên nhân: badge là SVG remote, thẻ <img> không có width/height tường minh nên
+// Word tự đoán kích thước (cộng thêm CSS height:auto / max-height làm nó co giãn sai).
+// Cách xử lý: (1) luôn gắn width/height px tường minh cho MỌI ảnh, (2) đổi ảnh SVG
+// sang PNG (data-URL) vì Word xử lý PNG ổn định hơn SVG.
+const DOC_SVG_HOSTS = /^https?:\/\/(?:img\.shields\.io|flat\.badgen\.net|badgen\.net|badge\.fury\.io|camo\.githubusercontent\.com)\//i;
+
+// Hàm thuần để self-check được: URL này nhiều khả năng trả về SVG?
+// (shields.io trả SVG dù URL không có đuôi .svg)
+function isSvgImageSrc(src) {
+    src = String(src || '');
+    return /^data:image\/svg/i.test(src) || /\.svg(?:[?#]|$)/i.test(src) || DOC_SVG_HOSTS.test(src);
+}
+
+// Kích thước hiển thị (px) của ảnh gốc trong Preview: ưu tiên thuộc tính width/height
+// do người dùng ghi (bỏ qua dạng %), rồi tới kích thước tự nhiên, cuối cùng là khung đang vẽ.
+function getDocImageSize(orig) {
+    const px = (v) => (v && !/%\s*$/.test(v)) ? (parseFloat(v) || 0) : 0;
+    let w = px(orig.getAttribute('width'));
+    let h = px(orig.getAttribute('height'));
+    const natW = orig.naturalWidth || 0;
+    const natH = orig.naturalHeight || 0;
+    const ratio = natW > 0 && natH > 0 ? natW / natH : 0;
+    if (w > 0 && !(h > 0) && ratio) h = w / ratio;
+    else if (h > 0 && !(w > 0) && ratio) w = h * ratio;
+    else if (!(w > 0) || !(h > 0)) { w = natW; h = natH; }
+    if (!(w > 0) || !(h > 0)) {
+        const r = orig.getBoundingClientRect();
+        w = r.width;
+        h = r.height;
+    }
+    return { width: w, height: h };
+}
+
+// Chờ ảnh trong Preview tải xong (tối đa timeoutMs) để có naturalWidth/Height đúng.
+function waitForImageLoad(img, timeoutMs = 4000) {
+    if (img.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+        const done = () => { clearTimeout(t); img.removeEventListener('load', done); img.removeEventListener('error', done); resolve(); };
+        const t = setTimeout(done, timeoutMs);
+        img.addEventListener('load', done);
+        img.addEventListener('error', done);
+    });
+}
+
+// Vẽ ảnh SVG (remote hoặc data:) lên canvas ở độ phân giải 2x rồi trả về data-URL PNG.
+// Cần crossOrigin='anonymous' (shields.io có gửi CORS); nếu server không cho phép,
+// toDataURL() sẽ ném lỗi và nơi gọi giữ nguyên URL gốc (kèm kích thước tường minh).
+async function svgImageToPngDataUrl(src, w, h, scale = 2) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('image load timeout')), 6000);
+        img.onload = () => { clearTimeout(t); resolve(); };
+        img.onerror = () => { clearTimeout(t); reject(new Error('image load failed')); };
+        img.src = src;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+}
+
 // CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên
 // phải tự mang theo các định dạng cốt lõi (heading, bảng, code, trích dẫn, alert).
 const DOC_STYLES = `
@@ -2051,7 +2115,7 @@ const DOC_STYLES = `
     pre { background: #f6f8fa; border: 1px solid #d0d7de; padding: 10px; font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; white-space: pre-wrap; }
     code { font-family: Consolas, "Courier New", monospace; }
     blockquote { border-left: 4px solid #d0d7de; margin-left: 0; padding-left: 12px; color: #57606a; }
-    img { max-width: 650px; max-height: 900px; height: auto; }
+    img { border: 0; }
     a { color: #0969da; }
     hr { border: none; border-top: 1px solid #d0d7de; }
     .markdown-alert { border-left: 4px solid #0969da; background: #f6f8fa; padding: 8px 12px; }
@@ -2157,21 +2221,34 @@ async function exportDoc() {
         el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
     });
 
-    // Thu ảnh Markdown quá khổ về vừa trang Word (Word bỏ qua max-width).
-    // Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong preview theo chỉ số.
-    clone.querySelectorAll('img').forEach((img, idx) => {
-        const orig = previewOutput.querySelectorAll('img')[idx];
-        if (!orig) return;
-        const w = orig.naturalWidth || orig.width || parseFloat(orig.getAttribute('width')) || 0;
-        const h = orig.naturalHeight || orig.height || parseFloat(orig.getAttribute('height')) || 0;
-        if (w > 0 && h > 0 && (w > DOC_IMG_MAX_WIDTH_PX || h > DOC_IMG_MAX_HEIGHT_PX)) {
-            const fit = fitDocImageSize(w, h);
-            img.setAttribute('width', fit.width);
-            img.setAttribute('height', fit.height);
-            img.style.width = fit.width + 'px';
-            img.style.height = 'auto';
+    // Gắn kích thước px tường minh cho MỌI ảnh (kể cả badge nhỏ) để Word không tự đoán
+    // rồi kéo dãn; ảnh quá khổ được thu về vừa trang. Badge SVG (shields.io...) đổi sang
+    // PNG data-URL. Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong preview theo chỉ số.
+    const origImgs = previewOutput.querySelectorAll('img');
+    const cloneImgs = clone.querySelectorAll('img');
+    for (let idx = 0; idx < cloneImgs.length; idx++) {
+        const img = cloneImgs[idx];
+        const orig = origImgs[idx];
+        if (!orig) continue;
+        await waitForImageLoad(orig);
+        const size = getDocImageSize(orig);
+        const fit = fitDocImageSize(size.width, size.height);
+        if (!(fit.width > 0 && fit.height > 0)) continue;
+
+        const src = orig.currentSrc || orig.getAttribute('src') || '';
+        if (isSvgImageSrc(src)) {
+            try {
+                img.src = await svgImageToPngDataUrl(src, fit.width, fit.height);
+                img.removeAttribute('srcset');
+            } catch (e) {
+                console.warn('Could not convert the SVG image to PNG, keeping the original URL:', src, e);
+            }
         }
-    });
+        img.setAttribute('width', fit.width);
+        img.setAttribute('height', fit.height);
+        img.style.width = fit.width + 'px';
+        img.style.height = fit.height + 'px';
+    }
 
     // Chuyển sơ đồ Mermaid thành ảnh PNG. Ánh xạ theo CHÍNH node pre tương ứng
     // (pre[i] -> svg con của nó) chứ không theo chỉ số vào danh sách svg: nếu một
@@ -2904,6 +2981,9 @@ function runSelfCheck() {
     const fitTall = fitDocImageSize(500, 1800);
     assert('doc cap thu ảnh cao về 900 giữ tỉ lệ', fitTall.width === 250 && fitTall.height === 900);
     assert('doc cap bỏ qua kích thước lạ', fitDocImageSize(0, 0).width === 0);
+    assert('doc nhận badge shields.io là SVG', isSvgImageSrc('https://img.shields.io/badge/Tauri-v2.0-24C8DB') === true);
+    assert('doc nhận đuôi .svg là SVG', isSvgImageSrc('https://example.com/a.svg?x=1') === true);
+    assert('doc không coi png là SVG', isSvgImageSrc('https://example.com/a.png') === false);
 
     const standalone = buildStandaloneHtml('<p>x</p>', 'Tiêu đề <đẹp>');
     assert('html standalone có doctype', standalone.startsWith('<!DOCTYPE html>'));

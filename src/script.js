@@ -1958,9 +1958,12 @@ const DOC_STYLES = `
     body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
     h1 { font-size: 20pt; } h2 { font-size: 16pt; } h3 { font-size: 14pt; }
     h4 { font-size: 12pt; } h5 { font-size: 11pt; } h6 { font-size: 10pt; color: #57606a; }
-    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-    th, td { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; }
-    th { background: #f6f8fa; font-weight: bold; }
+    /* Chỉ bảng dữ liệu (đã gắn class doc-data-table trong exportDoc) mới có viền ô. Bảng dùng làm khung quote/alert
+       KHÔNG nhận luật này: Word coi "border: none" inline là "chưa khai báo" và rơi về viền của stylesheet,
+       khiến quote bị viền bao quanh. */
+    table.doc-data-table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    .doc-data-table th, .doc-data-table td { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; }
+    .doc-data-table th { background: #f6f8fa; font-weight: bold; }
     pre { background: #f6f8fa; border: 1px solid #d0d7de; padding: 10px; font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; white-space: pre-wrap; }
     code { font-family: Consolas, "Courier New", monospace; }
     blockquote { border-left: 4px solid #d0d7de; margin-left: 0; padding-left: 12px; color: #57606a; }
@@ -2266,6 +2269,74 @@ function stripUnusedHeadingIds(container) {
     });
 }
 
+// Màu viền/tiêu đề của từng loại GFM Alert khi xuất DOC (Word không hiểu CSS variable).
+const DOC_ALERT_COLORS = {
+    note: '#0969da',
+    tip: '#1a7f37',
+    important: '#8250df',
+    warning: '#9a6700',
+    caution: '#d1242f'
+};
+
+// Word gộp các đoạn liền kề có cùng viền thành MỘT khối viền, nên nhiều <blockquote> / GFM Alert đứng cạnh
+// nhau bị dính thành một thanh dọc liên tục. Chuyển mỗi blockquote thành bảng 1 ô (viền trái làm "thanh quote",
+// có padding + nền thật) và chèn một đoạn đệm nhỏ phía sau: Word cũng gộp cả hai bảng liền kề, nên đoạn đệm
+// là thứ duy nhất tách chúng ra. Duyệt ngược để blockquote lồng nhau được xử lý từ trong ra ngoài.
+function convertQuotesForDoc(container) {
+    const quotes = Array.from(container.querySelectorAll('blockquote')).reverse();
+    quotes.forEach((bq) => {
+        const alertClass = Array.from(bq.classList)
+            .find((c) => /^markdown-alert-(note|tip|important|warning|caution)$/.test(c));
+        const type = alertClass ? alertClass.replace('markdown-alert-', '') : '';
+        const borderColor = type ? DOC_ALERT_COLORS[type] : '#d0d7de';
+        const textColor = type ? '#24292f' : '#57606a';
+        const background = type ? 'background:#f6f8fa;' : '';
+
+        const table = document.createElement('table');
+        table.setAttribute('width', '100%');
+        table.setAttribute('border', '0');
+        table.setAttribute('cellspacing', '0');
+        table.setAttribute('cellpadding', '0');
+        table.style.cssText = 'border-collapse:collapse;border:none;width:100%;margin:0;';
+
+        const td = document.createElement('td');
+        // Bảng khung này không có class doc-data-table nên không dính viền ô của DOC_STYLES; thêm mso-border-*-alt
+        // để Word chắc chắn chỉ vẽ viền trái.
+        // setAttribute (không dùng .style.cssText): CSSOM của trình duyệt sẽ loại bỏ thuộc tính mso-* không nhận ra.
+        td.setAttribute('style', 'border-top:none;border-right:none;border-bottom:none;'
+            + 'mso-border-top-alt:none;mso-border-right-alt:none;mso-border-bottom-alt:none;'
+            + 'border-left:4pt solid ' + borderColor + ';'
+            + 'padding:6pt 12pt;color:' + textColor + ';' + background);
+
+        while (bq.firstChild) td.appendChild(bq.firstChild);
+
+        // Bỏ margin thừa ở đầu/cuối ô (padding của ô đã lo khoảng cách).
+        const firstEl = td.firstElementChild;
+        const lastEl = td.lastElementChild;
+        if (firstEl && firstEl.tagName === 'P') firstEl.style.marginTop = '0';
+        if (lastEl && lastEl.tagName === 'P') lastEl.style.marginBottom = '0';
+
+        // Tiêu đề alert: tô đúng màu loại alert (class CSS của app không có trong file DOC).
+        const title = td.querySelector('.markdown-alert-title');
+        if (title && type) {
+            title.style.color = borderColor;
+            title.style.fontWeight = 'bold';
+        }
+
+        const tr = document.createElement('tr');
+        tr.appendChild(td);
+        const tbody = document.createElement('tbody');
+        tbody.appendChild(tr);
+        table.appendChild(tbody);
+
+        const spacer = document.createElement('p');
+        spacer.setAttribute('style', 'margin:0;font-size:6pt;line-height:6pt;mso-line-height-rule:exactly;');
+        spacer.innerHTML = '&nbsp;';
+
+        bq.replaceWith(table, spacer);
+    });
+}
+
 // Ảnh với URL remote giữ nguyên <img src> (Word tự tải).
 async function exportDoc() {
     const text = markdownInput.value;
@@ -2345,6 +2416,12 @@ async function exportDoc() {
 
     // Công thức -> PNG như Mermaid; công thức nào vẽ lỗi sẽ tự rơi về MathML bên trong hàm này.
     await convertKatexToImagesForDoc(previewOutput, clone);
+
+    // Chạy cuối: các bước trên ghép ảnh/biểu đồ/công thức theo chỉ số trong clone, mà việc đổi blockquote
+    // thành bảng chỉ dời node chứ không đổi thứ tự tài liệu, nên để sau cùng cho chắc.
+    // Đánh dấu bảng dữ liệu thật TRƯỚC khi convertQuotesForDoc() tạo thêm bảng khung quote (không có class này).
+    clone.querySelectorAll('table').forEach((t) => t.classList.add('doc-data-table'));
+    convertQuotesForDoc(clone);
 
     const html = buildWordHtml(clone.innerHTML);
     try {
@@ -2974,6 +3051,15 @@ function runSelfCheck() {
     assert('import gate allows mkd', isImportableFile({ name: 'a.mkd', type: '' }) === true);
     assert('import gate allows extensionless', isImportableFile({ name: 'README', type: '' }) === true);
     assert('import gate rejects exe', isImportableFile({ name: 'a.exe', type: '' }) === false);
+    (function () {
+        const host = document.createElement('div');
+        host.innerHTML = '<blockquote><p>a</p></blockquote><blockquote class="markdown-alert markdown-alert-tip"><p class="markdown-alert-title">Tip</p><p>b</p></blockquote>';
+        convertQuotesForDoc(host);
+        assert('doc quote: không còn blockquote', !host.querySelector('blockquote'));
+        assert('doc quote: mỗi quote thành 1 bảng', host.querySelectorAll('table').length === 2);
+        assert('doc quote: có đoạn đệm giữa 2 bảng', host.children[0].tagName === 'TABLE' && host.children[1].tagName === 'P' && host.children[2].tagName === 'TABLE');
+        assert('doc quote: alert dùng màu viền theo loại', host.querySelectorAll('td')[1].style.cssText.includes('26, 127, 55') || host.querySelectorAll('td')[1].style.cssText.includes('#1a7f37'));
+    })();
     const wordHtml = buildWordHtml('<p>x</p>');
     assert('word html có meta UTF-8', wordHtml.includes('charset="UTF-8"'));
     assert('word html có namespace Office', wordHtml.includes('urn:schemas-microsoft-com:office:word'));

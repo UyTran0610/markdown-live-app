@@ -1,0 +1,217 @@
+/* css/toolbar.css — Toolbar chính: nút .btn, dropdown Export / View, nút đổi chế độ xem, nút đổi theme. */
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    row-gap: 6px;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.btn:hover {
+    background: var(--btn-bg-hover);
+    border-color: var(--btn-border-hover);
+    color: var(--btn-text-hover);
+}
+
+.btn:active {
+    background: var(--btn-bg-pressed);
+}
+
+.btn:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: 1px;
+}
+
+/* Trạng thái bật (Sync Scroll ON): tint xanh nhạt + viền và chữ xanh */
+.btn.active {
+    background: var(--btn-active-bg);
+    border-color: var(--btn-active-border);
+    color: var(--btn-active-text);
+}
+
+.btn.active:hover {
+    background: var(--btn-active-bg-hover);
+    border-color: var(--btn-active-border);
+    color: var(--btn-active-text);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn i,
+.btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.btn-label {
+    white-space: nowrap;
+}
+
+/* Nút Import + Dropdown Export */
+.export-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.export-wrap.open .chevron {
+    transform: rotate(180deg);
+}
+
+.export-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border: 1px solid var(--menu-border);
+    border-radius: 8px;
+    background: var(--menu-bg);
+    box-shadow: var(--menu-shadow);
+    z-index: 500;
+}
+
+.export-menu.hidden {
+    display: none;
+}
+
+.export-item,
+.view-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s;
+}
+
+.export-item:hover,
+.export-item:focus-visible,
+.view-item:hover,
+.view-item:focus-visible {
+    background: var(--btn-bg-hover);
+    outline: none;
+}
+
+.export-item:focus-visible,
+.view-item:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: -2px;
+}
+
+.export-item i,
+.export-item svg,
+.view-item i,
+.view-item svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+
+/* Nút + Dropdown chuyển chế độ xem (Editor / Split / Preview) */
+.view-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.view-wrap.open .chevron {
+    transform: rotate(180deg);
+}
+
+.view-item.active {
+    background: var(--btn-active-bg);
+    color: var(--btn-active-text);
+}
+
+.view-item.active i,
+.view-item.active svg {
+    color: var(--btn-active-text);
+}
+
+/* Nút View hiển thị icon + label theo chế độ xem hiện tại (class view-* trên <body>,
+   do applyViewMode() gắn — script chạy defer nên gắn class trước lần paint đầu tiên) */
+#btn-view .icon-editor,
+#btn-view .icon-split,
+#btn-view .icon-preview,
+#btn-view .label-editor,
+#btn-view .label-split,
+#btn-view .label-preview {
+    display: none;
+}
+
+body.view-editor #btn-view .icon-editor {
+    display: inline-flex;
+}
+body.view-editor #btn-view .label-editor {
+    display: inline;
+}
+body.view-split #btn-view .icon-split {
+    display: inline-flex;
+}
+body.view-split #btn-view .label-split {
+    display: inline;
+}
+body.view-preview #btn-view .icon-preview {
+    display: inline-flex;
+}
+body.view-preview #btn-view .label-preview {
+    display: inline;
+}
+
+/* Nút chuyển đổi giao diện Sáng / Tối */
+#btn-theme .icon-moon {
+    display: none;
+}
+#btn-theme .label-dark {
+    display: none;
+}
+
+[data-theme="dark"] #btn-theme .icon-sun {
+    display: none;
+}
+[data-theme="dark"] #btn-theme .label-light {
+    display: none;
+}
+
+[data-theme="dark"] #btn-theme .icon-moon {
+    display: inline-flex;
+}
+[data-theme="dark"] #btn-theme .label-dark {
+    display: inline;
+}

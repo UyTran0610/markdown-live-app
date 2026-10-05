@@ -1,0 +1,107 @@
+/* css/dialogs.css — Hộp thoại nhập liệu (Link / kích thước bảng). */
+
+/* ==========================================================================
+   Hộp thoại nhập liệu (Link / Table custom size)
+   ========================================================================== */
+.dialog-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 18vh;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1000;
+}
+
+.dialog-overlay.hidden {
+    display: none;
+}
+
+.dialog {
+    width: min(400px, calc(100vw - 40px));
+    padding: 20px;
+    border: 1px solid var(--menu-border);
+    border-radius: 10px;
+    background: var(--menu-bg);
+    box-shadow: var(--menu-shadow);
+}
+
+.dialog h2 {
+    margin-bottom: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.dialog label {
+    display: block;
+    margin: 10px 0 5px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.dialog input {
+    width: 100%;
+    height: 32px;
+    padding: 0 10px;
+    font-family: inherit;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    background: var(--pane-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dialog input:focus {
+    border-color: var(--btn-active-border);
+    box-shadow: 0 0 0 2px var(--btn-focus-ring);
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.dialog-btn {
+    height: 30px;
+    padding: 0 14px;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid var(--btn-border);
+    background: transparent;
+    color: var(--btn-text);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dialog-btn:hover {
+    background: var(--btn-bg-hover);
+    border-color: var(--btn-border-hover);
+    color: var(--btn-text-hover);
+}
+
+.dialog-btn.primary {
+    background: var(--logo-icon);
+    border-color: var(--logo-icon);
+    color: #ffffff;
+}
+
+.dialog-btn.primary:hover {
+    opacity: 0.9;
+    background: var(--logo-icon);
+    border-color: var(--logo-icon);
+    color: #ffffff;
+}
+
+.dialog-btn.primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

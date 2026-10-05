@@ -238,19 +238,45 @@ Markdown Live is engineered with memory efficiency and near-instant responsivene
 
 ```
 markdown-live-app/
-├── src/                    # Frontend (Pure HTML/CSS/JS)
-│   ├── index.html
-│   ├── script.js
-│   ├── style.css
-│   └── vendor/             # Locally bundled 3rd-party dependencies (marked, katex, mermaid...)
-├── src-tauri/              # Rust backend + Tauri configuration
+├── src/                        # Frontend (Pure HTML/CSS/JS)
+│   ├── index.html              # App shell: loads vendor scripts + js/main.js
+│   ├── assets/                 # Static images (SVG)
+│   ├── css/                    # Stylesheets, loaded in cascade order
+│   │   ├── tokens.css          # Colour variables for Light/Dark theme
+│   │   ├── base.css
+│   │   ├── layout.css
+│   │   ├── format-bar.css
+│   │   ├── dialogs.css
+│   │   ├── toast.css
+│   │   ├── toolbar.css
+│   │   ├── editor.css
+│   │   ├── preview.css
+│   │   └── print.css
+│   ├── js/                     # ES modules, grouped by responsibility
+│   │   ├── main.js             # Entry point: initialises modules in order
+│   │   ├── core/               # DOM references, toasts, shared helpers
+│   │   ├── editor/             # Editing ops, history, storage, live highlight
+│   │   │   └── syntax/         # Block + inline Markdown highlighting
+│   │   ├── preview/            # Markdown -> HTML render, sanitize, links
+│   │   ├── export/             # .md / .html / .doc / .pdf pipelines
+│   │   ├── io/                 # Import Markdown files from disk
+│   │   ├── ui/                 # Format bar, dialogs, scroll sync, view modes
+│   │   ├── theme/              # Light / Dark theme
+│   │   └── dev/                # Self-check suite (open with ?selfcheck)
+│   └── vendor/                 # Local 3rd-party bundles (marked, katex,
+│       └── fonts/              # mermaid...) + KaTeX web fonts
+├── src-tauri/                  # Rust backend + Tauri configuration
 │   ├── src/
 │   │   ├── lib.rs
 │   │   └── main.rs
-│   ├── capabilities/
+│   ├── capabilities/           # Plugin permissions (dialog, fs, opener...)
 │   ├── icons/
+│   ├── Cargo.toml
 │   └── tauri.conf.json
-└── .github/workflows/      # Automated CI/CD build & release workflows
+├── scripts/
+│   └── sync-version.js         # Version sync + asset cache-busting
+├── images/                     # README screenshots
+└── .github/workflows/          # Automated CI/CD build & release workflows
 ```
 
 ---

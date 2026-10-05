@@ -1,0 +1,22 @@
+/* css/toast.css — Thông báo nhỏ (toast). */
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--toast-bg);
+    color: var(--toast-text);
+    padding: 10px 20px;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    font-size: 0.9rem;
+    transition: opacity 0.3s, transform 0.3s, background-color 0.2s, color 0.2s;
+    z-index: 1000;
+}
+
+.toast.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}

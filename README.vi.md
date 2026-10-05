@@ -238,19 +238,45 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 
 ```
 markdown-live-app/
-├── src/                    # Frontend (HTML/CSS/JS thuần)
-│   ├── index.html
-│   ├── script.js
-│   ├── style.css
-│   └── vendor/             # Thư viện bên thứ 3 lưu cục bộ (marked, katex, mermaid...)
-├── src-tauri/              # Backend Rust + cấu hình Tauri
+├── src/                        # Frontend (HTML/CSS/JS thuần)
+│   ├── index.html              # Vỏ ứng dụng: nạp vendor scripts + js/main.js
+│   ├── assets/                 # Ảnh tĩnh (SVG)
+│   ├── css/                    # Các file style, nạp theo thứ tự cascade
+│   │   ├── tokens.css          # Biến màu cho theme Sáng / Tối
+│   │   ├── base.css
+│   │   ├── layout.css
+│   │   ├── format-bar.css
+│   │   ├── dialogs.css
+│   │   ├── toast.css
+│   │   ├── toolbar.css
+│   │   ├── editor.css
+│   │   ├── preview.css
+│   │   └── print.css
+│   ├── js/                     # Module ES, nhóm theo trách nhiệm
+│   │   ├── main.js             # Điểm vào app: khởi tạo các module theo thứ tự
+│   │   ├── core/               # Tham chiếu DOM, toast, hàm dùng chung
+│   │   ├── editor/             # Thao tác soạn thảo, history, storage, tô màu trực tiếp
+│   │   │   └── syntax/         # Tô màu cú pháp Markdown block + inline
+│   │   ├── preview/            # Render Markdown -> HTML, sanitize, liên kết
+│   │   ├── export/             # Pipeline xuất .md / .html / .doc / .pdf
+│   │   ├── io/                 # Nhập file Markdown từ ổ đĩa
+│   │   ├── ui/                 # Thanh định dạng, hộp thoại, đồng bộ cuộn, chế độ xem
+│   │   ├── theme/              # Theme Sáng / Tối
+│   │   └── dev/                # Bộ tự kiểm tra (mở với ?selfcheck)
+│   └── vendor/                 # Thư viện bên thứ 3 lưu cục bộ (marked, katex,
+│       └── fonts/              # mermaid...) + font web KaTeX
+├── src-tauri/                  # Backend Rust + cấu hình Tauri
 │   ├── src/
 │   │   ├── lib.rs
 │   │   └── main.rs
-│   ├── capabilities/
+│   ├── capabilities/           # Quyền plugin (dialog, fs, opener...)
 │   ├── icons/
+│   ├── Cargo.toml
 │   └── tauri.conf.json
-└── .github/workflows/      # CI/CD tự động build & release
+├── scripts/
+│   └── sync-version.js         # Đồng bộ version + cache-busting tài nguyên
+├── images/                     # Ảnh chụp màn hình cho README
+└── .github/workflows/          # CI/CD tự động build & release
 ```
 
 ---

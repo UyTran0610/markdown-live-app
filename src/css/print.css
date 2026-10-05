@@ -1,0 +1,69 @@
+/* css/print.css — Quy tắc in / xuất PDF. */
+
+@media print {
+    .pane,
+    #preview-pane,
+    .workspace {
+        contain: none !important;
+        overflow: visible !important;
+    }
+}
+
+/* ==========================================================================
+   Quy tắc In & Xuất PDF
+   ========================================================================== */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 15mm;
+    }
+
+    html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+        color: #24292f !important;
+    }
+
+    .app-header,
+    .editor-pane,
+    .pane-header,
+    .dialog-overlay,
+    #pane-resizer,
+    .toast {
+        display: none !important;
+    }
+
+    .workspace {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    .preview-pane {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: transparent !important;
+        border: none !important;
+    }
+
+    #preview-output {
+        padding: 0 !important;
+        overflow: visible !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Ngăn ngắt trang xấu giữa chừng các khối nội dung quan trọng */
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        break-after: avoid;
+    }
+
+    pre, blockquote, table, img, svg, .mermaid, .markdown-alert, tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+}

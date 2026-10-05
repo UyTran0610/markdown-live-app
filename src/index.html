@@ -32,7 +32,16 @@
         })();
     </script>
     <link rel="stylesheet" href="vendor/katex.min.css?v=1.5.4">  
-    <link rel="stylesheet" href="style.css?v=1.5.4"> 
+    <link rel="stylesheet" href="css/tokens.css?v=1.5.4">
+    <link rel="stylesheet" href="css/base.css?v=1.5.4">
+    <link rel="stylesheet" href="css/layout.css?v=1.5.4">
+    <link rel="stylesheet" href="css/format-bar.css?v=1.5.4">
+    <link rel="stylesheet" href="css/dialogs.css?v=1.5.4">
+    <link rel="stylesheet" href="css/toast.css?v=1.5.4">
+    <link rel="stylesheet" href="css/toolbar.css?v=1.5.4">
+    <link rel="stylesheet" href="css/editor.css?v=1.5.4">
+    <link rel="stylesheet" href="css/preview.css?v=1.5.4">
+    <link rel="stylesheet" href="css/print.css?v=1.5.4">
     <!-- defer: cho phép trình duyệt parse/paint xong phần HTML bên dưới trước,
          các thư viện vẫn thực thi đúng theo thứ tự khai báo, trước sự kiện DOMContentLoaded -->
     <script src="vendor/lucide.min.js?v=1.5.4" defer></script>
@@ -281,7 +290,7 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast hidden">Notification appears here</div>
 
-    <!-- Custom Script -->
-    <script src="script.js?v=1.5.4" defer></script>
+    <!-- App entry: ES module (tự động defer, nên chạy sau các thư viện vendor ở trên) -->
+    <script type="module" src="js/main.js?v=1.5.4"></script>
 </body>
 </html>

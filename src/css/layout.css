@@ -1,0 +1,152 @@
+/* css/layout.css — Khung ứng dụng: header, workspace, pane, thanh kéo chia pane, 3 chế độ xem, responsive. */
+
+/* Header & Toolbar */
+.app-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 6px 16px;
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    min-height: 44px;
+    height: auto;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Thanh ngăn cách kéo được giữa Editor và Preview (chỉ hiện ở chế độ Split) */
+#pane-resizer {
+    display: none;
+    position: relative;
+    flex: 0 0 5px;
+    cursor: col-resize;
+    background: var(--border-color);
+    transition: background-color 0.15s;
+    touch-action: none;
+    z-index: 10;
+}
+
+/* Hit-area rộng hơn thanh vẽ để dễ bấm/kéo */
+#pane-resizer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -3px;
+    right: -3px;
+}
+
+#pane-resizer:hover,
+#pane-resizer.dragging {
+    background: var(--btn-active-border);
+}
+
+body.view-split #pane-resizer {
+    display: block;
+}
+
+/* Khi kéo: giữ mặc định sẵn của textarea/svg để không nuốt pointer.
+   Cursor đổi theo trục kéo (dọc khi màn hình nhỏ) — xem media query cuối file */
+body.resizing {
+    cursor: col-resize;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Trước khi script.js gắn class (flash 1 khung hình): layout mặc định là split */
+.editor-pane,
+.preview-pane {
+    flex: 1;
+}
+
+/* Workspace Layout — điều khiển theo 3 chế độ xem đặt trên <body>:
+   view-split / view-editor / view-preview (luôn có đúng 1 class) */
+.workspace {
+    display: flex;
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+    --split-size: 50%;
+}
+
+body.view-split .editor-pane {
+    flex: 0 0 var(--split-size);
+    min-width: 0;
+}
+
+body.view-split .preview-pane {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Chế độ Editor / Preview: pane được chọn chiếm trọn (flex:1 kế thừa từ .pane),
+   pane còn lại ẩn; resizer chỉ hiện ở view-split nên không cần luật riêng */
+body.view-editor .preview-pane,
+body.view-preview .editor-pane {
+    display: none;
+}
+
+body.view-editor .editor-pane {
+    border-right: none;
+}
+
+.pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: var(--pane-bg);
+    transition: background-color 0.2s;
+    contain: layout style paint;
+}
+
+.editor-pane {
+    border-right: 1px solid var(--border-color);
+}
+
+.pane-header {
+    background-color: var(--pane-header-bg);
+    padding: 4px 16px;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--pane-header-text);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Responsive (Chuyển sang dạng dọc trên màn hình nhỏ) */
+@media (max-width: 768px) {
+    .workspace {
+        flex-direction: column;
+    }
+    .editor-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+    /* Layout dọc: thanh ngăn cách vẫn hiện, kéo theo trục dọc.
+       Kéo lên sát mép trên -> Preview; kéo xuống sát mép dưới -> Editor
+       (ngưỡng 2%/98% do script.js xử lý, cùng công thức % với trục ngang).
+       Giữ selector body.view-split để resizer ẩn khi đã vào preview/editor. */
+    body.view-split #pane-resizer {
+        display: block;
+        cursor: row-resize;
+    }
+    body.view-split .editor-pane {
+        flex: 0 0 var(--split-size);
+        min-height: 0;
+    }
+    body.view-split .preview-pane {
+        flex: 1;
+        min-height: 0;
+    }
+    body.resizing {
+        cursor: row-resize;
+    }
+}

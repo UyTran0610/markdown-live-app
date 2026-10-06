@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Bộ tự kiểm tra nhanh (mở app với ?selfcheck để chạy).
 
-import { markdownInput, previewOutput, tableColsInput, tableRowsInput } from '../core/dom.js';
+import { markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -179,6 +179,16 @@ export function runSelfCheck() {
         markdownInput.setSelectionRange(0, 3);
         insertTableBlock(2, 2);
         assert('chèn bảng giữ nguyên vùng chọn', markdownInput.value.startsWith('abc') && markdownInput.value.includes('| Head |'));
+        // Số dòng người chọn tính cả dòng tiêu đề: 3x2 = tiêu đề + 1 dòng thân, không phải 3 dòng.
+        markdownInput.value = '';
+        markdownInput.setSelectionRange(0, 0);
+        insertTableBlock(3, 2);
+        assert('bảng 3x2 ra đúng 2 dòng (tiêu đề + 1 dòng thân)',
+            markdownInput.value === '| Head | Head | Head |\n| --- | --- | --- |\n|  |  |  |');
+        markdownInput.value = '';
+        markdownInput.setSelectionRange(0, 0);
+        insertTableBlock(1, 1);
+        assert('bảng 1x1 vẫn giữ dòng thân để gõ', markdownInput.value === '| Head |\n| --- |\n|  |');
         markdownInput.value = saved;
         markdownInput.setSelectionRange(sel[0], sel[1]);
     })();
@@ -250,6 +260,24 @@ export function runSelfCheck() {
         openTableDialog();
         assert('dialog bảng mở lại về mặc định 3x3', tableColsInput.value === '3' && tableRowsInput.value === '3');
         closeDialogs();
+    })();
+
+    (function () {
+        // Đi qua listener mouseenter thật (không export hàm ra) để kiểm cả cách ánh xạ chỉ số -> cols/rows.
+        const grid = tableMenu.querySelector('.table-grid');
+        const hover = (index) => grid.children[index].dispatchEvent(new MouseEvent('mouseenter'));
+        const onCount = () => grid.querySelectorAll('.table-cell.on').length;
+
+        hover(7);   // 3 cột x 2 dòng
+        assert('lưới bảng sáng đúng hình chữ nhật khi hover', onCount() === 6
+            && grid.children[0].classList.contains('on')
+            && grid.children[7].classList.contains('on')
+            && !grid.children[3].classList.contains('on')     // cột 4 dòng 1
+            && !grid.children[10].classList.contains('on'));  // dòng 3
+        hover(24);  // 5 cột x 5 dòng
+        assert('lưới bảng sáng trọn 5x5', onCount() === 25);
+        tableMenu.dispatchEvent(new MouseEvent('mouseleave'));
+        assert('lưới bảng tắt sáng khi rời menu', onCount() === 0);
     })();
 
     assert('slug heading bỏ dấu câu', slugifyHeading('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');

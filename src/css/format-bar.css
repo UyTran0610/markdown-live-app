@@ -172,7 +172,7 @@
     background: var(--border-color);
 }
 
-/* Lưới chọn kích thước bảng (5x5, ô góc dưới-phải là Custom) */
+/* Lưới chọn kích thước bảng (5x5; số cột phải khớp GRID_COLS trong js/ui/format-toolbar.js) */
 .table-picker {
     min-width: unset;
     width: fit-content;

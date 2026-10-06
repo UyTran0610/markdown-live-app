@@ -99,7 +99,12 @@ export function applyListStyle(style) {
 export function insertTableBlock(cols, rows) {
     const val = markdownInput.value;
     const selEnd = markdownInput.selectionEnd;
-    const table = buildTableMarkdown(rows, cols);
+    // rows ở lưới 5x5 và hộp thoại "Custom size" là số dòng THỰC SỰ của bảng, tính cả dòng tiêu đề mà
+    // buildTableMarkdown() tự sinh ra. Không trừ thì chọn 3x2 lại ra bảng 3 dòng.
+    // ponytail: luôn giữ tối thiểu 1 dòng thân — bảng Markdown không có dòng thân thì không còn ô nào để
+    // gõ và caret (đặt ở cuối phần chèn) rơi vào dòng '---'; nâng cấp sau: đặt caret vào ô tiêu đề.
+    const bodyRows = Math.max(1, rows - 1);
+    const table = buildTableMarkdown(bodyRows, cols);
     // Chèn SAU vùng chọn, không phải tại vùng chọn: bôi đen "abc" rồi chèn bảng phải còn nguyên "abc".
     // caret đặt cuối bảng (bên trong ô cuối) để gõ tiếp được ngay.
     const needTop = selEnd > 0 && val[selEnd - 1] !== '\n';

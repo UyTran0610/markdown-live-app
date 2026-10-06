@@ -69,9 +69,18 @@ function anyFormatMenuOpen() {
     return formatMenus.some(({ menu }) => !menu.classList.contains('hidden'));
 }
 
-function highlightTableCells(grid, count) {
-    for (let i = 0; i < grid.children.length; i++) {
-        grid.children[i].classList.toggle('on', count !== null && i < count);
+// Lưới chọn kích thước bảng: 5x5 ô. Số cột PHẢI khớp grid-template-columns: repeat(5, 22px) ở css/format-bar.css.
+const GRID_COLS = 5;
+const GRID_ROWS = 5;
+
+// Sáng đúng hình chữ nhật cols x rows của ô đang hover. KHÔNG dùng "i + 1 ô đầu": lưới rộng 5 cột nên
+// tiền tố tuyến tính làm cả dòng đầu sáng hết (hover bảng 2 dòng x 3 cột lại hiện 5x3).
+// cols = null: tắt sáng toàn bộ (hover ô khác hoặc rời menu).
+function highlightTableCells(grid, cols, rows) {
+    const cells = grid.querySelectorAll('.table-cell');
+    for (let i = 0; i < cells.length; i++) {
+        const on = cols !== null && (i % GRID_COLS) < cols && Math.floor(i / GRID_COLS) < rows;
+        cells[i].classList.toggle('on', on);
     }
 }
 
@@ -143,15 +152,15 @@ export function initFormatToolbar() {
 
     (function buildTableGrid() {
         const grid = tableMenu.querySelector('.table-grid');
-        for (let i = 0; i < 24; i++) {
+        for (let i = 0; i < GRID_COLS * GRID_ROWS; i++) {
             const cell = document.createElement('button');
             cell.type = 'button';
             cell.className = 'table-cell';
-            const cols = (i % 5) + 1;
-            const rows = Math.floor(i / 5) + 1;
+            const cols = (i % GRID_COLS) + 1;
+            const rows = Math.floor(i / GRID_COLS) + 1;
             cell.title = 'Insert table ' + cols + ' × ' + rows;
             cell.setAttribute('aria-label', 'Insert table ' + cols + 'x' + rows);
-            cell.addEventListener('mouseenter', () => highlightTableCells(grid, i + 1));
+            cell.addEventListener('mouseenter', () => highlightTableCells(grid, cols, rows));
             cell.addEventListener('click', () => {
                 closeFormatMenus();
                 markdownInput.focus();
@@ -159,17 +168,8 @@ export function initFormatToolbar() {
             });
             grid.appendChild(cell);
         }
-        const customCell = document.createElement('button');
-        customCell.type = 'button';
-        customCell.className = 'table-cell custom';
-        customCell.title = 'Custom size…';
-        customCell.setAttribute('aria-label', 'Custom table size');
-        customCell.addEventListener('mouseenter', () => highlightTableCells(grid, null));
-        customCell.addEventListener('click', () => {
-            closeFormatMenus();
-            openTableDialog();
-        });
-        grid.appendChild(customCell);
+        // Ô "Custom size" là nút có nhãn sẵn trong index.html ([data-table="custom"]); không tạo thêm ô
+        // trống ở đây vì nó trông y hệt ô kích thước và lại mở hộp thoại chứ không chèn bảng.
         tableMenu.addEventListener('mouseleave', () => highlightTableCells(grid, null));
     })();
 

@@ -34,8 +34,20 @@ export function renderMarkdown() {
     const rawText = markdownInput.value;
 
     const previousPreviewScrollTop = previewOutput.scrollTop;
-    
-    const dirtyHtml = marked.parse(rawText);
+
+    // try/catch quanh cả lời gọi: bắt được cả lỗi do chính marked ném vào ReferenceError khi thư viện chưa tải
+    // xong (script vendor đều defer). Cùng hành vi fail-closed như nhánh thiếu DOMPurify dưới đây: hiện văn
+    // bản thuần, không đụng innerHTML, editor vẫn gõ được.
+    let dirtyHtml;
+    try {
+        dirtyHtml = marked.parse(rawText);
+    } catch (err) {
+        console.error('Markdown parse failed, showing raw text:', err);
+        previewOutput.textContent = rawText;
+        charCounter.textContent = `${rawText.length} characters`;
+        restorePreviewScrollTop(previousPreviewScrollTop);
+        return;
+    }
 
     // Fail-closed: chưa tải được DOMPurify thì hiển thị văn bản thuần, không bao giờ innerHTML HTML chưa lọc.
     if (typeof DOMPurify === 'undefined') {

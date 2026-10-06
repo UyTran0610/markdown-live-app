@@ -1,9 +1,9 @@
 // js/dev/selfcheck.js — Bộ tự kiểm tra nhanh (mở app với ?selfcheck để chạy).
 
-import { markdownInput } from '../core/dom.js';
+import { markdownInput, previewOutput, tableColsInput, tableRowsInput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl } from '../core/utils.js';
-import { applyHeadingLevel, applyListStyle } from '../editor/format-actions.js';
+import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
 import {
     buildBlockFence,
     buildTableMarkdown,
@@ -14,20 +14,25 @@ import {
     setHeadingLevel,
     wrapHtmlTag
 } from '../editor/format-helpers.js';
+import { editorHistory } from '../editor/history.js';
 import { convertQuotesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { deriveExportBaseName } from '../export/file-save.js';
-import { buildStandaloneHtml, deriveDocumentTitle } from '../export/html.js';
+import { deriveDocumentTitle, deriveExportBaseName } from '../export/file-save.js';
+import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { convertKatexForDoc, katexFontKey, parseKatexFontFaces } from '../export/katex.js';
+import { makeExclusive } from '../export/menu.js';
 import { isImportableFile } from '../io/import.js';
 import { assignHeadingIds, slugifyHeading } from '../preview/headings.js';
+import { renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
+import { closeDialogs, openTableDialog } from '../ui/dialogs.js';
 import {
     SPLIT_MAX_PERCENT,
     SPLIT_MIN_PERCENT,
     computeSplitPercent,
-    computeViewModeFromPercent
+    computeViewModeFromPercent,
+    isValidViewMode
 } from '../ui/view-mode.js';
 
 export function runSelfCheck() {
@@ -37,6 +42,10 @@ export function runSelfCheck() {
     assert('filename từ heading có dấu', deriveExportBaseName('# Trình soạn thảo Markdown Live\n\nnội dung') === 'trinh-soan-thao-markdown-live');
     assert('filename bỏ ký tự đặc biệt', deriveExportBaseName('# Tiêu đề (v1.2)!') === 'tieu-de-v12');
     assert('filename fallback khi không có heading', deriveExportBaseName('không có heading') === 'document');
+    assert('filename giữ H1 tiếng Nhật', deriveExportBaseName('# 季度報告書') === '季度報告書');
+    assert('filename giữ H1 tiếng Nga', deriveExportBaseName('# Отчёт за Q3') === 'отчёт-за-q3');
+    assert('filename loại ký tự cấm trong tên file', deriveExportBaseName('# a/b:c*d?e"f<g>h|i') === 'abcdefghi');
+    assert('filename bỏ heading trong code fence', deriveExportBaseName('```md\n# comment\n```\n\n# Real Title') === 'real-title');
 
     assert('split clamp dưới ngưỡng', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
     assert('split clamp trên ngưỡng', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);
@@ -45,6 +54,8 @@ export function runSelfCheck() {
     assert('kéo sát trái -> preview', computeViewModeFromPercent(1) === 'preview');
     assert('kéo sát phải -> editor', computeViewModeFromPercent(99) === 'editor');
     assert('kéo giữa -> split', computeViewModeFromPercent(50) === 'split');
+    assert('view mode rác bị từ chối', isValidViewMode('abc') === false && isValidViewMode('') === false);
+    assert('view mode hợp lệ được nhận', isValidViewMode('editor') && isValidViewMode('split') && isValidViewMode('preview'));
     assert('drag dọc giữa -> 50', computeSplitPercent(500, 1000) === 50);
     assert('drag dọc clamp dưới', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
     assert('drag dọc clamp trên', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);
@@ -99,6 +110,13 @@ export function runSelfCheck() {
     assert('html standalone title fallback', buildStandaloneHtml('<p>x</p>', '').includes('<title>Document</title>'));
     assert('title từ heading cấp 1', deriveDocumentTitle('# Báo cáo tháng 9\nnội dung') === 'Báo cáo tháng 9');
     assert('title fallback khi không có heading', deriveDocumentTitle('không có heading') === 'Document');
+    assert('title không lấy heading trong fence ```', deriveDocumentTitle('```\n# giả\n```\n\n# Thật') === 'Thật');
+    assert('title không lấy heading trong fence ~~~', deriveDocumentTitle('~~~md\n# giả\n~~~\n# Thật') === 'Thật');
+    assert('title chỉ fallback khi toàn bộ là fence', deriveDocumentTitle('```\n# giả\n```') === 'Document');
+    assert('title bỏ fence đóng dài hơn lúc mở', deriveDocumentTitle('```\n# giả\n````\n# Thật') === 'Thật');
+    assert('title không ăn xuống dòng sau #', deriveDocumentTitle('#\nfoo') === 'Document');
+    assert('title nhận heading thụt tối đa 3 space', deriveDocumentTitle('   # Thụt') === 'Thụt');
+    assert('title từ chối heading thụt 4 space', deriveDocumentTitle('    # Sâu') === 'Document');
 
     assert('heading nhận diện H2 có thụt lề', getHeadingLevel('  ## Tiêu đề') === 2);
     assert('heading nhận diện dòng thường', getHeadingLevel('nội dung') === 0);
@@ -157,8 +175,81 @@ export function runSelfCheck() {
         assert('heading delta 0 vẫn áp dụng', run('### a\nbbbb', () => applyHeadingLevel(1)) === '# a\n# bbbb');
         assert('bullet delta 0 vẫn áp dụng', run('- aaa\nbbb', () => applyListStyle('bullet')) === 'aaa\n- bbb');
         assert('numbered delta 0 vẫn áp dụng', run('1. a\nbbb', () => applyListStyle('numbered')) === 'a\n1. bbb');
+        markdownInput.value = 'abc def';
+        markdownInput.setSelectionRange(0, 3);
+        insertTableBlock(2, 2);
+        assert('chèn bảng giữ nguyên vùng chọn', markdownInput.value.startsWith('abc') && markdownInput.value.includes('| Head |'));
         markdownInput.value = saved;
         markdownInput.setSelectionRange(sel[0], sel[1]);
+    })();
+
+    (function () {
+        // textarea RỜI: undo/redo gọi syncEditorAfterChange() đọc markdownInput thật nên không đụng nội dung người dùng.
+        const probe = document.createElement('textarea');
+        const savedStack = editorHistory.stack;
+        const savedIndex = editorHistory.index;
+        editorHistory.stack = [];
+        editorHistory.index = -1;
+        editorHistory.saveCurrentState(probe);   // giống applyContent() lúc mới load
+        probe.value = 'hi';                       // gõ xong nhưng chưa kịp lưu vào lịch sử
+        editorHistory.undo(probe);
+        assert('undo đầu tiên sau khi load có tác dụng', probe.value === '');
+        editorHistory.redo(probe);
+        assert('redo quay lại nội dung vừa gõ', probe.value === 'hi');
+        editorHistory.stack = savedStack;
+        editorHistory.index = savedIndex;
+    })();
+
+    (function () {
+        // Dấu cách phải tạo mốc lịch sử riêng, nếu không cả "hello world" gộp một mục và Undo lùi hết cụm.
+        const saved = markdownInput.value;
+        const sel = [markdownInput.selectionStart, markdownInput.selectionEnd];
+        const savedStack = editorHistory.stack;
+        const savedIndex = editorHistory.index;
+        editorHistory.stack = [];
+        editorHistory.index = -1;
+        markdownInput.value = 'hello';
+        editorHistory.saveCurrentState(markdownInput);
+        markdownInput.value = 'hello ';
+        markdownInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ' ' }));
+        markdownInput.value = 'hello world';
+        markdownInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'w' }));
+        editorHistory.undo(markdownInput);
+        assert('undo lùi từng từ ở dấu cách', markdownInput.value === 'hello ');
+        editorHistory.stack = savedStack;
+        editorHistory.index = savedIndex;
+        markdownInput.value = saved;
+        markdownInput.setSelectionRange(sel[0], sel[1]);
+    })();
+
+    (function () {
+        // marked.parse ném lỗi (lib chưa tải xong, extension hỏng): preview phải rơi về văn bản thô, không đụng innerHTML.
+        const savedValue = markdownInput.value;
+        const savedParse = window.marked && window.marked.parse;
+        markdownInput.value = '# probe render';
+        if (savedParse) {
+            window.marked.parse = () => { throw new Error('probe'); };
+            renderMarkdown();
+            assert('render lỗi -> preview hiện văn bản thô', previewOutput.textContent === '# probe render');
+            window.marked.parse = savedParse;
+        }
+        markdownInput.value = savedValue;
+    })();
+
+    (function () {
+        let calls = 0;
+        const runOnce = makeExclusive(() => { calls++; });
+        runOnce();
+        runOnce();
+        assert('export chạy chồng bị chặn', calls === 1);
+    })();
+
+    (function () {
+        tableColsInput.value = '9';
+        tableRowsInput.value = '9';
+        openTableDialog();
+        assert('dialog bảng mở lại về mặc định 3x3', tableColsInput.value === '3' && tableRowsInput.value === '3');
+        closeDialogs();
     })();
 
     assert('slug heading bỏ dấu câu', slugifyHeading('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');

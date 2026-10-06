@@ -35,8 +35,14 @@ function getCurrentViewMode() {
         : 'split';
 }
 
+// localStorage có thể chứa rác (đổi tên key, sửa tay, phiên bản cũ): chỉ nhận đúng 3 giá trị hợp lệ,
+// nếu không body sẽ mất class view-* và resizer không hiện.
+export function isValidViewMode(mode) {
+    return mode === 'editor' || mode === 'split' || mode === 'preview';
+}
+
 function applyViewMode(mode, persist = true) {
-    if (mode !== 'editor' && mode !== 'split' && mode !== 'preview') return;
+    if (!isValidViewMode(mode)) return;
     document.body.classList.toggle('view-editor', mode === 'editor');
     document.body.classList.toggle('view-split', mode === 'split');
     document.body.classList.toggle('view-preview', mode === 'preview');
@@ -137,6 +143,6 @@ export function initViewMode() {
         } catch (e) {
             // Bỏ qua nếu localStorage bị chặn
         }
-        applyViewMode(saved || DEFAULT_VIEW_MODE, false);
+        applyViewMode(isValidViewMode(saved) ? saved : DEFAULT_VIEW_MODE, false);
     })();
 }

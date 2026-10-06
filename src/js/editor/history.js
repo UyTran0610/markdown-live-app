@@ -30,12 +30,15 @@ export const editorHistory = {
     },
 
     undo(el) {
-        if (this.index <= 0 && this.stack.length <= 1) return;
+        // Bỏ timer gom lịch sử còn treo: nếu để chạy sau khi đã lùi, nó push lại giá trị hiện tại và sinh
+        // entry trùng không liền kề, làm Undo/Redo lệch bước.
+        clearTimeout(this.typingTimer);
         // Lưu nội dung chưa kịp vào lịch sử trước khi lùi. push() đã tự tăng this.index nên KHÔNG giảm thêm,
         // nếu không Undo sẽ lùi 2 bước thay vì 1.
         if (this.stack[this.index] && this.stack[this.index].val !== el.value) {
             this.push(el.value, el.selectionStart, el.selectionEnd);
         }
+        // Chỉ lùi được khi còn mục phía trước; stack rỗng (index = -1) thì index > 0 là false nên tự thoát.
         if (this.index > 0) {
             this.index--;
             const state = this.stack[this.index];
@@ -46,6 +49,7 @@ export const editorHistory = {
     },
 
     redo(el) {
+        clearTimeout(this.typingTimer);
         if (this.index < this.stack.length - 1) {
             this.index++;
             const state = this.stack[this.index];

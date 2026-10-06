@@ -98,14 +98,15 @@ export function applyListStyle(style) {
 
 export function insertTableBlock(cols, rows) {
     const val = markdownInput.value;
-    const selStart = markdownInput.selectionStart;
     const selEnd = markdownInput.selectionEnd;
     const table = buildTableMarkdown(rows, cols);
-    const needTop = selStart > 0 && val[selStart - 1] !== '\n';
+    // Chèn SAU vùng chọn, không phải tại vùng chọn: bôi đen "abc" rồi chèn bảng phải còn nguyên "abc".
+    // caret đặt cuối bảng (bên trong ô cuối) để gõ tiếp được ngay.
+    const needTop = selEnd > 0 && val[selEnd - 1] !== '\n';
     const needBottom = selEnd < val.length && val[selEnd] !== '\n';
     const insert = (needTop ? '\n' : '') + table + (needBottom ? '\n' : '');
-    const caret = selStart + insert.length;
-    applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
+    const caret = selEnd + insert.length;
+    applyEditorChange(val.substring(0, selEnd) + insert + val.substring(selEnd), caret, caret);
 }
 
 // Có vùng chọn: nội dung khối là vùng chọn (mỗi dòng code lùi 4 space đúng cú pháp fence); không có:

@@ -1,6 +1,6 @@
 // js/editor/events.js — Sự kiện bàn phím (phím tắt, auto-close ngoặc) và sự kiện nhập liệu của editor.
 
-import { charCounter, markdownInput } from '../core/dom.js';
+import { markdownInput } from '../core/dom.js';
 import {
     applyEditorChange,
     handleEditorDuplicate,
@@ -9,9 +9,8 @@ import {
     handleEditorTab,
     wrapOrToggleFormat
 } from './edit.js';
-import { scheduleEditorHighlight } from './highlight.js';
 import { editorHistory } from './history.js';
-import { debouncedRender, debouncedSaveContent } from './sync.js';
+import { syncEditorAfterChange } from './sync.js';
 
 export function initEditorEvents() {
     markdownInput.addEventListener('keydown', (e) => {
@@ -153,14 +152,17 @@ export function initEditorEvents() {
     });
 
     markdownInput.addEventListener('input', (e) => {
-        charCounter.textContent = `${markdownInput.value.length} characters`;
-        scheduleEditorHighlight();
-        debouncedRender();
-        debouncedSaveContent();
+        // Đếm ký tự + tô màu + render + lưu nháp: dùng chung với applyEditorChange, không lặp lại 4 dòng.
+        syncEditorAfterChange();
 
         clearTimeout(editorHistory.typingTimer);
         const inputType = e.inputType || '';
-        if (inputType.includes('Space') || inputType.includes('Line') || inputType.includes('history')) {
+        // Nhấn dấu cách sinh inputType === 'insertText' (chuỗi 'Space' không bao giờ xuất hiện), nên phải nhận
+        // diện qua e.data. Thiếu nhánh này thì cả cụm "hello world" gộp thành một mục lịch sử và Undo lùi
+        // hết cụm thay vì từng từ.
+        if ((inputType === 'insertText' && e.data === ' ')
+            || inputType.includes('Line')
+            || inputType.includes('history')) {
             editorHistory.saveCurrentState(markdownInput);
         } else {
             editorHistory.typingTimer = setTimeout(() => {

@@ -1,22 +1,48 @@
-// js/export/file-save.js — Ghi file ra đĩa: hộp thoại Save As của Tauri, fallback tải qua trình duyệt.
+// js/export/file-save.js — Tên file / tiêu đề tài liệu và ghi file ra đĩa (Save As của Tauri, tải qua trình duyệt).
 
 import { showToast } from '../core/toast.js';
 
+// Heading cấp 1: cần ít nhất một space/tab, KHÔNG dùng \s để tránh ăn xuống dòng (`#\nfoo` không phải heading).
+const HEADING_RE = /^ {0,3}#[ \t]+(.+?)[ \t]*$/;
+
+// Fence ``` hoặc ~~~, thụt tối đa 3 space, tối thiểu 3 ký tự.
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+// Tiêu đề tài liệu = H1 đầu tiên NGOÀI code fence (khối ví dụ mở đầu file không phải tiêu đề tài liệu).
+// Dùng chung cho <title> của file .html và tên file xuất để hai nơi không lệch nhau.
+export function deriveDocumentTitle(markdown) {
+    let fence = null;
+    for (const line of String(markdown).split('\n')) {
+        const f = line.match(FENCE_RE);
+        if (f) {
+            // Đóng fence bằng cùng ký tự, dài >= lúc mở và không có info string.
+            if (!fence) fence = f[1];
+            else if (f[1][0] === fence[0] && f[1].length >= fence.length && !f[2].trim()) fence = null;
+            continue;
+        }
+        if (fence) continue;
+        const heading = line.match(HEADING_RE);
+        if (heading) return heading[1].trim();
+    }
+    return 'Document';
+}
+
 export function deriveExportBaseName(markdown) {
-    // Heading cấp 1 đầu tiên (cờ m: tìm ở bất kỳ dòng nào)
-    const heading = markdown.match(/^\s{0,3}#\s+(.+?)\s*$/m);
-    const raw = heading ? heading[1] : '';
-    const slug = raw
+    // \p{L}\p{N} giữ chữ/số của mọi thứ tự (CJK, Cyrillic...) nên H1 tiếng Nhật/Nga không rơi về 'document';
+    // ký tự cấm trong tên file (\ / : * ? " < > |) nằm ngoài \p{L}\p{N} nên bị loại cùng lúc. Cùng bộ ký tự với
+    // slugifyHeading ở js/preview/headings.js.
+    const slug = deriveDocumentTitle(markdown)
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')   // bỏ dấu thanh/dấu phụ sau khi tách NFD
         .replace(/đ/gi, 'd')               // đ không bị tách trong NFD nên phải thay riêng
-        .replace(/[^\w\s-]/g, '')          // bỏ ký tự đặc biệt (giữ chữ/số/_/khoảng trắng/-)
+        .replace(/[^\p{L}\p{N}\s-]/gu, '')  // giữ chữ/số/khoảng trắng/-
         .trim()
         .replace(/\s+/g, '-')              // khoảng trắng -> '-'
         .replace(/-{2,}/g, '-')            // gộp nhiều '-' liên tiếp
         .replace(/^-+|-+$/g, '')           // bỏ '-' ở đầu/cuối
         .toLowerCase();
-    return (slug || 'document').slice(0, 80);
+    // Cắt trước rồi bỏ surrogate lơ lửng: Windows từ chối ghi tên file có codepoint UTF-16 nửa vời.
+    return (slug || 'document').slice(0, 80).replace(/[\uD800-\uDFFF]/g, '');
 }
 
 // Tải Blob qua <a download> (fallback khi chạy ngoài Tauri). Lưu ý: WebView của Tauri CHẶN cơ chế này

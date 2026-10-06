@@ -17,19 +17,27 @@ function syncWindowTheme(theme) {
     } catch (e) {}
 }
 
+// Cache-buster ?v= do scripts/sync-version.js ghi vào index.html; đọc lại từ href HIỆN TẠI của chính link đó
+// rồi nối vào href mới. Nhờ vậy không cần hằng số version thứ hai trong JS (sync-version.js chỉ sửa index.html).
+function cssHref(path, link) {
+    const version = (link ? link.getAttribute('href') : '') || '';
+    const match = version.match(/\?v=[^&"']+/);
+    return path + (match ? match[0] : '');
+}
+
 function applyTheme(theme, persist) {
     document.documentElement.setAttribute('data-theme', theme);
     syncWindowTheme(theme);
 
     if (markdownThemeLink) {
-        markdownThemeLink.href = theme === 'dark'
+        markdownThemeLink.href = cssHref(theme === 'dark'
             ? 'vendor/github-markdown-dark.css'
-            : 'vendor/github-markdown-light.css';
+            : 'vendor/github-markdown-light.css', markdownThemeLink);
     }
     if (hljsThemeLink) {
-        hljsThemeLink.href = theme === 'dark'
+        hljsThemeLink.href = cssHref(theme === 'dark'
             ? 'vendor/hljs-github-dark.min.css'
-            : 'vendor/hljs-github.min.css';
+            : 'vendor/hljs-github.min.css', hljsThemeLink);
     }
     if (typeof mermaid !== 'undefined') {
         mermaid.initialize({ startOnLoad: false, theme: theme === 'dark' ? 'dark' : 'default' });

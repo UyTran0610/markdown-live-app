@@ -2,7 +2,7 @@
 
 import { markdownInput, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { deriveExportBaseName, saveTextFile } from './file-save.js';
+import { deriveDocumentTitle, deriveExportBaseName, saveTextFile } from './file-save.js';
 import { convertKatexForDoc } from './katex.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
@@ -48,12 +48,6 @@ export function buildStandaloneHtml(bodyHtml, title) {
         + '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
         + '<title>' + safeTitle + '</title>\n'
         + '<style>' + HTML_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
-}
-
-export function deriveDocumentTitle(markdown) {
-    // Heading cấp 1 đầu tiên (cờ m: tìm ở bất kỳ dòng nào)
-    const heading = markdown.match(/^\s{0,3}#\s+(.+?)\s*$/m);
-    return (heading ? heading[1] : '').trim() || 'Document';
 }
 
 // Gỡ icon Lucide của GFM alert (trình duyệt ngoài không có lib để vẽ lại); chỉ xoá đúng class lucide để

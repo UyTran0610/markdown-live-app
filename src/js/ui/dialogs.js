@@ -49,6 +49,9 @@ function openLinkDialog() {
 }
 
 export function openTableDialog() {
+    // Luôn mở với 3x3 (khớp openLinkDialog): giữ số cũ sang lần sau là dễ dùng nhầm kích thước đã chọn trước đó.
+    tableColsInput.value = '3';
+    tableRowsInput.value = '3';
     openDialog(tableDialog, tableColsInput);
 }
 

@@ -26,7 +26,7 @@ Entry: `src/js/main.js` (ES module). Every module exports an `initXxx()` that on
 | `src/js/editor/syntax/inline.js` | Inline Markdown highlighting (bold, italic, link, code, math, HTML tag...). |
 | `src/js/export/doc-transform.js` | DOM transforms for the DOC file: strip stray ids, blockquote / alert into tables. |
 | `src/js/export/doc.js` | Exports a Word (.doc) file from the preview HTML. |
-| `src/js/export/file-save.js` | Writing files to disk: Tauri's Save As dialog, browser download fallback. |
+| `src/js/export/file-save.js` | Document title (H1 đầu tiên, bỏ qua code fence) + export filename slug + writing to disk: Tauri's Save As dialog, browser download fallback. |
 | `src/js/export/html.js` | Exports a standalone .html file. |
 | `src/js/export/images.js` | Image handling for DOC export: SVG -> PNG, image sizing, Mermaid -> PNG. |
 | `src/js/export/katex.js` | KaTeX formula handling on export: -> PNG (preferred) or MathML. |

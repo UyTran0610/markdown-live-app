@@ -1,6 +1,7 @@
 // js/export/file-save.js — Tên file / tiêu đề tài liệu và ghi file ra đĩa (Save As của Tauri, tải qua trình duyệt).
 
 import { showToast } from '../core/toast.js';
+import { slugifyText } from '../core/utils.js';
 
 // Heading cấp 1: cần ít nhất một space/tab, KHÔNG dùng \s để tránh ăn xuống dòng (`#\nfoo` không phải heading).
 const HEADING_RE = /^ {0,3}#[ \t]+(.+?)[ \t]*$/;
@@ -28,19 +29,10 @@ export function deriveDocumentTitle(markdown) {
 }
 
 export function deriveExportBaseName(markdown) {
-    // \p{L}\p{N} giữ chữ/số của mọi thứ tự (CJK, Cyrillic...) nên H1 tiếng Nhật/Nga không rơi về 'document';
-    // ký tự cấm trong tên file (\ / : * ? " < > |) nằm ngoài \p{L}\p{N} nên bị loại cùng lúc. Cùng bộ ký tự với
-    // slugifyHeading ở js/preview/headings.js.
-    const slug = deriveDocumentTitle(markdown)
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')   // bỏ dấu thanh/dấu phụ sau khi tách NFD
-        .replace(/đ/gi, 'd')               // đ không bị tách trong NFD nên phải thay riêng
-        .replace(/[^\p{L}\p{N}\s-]/gu, '')  // giữ chữ/số/khoảng trắng/-
-        .trim()
-        .replace(/\s+/g, '-')              // khoảng trắng -> '-'
+    // Cùng bộ ký tự với id heading (slugifyText) nhưng fold dấu để ra tên file ASCII; sau đó gộp/cắt '-' thừa.
+    const slug = slugifyText(deriveDocumentTitle(markdown), { fold: true })
         .replace(/-{2,}/g, '-')            // gộp nhiều '-' liên tiếp
-        .replace(/^-+|-+$/g, '')           // bỏ '-' ở đầu/cuối
-        .toLowerCase();
+        .replace(/^-+|-+$/g, '');          // bỏ '-' ở đầu/cuối
     // Cắt trước rồi bỏ surrogate lơ lửng: Windows từ chối ghi tên file có codepoint UTF-16 nửa vời.
     return (slug || 'document').slice(0, 80).replace(/[\uD800-\uDFFF]/g, '');
 }

@@ -2,7 +2,7 @@
 
 import { markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { isSafeExternalUrl } from '../core/utils.js';
+import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
 import {
     buildBlockFence,
@@ -20,11 +20,11 @@ import { buildWordHtml } from '../export/doc.js';
 import { deriveDocumentTitle, deriveExportBaseName } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
-import { convertKatexForDoc, katexFontKey, parseKatexFontFaces } from '../export/katex.js';
+import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
+import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
 import { isImportableFile } from '../io/import.js';
-import { assignHeadingIds, slugifyHeading } from '../preview/headings.js';
-import { renderMarkdown } from '../preview/render.js';
+import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { closeDialogs, openTableDialog } from '../ui/dialogs.js';
 import {
@@ -280,7 +280,7 @@ export function runSelfCheck() {
         assert('lưới bảng tắt sáng khi rời menu', onCount() === 0);
     })();
 
-    assert('slug heading bỏ dấu câu', slugifyHeading('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');
+    assert('slug heading bỏ dấu câu', slugifyText('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');
     (function () {
         const host = document.createElement('div');
         host.innerHTML = '<h2>Giới thiệu</h2><h2>Giới thiệu</h2>';

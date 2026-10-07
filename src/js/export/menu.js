@@ -1,4 +1,4 @@
-// js/export/menu.js — Menu thả xuống Export và các nút xuất file.
+// js/export/menu.js — Menu thả xuống Export và các nút xuất file (.md và PDF xuất thẳng ở đây; HTML/DOC có module riêng).
 
 import {
     btnExport,
@@ -7,14 +7,16 @@ import {
     exportMdBtn,
     exportMenu,
     exportPdfBtn,
-    exportWrap
+    exportWrap,
+    markdownInput
 } from '../core/dom.js';
+import { showToast } from '../core/toast.js';
+import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 import { exportDoc } from './doc.js';
+import { deriveExportBaseName, saveTextFile } from './file-save.js';
 import { exportHtml } from './html.js';
-import { exportMarkdown } from './markdown.js';
-import { exportPdf } from './pdf.js';
 
-export function closeExportMenu() {
+function closeExportMenu() {
     exportMenu.classList.add('hidden');
     exportWrap.classList.remove('open');
     btnExport.setAttribute('aria-expanded', 'false');
@@ -33,6 +35,34 @@ export function makeExclusive(fn) {
             busy = false;
         }
     };
+}
+
+async function exportMarkdown() {
+    const text = markdownInput.value;
+    if (!text.trim()) {
+        showToast("Content is empty, nothing to export.");
+        return;
+    }
+    try {
+        const saved = await saveTextFile(text, deriveExportBaseName(text), 'md', 'text/markdown;charset=utf-8');
+        if (saved) showToast("Markdown file exported!");
+    } catch (err) {
+        console.error('Markdown export failed:', err);
+        showToast("An error occurred while exporting the Markdown file.");
+    }
+}
+
+// PDF = hộp thoại In của hệ điều hành: render lại và chờ Mermaid + font xong rồi mới window.print().
+async function exportPdf() {
+    showToast("Preparing the print page / exporting PDF...");
+    renderMarkdown();
+    try {
+        await Promise.all([
+            whenMermaidIdle(8000),
+            (document.fonts ? document.fonts.ready : Promise.resolve())
+        ]);
+    } catch (e) {}
+    window.print();
 }
 
 const exportButtons = [exportMdBtn, exportHtmlBtn, exportDocBtn, exportPdfBtn];

@@ -3,7 +3,7 @@
 import { markdownInput, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { deriveDocumentTitle, deriveExportBaseName, saveTextFile } from './file-save.js';
-import { convertKatexForDoc } from './katex.js';
+import { convertKatexForDoc } from './math-mathml.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
 // CSS tối giản nhúng trong file HTML (trình duyệt không đọc được stylesheet của app). Phải kèm cả

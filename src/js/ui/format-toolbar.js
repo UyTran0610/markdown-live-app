@@ -36,7 +36,6 @@ import {
 import { wrapHtmlTag } from '../editor/format-helpers.js';
 import { editorHistory } from '../editor/history.js';
 import { saveContentToStorage } from '../editor/storage.js';
-import { closeExportMenu } from '../export/menu.js';
 import { closeDialogs, openTableDialog } from './dialogs.js';
 
 const formatMenus = [
@@ -56,7 +55,7 @@ function closeFormatMenus() {
 
 function toggleFormatMenu(entry) {
     const wasOpen = !entry.menu.classList.contains('hidden');
-    closeExportMenu();
+    // Menu Export / View tự đóng nhờ listener click ở document trong module của chúng (click ở đây nổi bọt lên đó).
     closeFormatMenus();
     if (!wasOpen) {
         entry.menu.classList.remove('hidden');

@@ -1,10 +1,27 @@
-// js/preview/render.js — Render Markdown -> HTML (marked + DOMPurify + hljs + Mermaid + KaTeX) và giữ vị trí cuộn.
+// js/preview/render.js — Render Markdown -> HTML (marked + DOMPurify + hljs + Mermaid + KaTeX), gán id heading và giữ vị trí cuộn.
 
 import { charCounter, markdownInput, previewOutput } from '../core/dom.js';
+import { slugifyText } from '../core/utils.js';
 import { processGFMAlerts } from './alerts.js';
-import { assignHeadingIds } from './headings.js';
 import { cacheMermaidResult, mermaidCache } from './mermaid-cache.js';
 import { MERMAID_SANITIZE_CONFIG } from './sanitize.js';
+
+// Gán id (slug) cho heading để link neo [mục](#muc) hoạt động. marked v14 bỏ tuỳ chọn headerIds nên tiêu đề
+// không có id và liên kết neo [mục](#muc-luc) không tìm thấy đích.
+// id phải duy nhất (tiêu đề trùng thêm hậu tố -1, -2). Chỉ đọc textContent rồi gán .id,
+// không parse HTML nên không mở thêm đường XSS.
+export function assignHeadingIds(container) {
+    const used = new Set();
+    container.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
+        const base = slugifyText(h.textContent);
+        if (!base) return;
+        let id = base;
+        let n = 1;
+        while (used.has(id)) id = base + '-' + n++;
+        used.add(id);
+        h.id = id;
+    });
+}
 
 let mermaidTimeout = null;
 

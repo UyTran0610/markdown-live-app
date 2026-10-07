@@ -12,7 +12,7 @@ import {
     svgToPngDataUrl,
     waitForImageLoad
 } from './images.js';
-import { convertKatexToImagesForDoc } from './katex.js';
+import { convertKatexToImagesForDoc } from './math-image.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
 // CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên phải tự mang theo định dạng cốt lõi.

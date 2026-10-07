@@ -6,6 +6,10 @@ import { scheduleEditorHighlight } from './highlight.js';
 import { saveContentToStorage } from './storage.js';
 import { renderMarkdown } from '../preview/render.js';
 
+const debouncedRender = debounce(renderMarkdown, 300);
+
+const debouncedSaveContent = debounce(saveContentToStorage, 400);
+
 // Mọi thay đổi qua applyEditorChange (Enter, Tab, nút format, hộp thoại, phím tắt) đều đi qua đây nên
 // lưu bộ nhớ tạm ngay, không chỉ nhờ 'input'; nếu không chỉ ghi khi beforeunload/visibilitychange và
 // crash / kill cứng là mất.
@@ -15,7 +19,3 @@ export function syncEditorAfterChange() {
     debouncedRender();
     debouncedSaveContent();
 }
-
-export const debouncedRender = debounce(renderMarkdown, 300);
-
-export const debouncedSaveContent = debounce(saveContentToStorage, 400);

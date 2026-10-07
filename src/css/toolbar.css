@@ -97,8 +97,25 @@
     z-index: 500;
 }
 
-.export-menu.hidden {
-    display: none;
+/* Animation mở/đóng menu (Export / View / Heading / List / Table / HTML).
+   Ẩn bằng `visibility` chứ không phải `display: none`: visibility transition được mọi
+   trình duyệt, đảo chiều đúng (mở -> visible ngay lập tức, đóng -> hidden ở cuối), nên
+   fade + trượt chạy được cả hai chiều. `display: none` + allow-discrete/@starting-style
+   thì nếu WebView2 không hỗ trợ, cả khai báo transition bị vô hiệu -> menu nhảy tức thì.
+   Menu là position:absolute nên ẩn kiểu này không chiếm chỗ, và pointer-events: none
+   chặn click như display:none. Khối này ở toolbar.css vì file này load SAU
+   format-bar.css, nên nó thắng .format-menu.hidden cùng specificity. */
+.export-menu,
+.format-menu {
+    transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
+}
+
+.export-menu.hidden,
+.format-menu.hidden {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
 }
 
 .export-item,

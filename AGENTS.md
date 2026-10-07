@@ -40,7 +40,7 @@ Entry: `src/js/main.js` (ES module). Every module exports an `initXxx()` that on
 | `src/js/preview/mermaid-cache.js` | Caches Mermaid SVGs by source so they are not re-rendered. |
 | `src/js/preview/render.js` | Renders Markdown -> HTML (marked + DOMPurify + hljs + Mermaid + KaTeX), assigns slug ids to headings so [link](#anchor) works, and preserves scroll position. |
 | `src/js/preview/sanitize.js` | DOMPurify config and hooks (block dangerous schemes, open external links safely). |
-| `src/js/theme/theme.js` | Light / Dark theme: apply, persist, follow system theme. |
+| `src/js/theme/theme.js` | Light / Dark theme: apply (all 4 preview vendor CSS are preloaded and toggled via `media`, so the switch is one synchronous tick inside a View Transition), persist, follow system theme. |
 | `src/js/ui/dialogs.js` | Link insert and table-size dialogs. |
 | `src/js/ui/format-toolbar.js` | Format bar: the Heading / List / Table / HTML dropdowns and buttons. |
 | `src/js/ui/scroll-sync.js` | Synchronised editor/preview scrolling plus its on/off button. |
@@ -85,7 +85,7 @@ Other paths:
 ## Versioning gotcha
 
 - Source of truth is `src-tauri/tauri.conf.json` `"version"` (check file; root `package.json` version (`0.1.0`) is stale — ignore it).
-- `node scripts/sync-version.js` runs automatically via `beforeDevCommand`/`beforeBuildCommand` in `tauri.conf.json`: it copies the tauri.conf version into `src-tauri/Cargo.toml` `[package] version` and `?v=<version>` cache-busters on every css/js `href`/`src` in `src/index.html` (including the inline theme-swap block). Writes are atomic (tmp+rename) and skipped when unchanged; `--set` validates semver and refuses to run on garbage.
+- `node scripts/sync-version.js` runs automatically via `beforeDevCommand`/`beforeBuildCommand` in `tauri.conf.json`: it copies the tauri.conf version into `src-tauri/Cargo.toml` `[package] version` and `?v=<version>` cache-busters on every css/js `href`/`src` in `src/index.html` (including the 4 `link[data-theme-css]` vendor files). Writes are atomic (tmp+rename) and skipped when unchanged; `--set` validates semver and refuses to run on garbage.
 - To bump: `node scripts/sync-version.js --set X.Y.Z` (strips leading `v`). Never hand-edit `?v=` strings or `Cargo.toml` version alone.
 - Only `index.html` carries `?v=`; the module files under `src/js/` have no query string, so the one on `main.js` does not cache-bust its imports.
 - Release: push tag `v*` (or manual `workflow_dispatch` with `version`) → `.github/workflows/release.yml` runs `--set`, builds on `windows-latest`, publishes 3 files (portable `.exe` + NSIS `.exe` + `.msi`). Only `workflow_dispatch` commits the version bump back.

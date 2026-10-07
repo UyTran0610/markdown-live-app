@@ -17,3 +17,20 @@ body {
     color: var(--text-primary);
     transition: background-color 0.2s, color 0.2s;
 }
+
+/* Chuyển theme: js/theme/theme.js bọc applyTheme trong document.startViewTransition,
+   nên toàn trang đổi màu bằng MỘT lần cross-fade (mặc định 0.25s — hơi nhanh, dễ thấy
+   nháy). Ở đây chỉ kéo dài thời gian, không tạo transition riêng cho từng phần tử. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.4s;
+}
+
+/* prefers-reduced-motion: không cần rule CSS cho đổi theme — switchTheme() trong
+   theme.js đã bỏ qua startViewTransition khi thiết lập này bật, và <body> +
+   .app-header/.pane/.format-bar/.editor có transition màu sẵn nên vẫn đổi êm.
+   Menu Export/Format dùng transition visibility 0.28s (xem css/toolbar.css);
+   file này load trước nên mọi rule menu khai báo ở đây đều bị toolbar.css thắng
+   với cùng specificity. Đừng thêm selector phổ quát kiểu "html.theme-anim *" —
+   nó bắt transition lên hàng trăm span trong Preview (KaTeX / hljs / Mermaid)
+   và làm đổi theme nặng, chậm. */

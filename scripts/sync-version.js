@@ -111,16 +111,6 @@ function syncIndexHtmlVersion(content, version) {
     (_m, attr, filePath) => `${attr}="${filePath}?v=${version}"`
   );
 
-  // 2) Cache-bust đoạn script đổi theme trong index.html
-  content = content.replace(
-    /(mdLink\.href\s*=\s*['"])([^'"]+?)(?:\?v=[^'"]*)?(['"])/,
-    (_m, pre, filePath, post) => `${pre}${filePath}?v=${version}${post}`
-  );
-  content = content.replace(
-    /(hljsLink\.href\s*=\s*['"])([^'"]+?)(?:\?v=[^'"]*)?(['"])/,
-    (_m, pre, filePath, post) => `${pre}${filePath}?v=${version}${post}`
-  );
-
   return content;
 }
 

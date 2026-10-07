@@ -38,9 +38,9 @@ export const btnTheme = document.getElementById('btn-theme');
 
 export const toast = document.getElementById('toast');
 
-export const markdownThemeLink = document.getElementById('theme-markdown-css');
-
-export const hljsThemeLink = document.getElementById('theme-hljs-css');
+// Bốn file CSS theme của Preview (2 light + 2 dark), nạp sẵn trong index.html.
+// Đổi theme chỉ bật/tắt media của chúng — không fetch, không đổi href.
+export const themeCssLinks = Array.from(document.querySelectorAll('link[data-theme-css]'));
 
 export const workspace = document.querySelector('.workspace');
 

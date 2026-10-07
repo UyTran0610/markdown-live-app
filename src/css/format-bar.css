@@ -109,9 +109,9 @@
     z-index: 500;
 }
 
-.format-menu.hidden {
-    display: none;
-}
+/* Trạng thái ẩn + animation của .format-menu nằm ở css/toolbar.css (khối dùng chung
+   với .export-menu), vì file đó load sau và phải thắng .format-menu.hidden cùng
+   specificity. KHÔNG khai báo display: none ở đây — sẽ cắt mất transition. */
 
 .format-item {
     display: flex;

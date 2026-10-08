@@ -14,6 +14,26 @@ export function stripUnusedHeadingIds(container) {
     });
 }
 
+// Viền ô của bảng dữ liệu phải nằm INLINE trên từng ô, không được để trong <style> của file DOC.
+// Word (và filter Word của LibreOffice dùng để mở .doc) chỉ hỗ trợ một tập selector CSS yếu hơn:
+// class của <table> không xuống được ô con, nên luật dạng ".doc-data-table td" bị bỏ qua và bảng ra
+// không có viền. Đây cũng chính là cách khung quote bên dưới đã làm cho Word.
+export function styleDataTablesForDoc(container) {
+    container.querySelectorAll('table').forEach((table) => {
+        table.style.borderCollapse = 'collapse';
+        table.style.width = '100%';
+        table.style.margin = '10pt 0';
+        table.querySelectorAll('th, td').forEach((cell) => {
+            cell.style.border = '1px solid #d0d7de';
+            cell.style.padding = '6pt 10pt';
+            if (cell.tagName === 'TH') {
+                cell.style.background = '#f6f8fa';
+                cell.style.fontWeight = 'bold';
+            }
+        });
+    });
+}
+
 // Màu viền/tiêu đề của từng loại GFM Alert khi xuất DOC (Word không hiểu CSS variable).
 const DOC_ALERT_COLORS = {
     note: '#0969da',

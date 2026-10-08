@@ -71,27 +71,24 @@ Other paths:
 
 ## Module init order
 
-- `initSanitizer()` runs first: the DOMPurify config is a global hook, not a per-call option. Render before it and the output is unsanitised.
-- `loadInitialContent()` is last **on purpose** (`src/js/main.js:35-58`): it calls `renderMarkdown()`, which must run after `mermaid.initialize()`, `marked.use(katexExt)`, and `lucide.createIcons()`, or the first paint shows raw `$$...$$`. It sits in a `finally` so a throwing vendor guard still leaves the editor populated — do not hoist it out.
-- `window.renderMarkdown` (`src/js/main.js:60`) is a deliberate global escape hatch. Don't re-export it from modules.
+- `initSanitizer()` first: DOMPurify config is a global hook, not a per-call option — render earlier and the output is unsanitised.
+- `loadInitialContent()` last, inside a `finally` (`src/js/main.js:35-58`): it renders, so it must follow `mermaid.initialize()`, `marked.use(katexExt)` and `lucide.createIcons()`, or the first paint shows raw `$$`.
+- `window.renderMarkdown` (`src/js/main.js:60`) is a deliberate global escape hatch — don't re-export it.
 
 ## Commands
 
-- `npm install` — install only dep (`@tauri-apps/cli`); requires Node 20+ and Rust stable + Tauri v2 OS prerequisites.
-- `npm run tauri dev` — dev with hot-reload. Required verification before PR (per README Contributing).
-- `npm run tauri build` — full build (NSIS/MSI). CI (`release.yml`) runs `npm run tauri -- build` then copies 3 artifacts to the repo root: `Markdown-Live-Portable.exe`, `Markdown-Live-Setup.exe` (NSIS), `Markdown-Live-Setup.msi`.
-- No test/lint/format commands exist — don't invent them. The one runnable check is `src/js/dev/selfcheck.js`: append `?selfcheck` to the app URL (e.g. in `npm run tauri dev`) to run it.
+- `npm install` — only dep is `@tauri-apps/cli` (Node 20+, Rust stable).
+- `npm run tauri dev` — dev; required verification before a PR. `npm run tauri build` — NSIS/MSI; CI publishes `Markdown-Live-Portable.exe`, `Markdown-Live-Setup.exe`, `Markdown-Live-Setup.msi`.
+- No test/lint/format commands exist. The one runnable check is `?selfcheck` on the app URL (`src/js/dev/selfcheck.js`).
 
 ## Versioning gotcha
 
-- Source of truth is `src-tauri/tauri.conf.json` `"version"` (check file; root `package.json` version (`0.1.0`) is stale — ignore it).
-- `node scripts/sync-version.js` runs automatically via `beforeDevCommand`/`beforeBuildCommand` in `tauri.conf.json`: it copies the tauri.conf version into `src-tauri/Cargo.toml` `[package] version` and `?v=<version>` cache-busters on every css/js `href`/`src` in `src/index.html` (including the 4 `link[data-theme-css]` vendor files). Writes are atomic (tmp+rename) and skipped when unchanged; `--set` validates semver and refuses to run on garbage.
-- To bump: `node scripts/sync-version.js --set X.Y.Z` (strips leading `v`). Never hand-edit `?v=` strings or `Cargo.toml` version alone.
-- Only `index.html` carries `?v=`; the module files under `src/js/` have no query string, so the one on `main.js` does not cache-bust its imports.
-- Release: push tag `v*` (or manual `workflow_dispatch` with `version`) → `.github/workflows/release.yml` runs `--set`, builds on `windows-latest`, publishes 3 files (portable `.exe` + NSIS `.exe` + `.msi`). Only `workflow_dispatch` commits the version bump back.
+- Source of truth is `src-tauri/tauri.conf.json` `"version"`; root `package.json` is stale — ignore it.
+- Bump only via `node scripts/sync-version.js --set X.Y.Z`. It auto-runs on dev/build, copying the version into `Cargo.toml` and cache-busting `?v=` in `index.html`. Never hand-edit `?v=` or `Cargo.toml`.
+- Only `index.html` carries `?v=`; `src/js/**` modules have no query string. Release: push tag `v*` → `.github/workflows/release.yml`.
 
 ## Tauri config notes
 
-- `tauri.conf.json`: `frontendDist` is `../src`, targets `nsis`/`msi`.
-- Permissions live in `src-tauri/capabilities/default.json` (`core`, `opener`, `clipboard-manager` + `allow-write-text`, `dialog`, `fs:allow-write-text-file` scoped to `$HOME/**`). Frontend only writes to dialog-picked paths via `saveTextFile()`; CSP stays `null` (local-only app) so XSS must be handled in JS (fail-closed DOMPurify + mermaid re-sanitize + external-URL allowlist). Add new plugin permissions there, not in Rust code.
-- Vendor scripts stay `defer` in declared order (`lucide, marked, purify, highlight, mermaid, katex, marked-katex-extension`).
+- New plugin permissions go in `src-tauri/capabilities/default.json`, never in Rust code. `frontendDist` is `../src`, targets `nsis`/`msi`.
+- CSP stays `null`, so XSS defence is JS's job: fail-closed DOMPurify, Mermaid re-sanitize, external-URL allowlist.
+- Vendor scripts stay `defer` in order: lucide, marked, purify, highlight, mermaid, katex, marked-katex-extension.

@@ -15,7 +15,7 @@ import {
     wrapHtmlTag
 } from '../editor/format-helpers.js';
 import { editorHistory } from '../editor/history.js';
-import { convertQuotesForDoc } from '../export/doc-transform.js';
+import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
 import { deriveDocumentTitle, deriveExportBaseName } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
@@ -86,6 +86,16 @@ export function runSelfCheck() {
         assert('doc quote: mỗi quote thành 1 bảng', host.querySelectorAll('table').length === 2);
         assert('doc quote: có đoạn đệm giữa 2 bảng', host.children[0].tagName === 'TABLE' && host.children[1].tagName === 'P' && host.children[2].tagName === 'TABLE');
         assert('doc quote: alert dùng màu viền theo loại', host.querySelectorAll('td')[1].style.cssText.includes('26, 127, 55') || host.querySelectorAll('td')[1].style.cssText.includes('#1a7f37'));
+    })();
+    (function () {
+        const host = document.createElement('div');
+        host.innerHTML = '<table><tr><th align="center">A</th></tr><tr><td>B</td></tr></table>';
+        styleDataTablesForDoc(host);
+        const th = host.querySelector('th');
+        const td = host.querySelector('td');
+        assert('doc table: ô có viền inline (Word không đọc selector hậu duệ)', td.style.borderTopWidth === '1px' && th.style.borderTopStyle === 'solid');
+        assert('doc table: header có nền + đậm', th.style.background === 'rgb(246, 248, 250)' && th.style.fontWeight === 'bold');
+        assert('doc table: giữ align của markdown', th.getAttribute('align') === 'center');
     })();
     const wordHtml = buildWordHtml('<p>x</p>');
     assert('word html có meta UTF-8', wordHtml.includes('charset="UTF-8"'));

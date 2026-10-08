@@ -2,7 +2,7 @@
 
 import { markdownInput, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { convertQuotesForDoc, stripUnusedHeadingIds } from './doc-transform.js';
+import { convertQuotesForDoc, stripUnusedHeadingIds, styleDataTablesForDoc } from './doc-transform.js';
 import { deriveExportBaseName, saveTextFile } from './file-save.js';
 import {
     fitDocImageSize,
@@ -16,16 +16,12 @@ import { convertKatexToImagesForDoc } from './math-image.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
 // CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên phải tự mang theo định dạng cốt lõi.
+// Chỉ dùng selector thẻ đơn giản (Word đọc được); viền bảng và khung quote/alert phải để inline trong
+// styleDataTablesForDoc() / convertQuotesForDoc() vì Word không áp selector hậu duệ cho ô con.
 const DOC_STYLES = `
     body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
     h1 { font-size: 20pt; } h2 { font-size: 16pt; } h3 { font-size: 14pt; }
     h4 { font-size: 12pt; } h5 { font-size: 11pt; } h6 { font-size: 10pt; color: #57606a; }
-    /* Chỉ bảng dữ liệu (đã gắn class doc-data-table trong exportDoc) mới có viền ô. Bảng dùng làm khung quote/alert
-       KHÔNG nhận luật này: Word coi "border: none" inline là "chưa khai báo" và rơi về viền của stylesheet,
-       khiến quote bị viền bao quanh. */
-    table.doc-data-table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-    .doc-data-table th, .doc-data-table td { border: 1px solid #d0d7de; padding: 6px 10px; text-align: left; }
-    .doc-data-table th { background: #f6f8fa; font-weight: bold; }
     pre { background: #f6f8fa; border: 1px solid #d0d7de; padding: 10px; font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; white-space: pre-wrap; }
     code { font-family: Consolas, "Courier New", monospace; }
     blockquote { border-left: 4px solid #d0d7de; margin-left: 0; padding-left: 12px; color: #57606a; }
@@ -131,8 +127,9 @@ export async function exportDoc() {
 
     // Chạy cuối: các bước trên ghép ảnh/biểu đồ/công thức theo chỉ số trong clone, mà việc đổi blockquote
     // thành bảng chỉ dời node chứ không đổi thứ tự tài liệu, nên để sau cùng cho chắc.
-    // Đánh dấu bảng dữ liệu thật TRƯỚC khi convertQuotesForDoc() tạo thêm bảng khung quote (không có class này).
-    clone.querySelectorAll('table').forEach((t) => t.classList.add('doc-data-table'));
+    // Viền bảng dữ liệu phải gắn TRƯỚC khi convertQuotesForDoc() tạo thêm bảng khung quote: ô của bảng
+    // khung đó phải giữ "chỉ có viền trái", không dính lưới ô.
+    styleDataTablesForDoc(clone);
     convertQuotesForDoc(clone);
 
     const html = buildWordHtml(clone.innerHTML);

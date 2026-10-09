@@ -4,12 +4,26 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "vendor": "node scripts/vendor-update.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
   },
   "dependencies": {
     "@tauri-apps/plugin-clipboard-manager": "^2.3.3"
-  }
+  },
+  "description": "<div align=\"center\">",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UyTran0610/markdown-live-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/UyTran0610/markdown-live-app/issues"
+  },
+  "homepage": "https://github.com/UyTran0610/markdown-live-app#readme"
 }

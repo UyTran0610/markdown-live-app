@@ -2,10 +2,14 @@
 
 // DOMPurify mặc định bỏ <foreignObject>, mà nhãn Mermaid (htmlLabels) nằm trong đó
 // -> thiếu ADD_TAGS này thì chữ trong flowchart biến mất.
+// DOMPurify >=3.4 còn kiểm tra namespace: phần tử XHTML bên trong <foreignObject> bị gỡ trừ khi
+// cha nó được khai là HTML integration point (mặc định chỉ có annotation-xml). ADD_TAGS chỉ giữ
+// được thẻ bọc, nên phải khai thêm foreignobject — Mermaid tự truyền đúng option này khi sanitize.
 export const MERMAID_SANITIZE_CONFIG = {
     USE_PROFILES: { html: true, svg: true },
     ADD_ATTR: ['target', 'rel'],
     ADD_TAGS: ['foreignObject'],
+    HTML_INTEGRATION_POINTS: { 'annotation-xml': true, foreignobject: true },
     // Chỉ cho scheme http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn scheme lạ như javascript:)
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
 };

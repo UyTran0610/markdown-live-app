@@ -10,6 +10,7 @@ import { initPreviewLinks } from './preview/links.js';
 import { renderMarkdown } from './preview/render.js';
 import { initSanitizer } from './preview/sanitize.js';
 import { getCurrentTheme, initTheme } from './theme/theme.js';
+import { initAbout } from './ui/about.js';
 import { initDialogs } from './ui/dialogs.js';
 import { initFormatToolbar } from './ui/format-toolbar.js';
 import { initScrollSync } from './ui/scroll-sync.js';
@@ -25,6 +26,7 @@ initContentActions();
 initExportMenu();
 initFormatToolbar();
 initDialogs();
+initAbout();
 initImport();
 initContentPersistence();
 

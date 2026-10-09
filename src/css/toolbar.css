@@ -161,6 +161,35 @@
     color: var(--text-secondary);
 }
 
+/* Nút "?" + Dropdown License / Third-party notices. Dùng chung .export-menu nên chỉ cần
+   position: relative; nút không có chevron nên không có rule .open. */
+.help-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+/* Nút "?" là nút phụ (không phải hành động chính) nên không viền cho khác với các .btn khác.
+   Vẫn có hover + focus-visible nên không mất affordance bàn phím. */
+.help-wrap .btn {
+    padding: 0;
+    width: 28px;
+    justify-content: center;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.help-wrap .btn:hover {
+    background: var(--btn-bg-hover);
+    border-color: transparent;
+    color: var(--btn-text-hover);
+}
+
+.help-wrap .btn[aria-expanded='true'] {
+    background: var(--btn-active-bg);
+    color: var(--btn-active-text);
+}
+
 /* Nút + Dropdown chuyển chế độ xem (Editor / Split / Preview) */
 .view-wrap {
     position: relative;

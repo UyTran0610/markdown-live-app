@@ -140,6 +140,22 @@
                 <span class="btn-label label-light">Light</span>
                 <span class="btn-label label-dark">Dark</span>
             </button>
+
+            <div class="help-wrap">
+                <button id="btn-help" class="btn" title="License &amp; third-party notices" aria-haspopup="menu" aria-expanded="false" aria-label="About">
+                    <i data-lucide="circle-help"></i>
+                </button>
+                <div id="help-menu" class="export-menu hidden" role="menu">
+                    <button class="export-item help-item" data-doc="LICENSE" role="menuitem" title="Application license (MIT)">
+                        <i data-lucide="scale"></i>
+                        <span>License</span>
+                    </button>
+                    <button class="export-item help-item" data-doc="THIRD_PARTY_NOTICES.md" role="menuitem" title="Licenses of bundled third-party libraries">
+                        <i data-lucide="file-text"></i>
+                        <span>Third-party notices</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -286,6 +302,17 @@
             <div class="dialog-actions">
                 <button id="table-insert" class="dialog-btn primary">Insert</button>
                 <button id="table-cancel" class="dialog-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Dialog (License / Third-party notices) -->
+    <div id="info-dialog" class="dialog-overlay hidden">
+        <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="info-dialog-title">
+            <h2 id="info-dialog-title">License</h2>
+            <div id="info-body" class="markdown-body dialog-scroll"></div>
+            <div class="dialog-actions">
+                <button id="info-close" class="dialog-btn primary">Close</button>
             </div>
         </div>
     </div>

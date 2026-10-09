@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Bộ tự kiểm tra nhanh (mở app với ?selfcheck để chạy).
 
-import { markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
+import { infoBody, markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -26,6 +26,7 @@ import { makeExclusive } from '../export/menu.js';
 import { isImportableFile } from '../io/import.js';
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
+import { isInfoDialogOpen } from '../ui/about.js';
 import { closeDialogs, openTableDialog } from '../ui/dialogs.js';
 import {
     SPLIT_MAX_PERCENT,
@@ -35,7 +36,7 @@ import {
     isValidViewMode
 } from '../ui/view-mode.js';
 
-export function runSelfCheck() {
+export async function runSelfCheck() {
     const results = [];
     const assert = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} - ${name}`);
 
@@ -353,6 +354,30 @@ export function runSelfCheck() {
         brokenHost.innerHTML = '<span class="katex">fallback text</span>';
         convertKatexForDoc(brokenHost);
         assert('katex hỏng fallback thành text', brokenHost.textContent === 'fallback text' && !brokenHost.querySelector('span.katex'));
+    }
+
+    if (document.getElementById('btn-help')) {
+        assert('nút ? là nút cuối toolbar', document.querySelector('.toolbar').lastElementChild.querySelector('#btn-help') !== null);
+        const licenseItem = document.querySelector('.help-item[data-doc="LICENSE"]');
+        assert('menu ? có 2 mục', document.querySelectorAll('.help-item').length === 2);
+        // Mở modal rồi đợi fetch xong: showDoc là async nên check phải bất đồng bộ.
+        licenseItem.click();
+        await Promise.race([
+            new Promise((resolve) => {
+                const observer = new MutationObserver(() => {
+                    if (infoBody.textContent !== 'Loading...') {
+                        observer.disconnect();
+                        resolve();
+                    }
+                });
+                observer.observe(infoBody, { childList: true, subtree: true, characterData: true });
+            }),
+            new Promise((resolve) => setTimeout(resolve, 3000))
+        ]);
+        assert('modal license mở ra', isInfoDialogOpen());
+        assert('modal license đọc được file', infoBody.textContent.includes('MIT License'));
+        document.getElementById('info-close').click();
+        assert('đóng modal license', !isInfoDialogOpen());
     }
 
     const failed = results.filter(r => r.startsWith('FAIL'));

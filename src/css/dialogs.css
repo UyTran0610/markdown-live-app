@@ -105,3 +105,20 @@
     opacity: 0.45;
     cursor: not-allowed;
 }
+
+/* ==========================================================================
+   Hộp thoại tài liệu (License / Third-party notices)
+   ========================================================================== */
+.dialog-wide {
+    display: flex;
+    flex-direction: column;
+    width: min(760px, calc(100vw - 40px));
+    max-height: 80vh;
+}
+
+/* Nội dung dài (third-party notices) cuộn trong hộp, không đẩy nút Close ra ngoài màn hình. */
+.dialog-scroll {
+    overflow-y: auto;
+    min-height: 0;
+    text-align: left;
+}

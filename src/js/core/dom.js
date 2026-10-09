@@ -36,6 +36,22 @@ export const exportPdfBtn = document.getElementById('export-pdf');
 
 export const btnTheme = document.getElementById('btn-theme');
 
+export const btnHelp = document.getElementById('btn-help');
+
+export const helpWrap = document.querySelector('.help-wrap');
+
+export const helpMenu = document.getElementById('help-menu');
+
+export const helpItems = document.querySelectorAll('.help-item');
+
+export const infoDialog = document.getElementById('info-dialog');
+
+export const infoDialogTitle = document.getElementById('info-dialog-title');
+
+export const infoBody = document.getElementById('info-body');
+
+export const infoCloseBtn = document.getElementById('info-close');
+
 export const toast = document.getElementById('toast');
 
 // Bốn file CSS theme của Preview (2 light + 2 dark), nạp sẵn trong index.html.

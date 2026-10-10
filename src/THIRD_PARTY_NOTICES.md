@@ -10,7 +10,7 @@ Every vendored file was verified by SHA-256 against the published release on npm
 | --- | --- | --- | --- |
 | [marked](https://github.com/markedjs/marked) | 18.1.0 | MIT | `marked.umd.js` |
 | [DOMPurify](https://github.com/cure53/DOMPurify) | 3.4.16 | Apache-2.0 **or** MPL-2.0 | `purify.min.js` |
-| [highlight.js](https://github.com/highlightjs/highlight.js) | 11.9.0 | BSD-3-Clause | `highlight.min.js` |
+| [highlight.js](https://github.com/highlightjs/highlight.js) | 11.12.0 | BSD-3-Clause | `highlight.min.js` |
 | [mermaid](https://github.com/mermaid-js/mermaid) | 12.1.0 | MIT | `mermaid.min.js` |
 | [KaTeX](https://github.com/KaTeX/KaTeX) | 0.19.0 | MIT | `katex.min.js`, `katex.min.css`, `fonts/` |
 | [lucide](https://github.com/lucide-icons/lucide) | 1.54.0 | ISC | `lucide.min.js` |
@@ -22,7 +22,7 @@ Every vendored file was verified by SHA-256 against the published release on npm
 
 - `src/vendor/fonts/` contains 60 files (20 typefaces in `.ttf`, `.woff` and `.woff2`). They ship as part of KaTeX 0.19.0 under the same MIT license.
 - `src/vendor/mermaid.min.js` is a bundled build that already contains DOMPurify 3.4.12 (Apache-2.0 or MPL-2.0) internally; that copy is not distributed separately. It handles KaTeX-style markup for its own math renderer but does not bundle KaTeX itself.
-- `src/vendor/highlight.min.js` is a custom 192-language bundle that carries no license banner; the version was read from the `11.9.0` constant in the file itself. Because no such bundle is published to any CDN, it is updated by hand and therefore trails `@highlightjs/cdn-assets` (theme CSS) by a minor line.
+- `src/vendor/highlight.min.js` is a custom 193-language bundle built with esbuild from the `lib/index.js` entry of the npm package; it carries no license banner, so the version is read from the `11.12.0` constant in the file itself. npm publishes no prebuilt browser bundle (only CommonJS/ESM sources), and `@highlightjs/cdn-assets/highlight.min.js` is the 37-language "common" build, so neither can replace it. Rebuild recipe lives in `scripts/vendor-update.js`.
 ## marked
 
 - **Version:** 18.1.0
@@ -303,14 +303,14 @@ This software is provided by the copyright holders and contributors “as is” 
 
 ## highlight.js
 
-- **Version:** 11.9.0
+- **Version:** 11.12.0
 - **Files:** `src/vendor/highlight.min.js`
-- **Source:** npm: <https://www.npmjs.com/package/highlight.js/v/11.9.0> &middot; GitHub: <https://github.com/highlightjs/highlight.js/tree/11.9.0>
+- **Source:** npm: <https://www.npmjs.com/package/highlight.js/v/11.12.0> &middot; GitHub: <https://github.com/highlightjs/highlight.js/tree/11.12.0>
 - **License:** BSD-3-Clause
-- **License text retrieved from:** https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/LICENSE
+- **License text retrieved from:** https://cdn.jsdelivr.net/npm/highlight.js@11.12.0/LICENSE
 
 <details>
-<summary>Full license text &mdash; highlight.js 11.9.0</summary>
+<summary>Full license text &mdash; highlight.js 11.12.0</summary>
 
 ```text
 BSD 3-Clause License

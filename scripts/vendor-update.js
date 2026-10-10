@@ -4,13 +4,18 @@
 // Nguồn: jsDelivr (bản npm chính thức). App offline-first nên vendor file phải nằm sẵn trong repo.
 //
 //   node scripts/vendor-update.js --check              # báo cáo, không ghi file
+//   node scripts/vendor-update.js --all                # nâng tất cả packages lên npm latest
 //   node scripts/vendor-update.js --only katex         # nâng 1 package lên npm latest
 //   node scripts/vendor-update.js --only katex,mermaid
 //   node scripts/vendor-update.js --set marked@15.0.12 # ghim version cụ thể
 //
-// highlight.js cố ý vắng: src/vendor/highlight.min.js là bundle ~192 ngôn ngữ tự build,
-// không có bản phát hành trên npm/jsDelivr/cdnjs (mọi CDN chỉ có bản "common" ~37 ngôn ngữ).
-// Phải build tay rồi tự sửa version trong notices.
+// highlight.js cố ý vắng: src/vendor/highlight.min.js là bundle ~193 ngôn ngữ tự build,
+// không có bản phát hành trên npm/jsDelivr/cdnjs (@highlightjs/cdn-assets chỉ có bản "common"
+// ~37 ngôn ngữ). Build tay rồi tự sửa version trong notices — công thức:
+//   npm i --no-save esbuild highlight.js@11.12.0
+//   npx esbuild node_modules/highlight.js/lib/index.js --bundle --minify --format=iife --global-name=hljs --outfile=src/vendor/highlight.min.js
+//   node -e "globalThis.window=globalThis;eval(require('fs').readFileSync('src/vendor/highlight.min.js','utf8'));console.log(hljs.versionString, hljs.listLanguages().length)"
+// Lệnh cuối phải in version mới + 193 ngôn ngữ thì bundle mới đúng (dùng để bắt build hỏng).
 
 import fs from 'node:fs';
 import path from 'node:path';

@@ -65,7 +65,7 @@ Load order in `index.html` matters (cascade): tokens -> base -> layout -> format
 
 Other paths:
 
-- `src/vendor/` — locally bundled third-party libs (marked, marked-katex-extension, katex + `fonts/`, mermaid, highlight.js, purify, lucide, github-markdown-light.css, hljs-github.min.css). App must stay fully offline: never add CDN links.
+- `src/vendor/` — locally bundled third-party libs (marked, marked-katex-extension, katex + `fonts/`, mermaid, highlight.js, purify, lucide, github-markdown-light/dark.css, hljs-github.min.css, hljs-github-dark.min.css). `highlight.min.js` is a hand-built 193-language esbuild bundle — npm ships no browser build, so `scripts/vendor-update.js` keeps it in `MANUAL_PACKAGES` and documents the rebuild recipe in its header comment. App must stay fully offline: never add CDN links.
 - `src-tauri/src/lib.rs` — Rust backend; only `greet` command + `clipboard-manager`, `opener`, `dialog`, `fs` plugins. Real logic lives in JS.
 - `scripts/sync-version.js` — version/cache-bust sync script (see below).
 

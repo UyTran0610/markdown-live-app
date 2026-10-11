@@ -388,6 +388,7 @@ export async function runSelfCheck() {
         ]);
         assert('bấm mục đổi sang view tài liệu', infoAbout.classList.contains('hidden') && !infoDoc.classList.contains('hidden'));
         assert('modal license đọc được file', infoBody.textContent.includes('MIT License'));
+        assert('mở tài liệu thì focus nút Back', document.activeElement === document.getElementById('info-back'));
         // Chuỗi flex .dialog-wide > #info-doc > #info-body mới làm tài liệu dài (third-party
         // notices) cuộn trong hộp thay vì tràn ra ngoài. Bỏ display:flex ở #info-doc là hỏng.
         assert('nội dung tài liệu cuộn trong hộp', getComputedStyle(infoDoc).display === 'flex'
@@ -395,10 +396,21 @@ export async function runSelfCheck() {
 
         document.getElementById('info-back').click();
         assert('nút Back quay lại view About', !infoAbout.classList.contains('hidden') && infoDoc.classList.contains('hidden'));
+
+        // Esc là nút Back bằng bàn phím: modal 2 view nên phải lùi từ tài liệu về About, chưa đóng.
+        // showDoc đổi view đồng bộ (chỉ fetch là async) nên không cần đợi tải lần này.
+        aboutItems[0].click();
+        infoDialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        assert('Esc từ view tài liệu lùi về About, hộp chưa đóng',
+            isInfoDialogOpen() && !infoAbout.classList.contains('hidden') && infoDoc.classList.contains('hidden'));
+        infoDialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        assert('Esc từ view About mới đóng hộp', !isInfoDialogOpen());
+
+        document.getElementById('btn-help').click();
         document.getElementById('info-close').click();
         assert('đóng modal about', !isInfoDialogOpen());
     }
-    if (results.length === mark) skip('11 assert hộp thoại About', 'không có #btn-help');
+    if (results.length === mark) skip('14 assert hộp thoại About', 'không có #btn-help');
 
     // Đếm theo tiền tố dòng: assert() ghi 'PASS '/'FAIL ', skip() ghi 'SKIP '. Tổng = results.length nên
     // số trên toast luôn khớp số dòng trong console, kể cả khi có guard bị bỏ qua.

@@ -302,10 +302,10 @@
     <!-- About: logo + tên + phiên bản, bên dưới là 2 mục bấm để đọc tài liệu.
          data-doc chỉ nhận đúng 2 tên hardcode ở đây (không ghép từ input người dùng). -->
     <div id="info-dialog" class="dialog-overlay hidden">
-        <div class="dialog" role="dialog" aria-modal="true" aria-label="About Markdown Live">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="info-about-title">
             <div id="info-about">
                 <img class="about-logo" src="assets/icon-128.png" alt="">
-                <h2>Markdown Live</h2>
+                <h2 id="info-about-title">Markdown Live</h2>
                 <p class="about-version">Version <span id="app-version"></span></p>
                 <div class="about-list">
                     <button class="export-item about-item" data-doc="LICENSE" title="Application license (MIT)">
@@ -326,7 +326,7 @@
                 <div id="info-body" class="markdown-body dialog-scroll"></div>
             </div>
             <div class="dialog-actions">
-                <button id="info-close" class="dialog-btn primary">Close</button>
+                <button id="info-close" class="dialog-btn">Close</button>
             </div>
         </div>
     </div>

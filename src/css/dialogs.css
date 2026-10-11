@@ -135,6 +135,13 @@
 /* ==========================================================================
    Hộp thoại About (logo + tên + phiên bản + 2 mục tài liệu)
    ========================================================================== */
+/* .markdown-body của vendor ghim nền cứng (#ffffff / #0d1117). Ở Preview điều đó ổn vì nó
+   chính là nền pane, nhưng trong modal thì lệch --menu-bg (dark: #0d1117 vs #1c2128) nên thấy
+   một khối tối lạc trong hộp. Cho trong suốt: light không đổi gì vì #ffffff trùng --menu-bg. */
+#info-body {
+    background: transparent;
+}
+
 /* Modal "?" canh giữa cửa sổ; link / table vẫn dồn 18vh theo .dialog-overlay mặc định. */
 #info-dialog {
     align-items: center;
@@ -190,10 +197,11 @@
     width: 100%;
 }
 
-/* Hàng header của view tài liệu: chỉ còn nút Back ở góc phải (tiêu đề do H1 trong chính
-   file LICENSE / THIRD_PARTY_NOTICES.md đã lo, không cần lặp lại). */
+/* Hàng header của view tài liệu: chỉ còn nút Back ở góc trái, khớp icon mũi tên quay
+   lại (tiêu đề do H1 trong chính file LICENSE / THIRD_PARTY_NOTICES.md đã lo, không
+   cần lặp lại). Canh phải sẽ đụng nút Close ở chân hộp và trái với kỳ vọng của icon. */
 .info-doc-head {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     margin-bottom: 14px;
 }

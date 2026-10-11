@@ -44,12 +44,18 @@ function openAboutDialog() {
     infoCloseBtn.focus();
 }
 
+// Nút Back và Esc ở view tài liệu đều lùi về About, dùng chung một hàm.
+function backToAbout() {
+    showAbout();
+    infoCloseBtn.focus();
+}
+
 async function showDoc(name) {
     infoAbout.classList.add('hidden');
     infoDoc.classList.remove('hidden');
     infoDialog.querySelector('.dialog').classList.add('dialog-wide');
     infoBody.textContent = 'Loading...';
-    infoCloseBtn.focus();
+    infoBackBtn.focus();
 
     let text;
     try {
@@ -90,10 +96,7 @@ export function initAbout() {
         });
     });
 
-    infoBackBtn.addEventListener('click', () => {
-        showAbout();
-        infoCloseBtn.focus();
-    });
+    infoBackBtn.addEventListener('click', backToAbout);
 
     infoCloseBtn.addEventListener('click', closeInfoDialog);
 
@@ -101,13 +104,16 @@ export function initAbout() {
         if (e.target === infoDialog) closeInfoDialog();
     });
 
-    // Chặn phím lọt xuống editor bên dưới; Esc phải xử lý ở đây. Tab giữ vòng focus giữa các nút
-    // của view đang mở (About có 2 mục, doc có Back) — cùng pattern ui/dialogs.js.
+    // Chặn phím lọt xuống editor bên dưới; Esc phải xử lý ở đây. Modal có 2 view nên Esc lùi
+    // từng tầng: ở view tài liệu thì về About (y hệt nút Back), ở view About mới đóng hộp.
+    // Tab giữ vòng focus giữa các nút của view đang mở (About có 2 mục, doc có Back) —
+    // cùng pattern ui/dialogs.js.
     infoDialog.addEventListener('keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Escape') {
             e.preventDefault();
-            closeInfoDialog();
+            if (infoDoc.classList.contains('hidden')) closeInfoDialog();
+            else backToAbout();
         } else if (e.key === 'Tab') {
             e.preventDefault();
             // offsetParent === null ⇔ display:none: view ẩn (About / tài liệu) vẫn còn trong DOM,

@@ -1,28 +1,23 @@
-// js/ui/about.js — Nút "?" cuối toolbar: mở LICENSE và THIRD_PARTY_NOTICES.md trong modal.
+// js/ui/about.js — Nút "?" cuối toolbar: mở hộp thoại About (logo + tên + phiên bản) và
+// đọc LICENSE / THIRD_PARTY_NOTICES.md ngay trong hộp đó.
 //
 // Hai file nằm trong frontendDist (src/) nên fetch chạy được cả ở dev lẫn bản cài, hoàn toàn offline.
 // data-doc chỉ nhận đúng 2 tên hardcode ở index.html, và DOMPurify fail-closed, nên không có
 // bề mặt path traversal: tên file lấy thẳng từ data-doc, không ghép từ input người dùng.
 
 import {
+    appVersion,
     btnHelp,
-    helpItems,
-    helpMenu,
-    helpWrap,
+    infoAbout,
+    infoBackBtn,
     infoBody,
     infoCloseBtn,
     infoDialog,
-    infoDialogTitle
+    infoDoc
 } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 
 let dialogReturnFocus = null;
-
-function closeHelpMenu() {
-    helpMenu.classList.add('hidden');
-    helpWrap.classList.remove('open');
-    btnHelp.setAttribute('aria-expanded', 'false');
-}
 
 function closeInfoDialog() {
     infoDialog.classList.add('hidden');
@@ -34,12 +29,26 @@ export function isInfoDialogOpen() {
     return !infoDialog.classList.contains('hidden');
 }
 
-async function showDoc(name, title) {
-    closeHelpMenu();
+// Một modal duy nhất, hai view: About (mặc định) và tài liệu. .dialog-wide làm modal rộng ra
+// khi đọc tài liệu dài; quay lại About thì thu về .dialog mặc định.
+function showAbout() {
+    infoDoc.classList.add('hidden');
+    infoAbout.classList.remove('hidden');
+    infoDialog.querySelector('.dialog').classList.remove('dialog-wide');
+}
+
+function openAboutDialog() {
+    showAbout();
     dialogReturnFocus = document.activeElement;
-    infoDialogTitle.textContent = title;
-    infoBody.textContent = 'Loading...';
     infoDialog.classList.remove('hidden');
+    infoCloseBtn.focus();
+}
+
+async function showDoc(name) {
+    infoAbout.classList.add('hidden');
+    infoDoc.classList.remove('hidden');
+    infoDialog.querySelector('.dialog').classList.add('dialog-wide');
+    infoBody.textContent = 'Loading...';
     infoCloseBtn.focus();
 
     let text;
@@ -70,31 +79,20 @@ async function showDoc(name, title) {
 }
 
 export function initAbout() {
-    btnHelp.addEventListener('click', () => {
-        const isHidden = helpMenu.classList.toggle('hidden');
-        helpWrap.classList.toggle('open', !isHidden);
-        btnHelp.setAttribute('aria-expanded', String(!isHidden));
-    });
+    // Số phiên bản do scripts/sync-version.js ghi vào <meta name="app-version"> mỗi lần dev/build.
+    appVersion.textContent = document.querySelector('meta[name="app-version"]')?.content || '';
 
-    document.addEventListener('click', (e) => {
-        if (!helpMenu.classList.contains('hidden') && !helpWrap.contains(e.target)) {
-            closeHelpMenu();
-        }
-    });
+    btnHelp.addEventListener('click', openAboutDialog);
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        if (isInfoDialogOpen()) {
-            closeInfoDialog();
-            return;
-        }
-        closeHelpMenu();
-    });
-
-    helpItems.forEach((item) => {
+    infoAbout.querySelectorAll('.about-item').forEach((item) => {
         item.addEventListener('click', () => {
-            showDoc(item.dataset.doc, item.querySelector('span').textContent);
+            showDoc(item.dataset.doc);
         });
+    });
+
+    infoBackBtn.addEventListener('click', () => {
+        showAbout();
+        infoCloseBtn.focus();
     });
 
     infoCloseBtn.addEventListener('click', closeInfoDialog);
@@ -103,8 +101,8 @@ export function initAbout() {
         if (e.target === infoDialog) closeInfoDialog();
     });
 
-    // Chặn phím lọt xuống editor bên dưới; Esc phải xử lý ở đây vì stopPropagation chặn listener
-    // document ở trên (nơi duy nhất xử lý Esc khi focus nằm ngoài dialog). Cùng pattern ui/dialogs.js.
+    // Chặn phím lọt xuống editor bên dưới; Esc phải xử lý ở đây. Tab giữ vòng focus giữa các nút
+    // của view đang mở (About có 2 mục, doc có Back) — cùng pattern ui/dialogs.js.
     infoDialog.addEventListener('keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Escape') {
@@ -112,7 +110,15 @@ export function initAbout() {
             closeInfoDialog();
         } else if (e.key === 'Tab') {
             e.preventDefault();
-            infoCloseBtn.focus();
+            // offsetParent === null ⇔ display:none: view ẩn (About / tài liệu) vẫn còn trong DOM,
+            // focus() vào nút ẩn là no-op nên vòng focus sẽ kẹt. Chỉ xét nút đang hiện.
+            const focusables = Array.from(infoDialog.querySelectorAll('button'))
+                .filter((b) => b.offsetParent !== null);
+            const idx = focusables.indexOf(document.activeElement);
+            const next = e.shiftKey
+                ? focusables[(idx - 1 + focusables.length) % focusables.length]
+                : focusables[(idx + 1) % focusables.length];
+            if (next) next.focus();
         }
     });
 }

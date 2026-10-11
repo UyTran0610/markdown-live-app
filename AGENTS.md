@@ -41,6 +41,7 @@ Entry: `src/js/main.js` (ES module). Every module exports an `initXxx()` that on
 | `src/js/preview/render.js` | Renders Markdown -> HTML (marked + DOMPurify + hljs + Mermaid + KaTeX), assigns slug ids to headings so [link](#anchor) works, and preserves scroll position. |
 | `src/js/preview/sanitize.js` | DOMPurify config and hooks (block dangerous schemes, open external links safely). |
 | `src/js/theme/theme.js` | Light / Dark theme: apply (all 4 preview vendor CSS are preloaded and toggled via `media`, so the switch is one synchronous tick inside a View Transition), persist, follow system theme. |
+| `src/js/ui/about.js` | The About dialog (logo, name, version) and the LICENSE / THIRD_PARTY_NOTICES reader. |
 | `src/js/ui/dialogs.js` | Link insert and table-size dialogs. |
 | `src/js/ui/format-toolbar.js` | Format bar: the Heading / List / Table / HTML dropdowns and buttons. |
 | `src/js/ui/scroll-sync.js` | Synchronised editor/preview scrolling plus its on/off button. |
@@ -84,7 +85,7 @@ Other paths:
 ## Versioning gotcha
 
 - Source of truth is `src-tauri/tauri.conf.json` `"version"`; root `package.json` is stale — ignore it.
-- Bump only via `node scripts/sync-version.js --set X.Y.Z`. It auto-runs on dev/build, copying the version into `Cargo.toml` and cache-busting `?v=` in `index.html`. Never hand-edit `?v=` or `Cargo.toml`.
+- Bump only via `node scripts/sync-version.js --set X.Y.Z`. It auto-runs on dev/build, copying the version into `Cargo.toml`, cache-busting `?v=` in `index.html`, and rewriting `<meta name="app-version">` (the version the About dialog displays, read by `src/js/ui/about.js`). Never hand-edit `?v=`, `app-version` or `Cargo.toml`.
 - Only `index.html` carries `?v=`; `src/js/**` modules have no query string. Release: push tag `v*` → `.github/workflows/release.yml`.
 
 ## Tauri config notes

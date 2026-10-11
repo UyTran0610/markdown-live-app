@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
+    <!-- Số phiên bản hiển thị trong hộp thoại About. scripts/sync-version.js ghi đè content=
+         mỗi lần dev/build, nên không bao giờ sửa tay (giống hệt ?v= bên dưới). -->
+    <meta name="app-version" content="1.5.8">
     <title>Markdown Live</title>
     <!-- Bốn file CSS theme của Preview đều nạp sẵn; theme chỉ quyết định link nào được áp dụng
          (media="not all" = tải nhưng không áp dụng). Nhờ vậy lúc đổi theme chỉ là gán media —
@@ -142,19 +145,9 @@
             </button>
 
             <div class="help-wrap">
-                <button id="btn-help" class="btn" title="License &amp; third-party notices" aria-haspopup="menu" aria-expanded="false" aria-label="About">
+                <button id="btn-help" class="btn" title="About Markdown Live" aria-haspopup="dialog" aria-controls="info-dialog" aria-label="About">
                     <i data-lucide="circle-help"></i>
                 </button>
-                <div id="help-menu" class="export-menu hidden" role="menu">
-                    <button class="export-item help-item" data-doc="LICENSE" role="menuitem" title="Application license (MIT)">
-                        <i data-lucide="scale"></i>
-                        <span>License</span>
-                    </button>
-                    <button class="export-item help-item" data-doc="THIRD_PARTY_NOTICES.md" role="menuitem" title="Licenses of bundled third-party libraries">
-                        <i data-lucide="file-text"></i>
-                        <span>Third-party notices</span>
-                    </button>
-                </div>
             </div>
         </div>
     </header>
@@ -306,11 +299,32 @@
         </div>
     </div>
 
-    <!-- About Dialog (License / Third-party notices) -->
+    <!-- About: logo + tên + phiên bản, bên dưới là 2 mục bấm để đọc tài liệu.
+         data-doc chỉ nhận đúng 2 tên hardcode ở đây (không ghép từ input người dùng). -->
     <div id="info-dialog" class="dialog-overlay hidden">
-        <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="info-dialog-title">
-            <h2 id="info-dialog-title">License</h2>
-            <div id="info-body" class="markdown-body dialog-scroll"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-label="About Markdown Live">
+            <div id="info-about">
+                <img class="about-logo" src="assets/icon-128.png" alt="">
+                <h2>Markdown Live</h2>
+                <p class="about-version">Version <span id="app-version"></span></p>
+                <div class="about-list">
+                    <button class="export-item about-item" data-doc="LICENSE" title="Application license (MIT)">
+                        <span>License</span>
+                    </button>
+                    <button class="export-item about-item" data-doc="THIRD_PARTY_NOTICES.md" title="Licenses of bundled third-party libraries">
+                        <span>Third-party Notices</span>
+                    </button>
+                </div>
+            </div>
+            <div id="info-doc" class="hidden">
+                <div class="info-doc-head">
+                    <button id="info-back" class="dialog-btn">
+                        <i data-lucide="arrow-left"></i>
+                        <span>Back</span>
+                    </button>
+                </div>
+                <div id="info-body" class="markdown-body dialog-scroll"></div>
+            </div>
             <div class="dialog-actions">
                 <button id="info-close" class="dialog-btn primary">Close</button>
             </div>

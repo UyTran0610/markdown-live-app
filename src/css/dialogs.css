@@ -69,6 +69,9 @@
 }
 
 .dialog-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     height: 30px;
     padding: 0 14px;
     font-family: inherit;
@@ -80,6 +83,12 @@
     color: var(--btn-text);
     cursor: pointer;
     transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dialog-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
 }
 
 .dialog-btn:hover {
@@ -121,4 +130,70 @@
     overflow-y: auto;
     min-height: 0;
     text-align: left;
+}
+
+/* ==========================================================================
+   Hộp thoại About (logo + tên + phiên bản + 2 mục tài liệu)
+   ========================================================================== */
+/* Modal "?" canh giữa cửa sổ; link / table vẫn dồn 18vh theo .dialog-overlay mặc định. */
+#info-dialog {
+    align-items: center;
+    padding-top: 0;
+}
+
+#info-about {
+    text-align: center;
+}
+
+/* Không có rule .hidden dùng chung trong app (mỗi component tự định nghĩa), nên hai view
+   của modal About phải tự khai báo cả hai — thiếu một bên thì view kia vẫn hiện. */
+#info-about.hidden,
+#info-doc.hidden {
+    display: none;
+}
+
+/* #info-doc là flex item của .dialog-wide (max-height: 80vh), và lại là flex column bọc
+   #info-body. Thiếu chuỗi này thì #info-body không còn co lại được: nó giữ chiều cao bằng
+   nội dung, đẩy nút Close ra khỏi hộp và tràn ra ngoài viewport. */
+#info-doc {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.about-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    user-select: none;
+}
+
+#info-about h2 {
+    margin: 12px 0 2px;
+}
+
+.about-version {
+    margin: 0 0 18px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+/* 2 mục tài liệu: dùng lại style hàng menu của toolbar, chỉ cần trải hết bề ngang
+   để đọc như 1 danh sách chứ không phải 1 menu hẹp. */
+.about-list {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border-color);
+}
+
+.about-item {
+    width: 100%;
+}
+
+/* Hàng header của view tài liệu: chỉ còn nút Back ở góc phải (tiêu đề do H1 trong chính
+   file LICENSE / THIRD_PARTY_NOTICES.md đã lo, không cần lặp lại). */
+.info-doc-head {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 14px;
 }

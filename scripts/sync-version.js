@@ -111,6 +111,13 @@ function syncIndexHtmlVersion(content, version) {
     (_m, attr, filePath) => `${attr}="${filePath}?v=${version}"`
   );
 
+  // 2) Số phiên bản hiển thị trong hộp thoại About (ui/about.js đọc meta này).
+  // Như ?v= ở trên: cùng một nguồn sự thật (tauri.conf.json), không sửa tay được.
+  content = content.replace(
+    /(<meta\s+name="app-version"\s+content=")[^"]*(")/,
+    `$1${version}$2`
+  );
+
   return content;
 }
 

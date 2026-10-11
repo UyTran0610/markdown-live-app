@@ -38,19 +38,19 @@ export const btnTheme = document.getElementById('btn-theme');
 
 export const btnHelp = document.getElementById('btn-help');
 
-export const helpWrap = document.querySelector('.help-wrap');
-
-export const helpMenu = document.getElementById('help-menu');
-
-export const helpItems = document.querySelectorAll('.help-item');
-
 export const infoDialog = document.getElementById('info-dialog');
 
-export const infoDialogTitle = document.getElementById('info-dialog-title');
+export const infoAbout = document.getElementById('info-about');
+
+export const infoDoc = document.getElementById('info-doc');
 
 export const infoBody = document.getElementById('info-body');
 
+export const infoBackBtn = document.getElementById('info-back');
+
 export const infoCloseBtn = document.getElementById('info-close');
+
+export const appVersion = document.getElementById('app-version');
 
 export const toast = document.getElementById('toast');
 

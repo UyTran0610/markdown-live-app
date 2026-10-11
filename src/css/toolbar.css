@@ -161,10 +161,8 @@
     color: var(--text-secondary);
 }
 
-/* Nút "?" + Dropdown License / Third-party notices. Dùng chung .export-menu nên chỉ cần
-   position: relative; nút không có chevron nên không có rule .open. */
+/* Nút "?" — mở thẳng hộp thoại About, không có dropdown. */
 .help-wrap {
-    position: relative;
     display: inline-flex;
 }
 
@@ -183,11 +181,6 @@
     background: var(--btn-bg-hover);
     border-color: transparent;
     color: var(--btn-text-hover);
-}
-
-.help-wrap .btn[aria-expanded='true'] {
-    background: var(--btn-active-bg);
-    color: var(--btn-active-text);
 }
 
 /* Nút + Dropdown chuyển chế độ xem (Editor / Split / Preview) */

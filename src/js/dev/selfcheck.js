@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Bộ tự kiểm tra nhanh (mở app với ?selfcheck để chạy).
 
-import { infoBody, markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
+import { infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -246,13 +246,16 @@ export async function runSelfCheck() {
     (function () {
         // marked.parse ném lỗi (lib chưa tải xong, extension hỏng): preview phải rơi về văn bản thô, không đụng innerHTML.
         const savedValue = markdownInput.value;
-        const savedParse = window.marked && window.marked.parse;
+        const savedMarked = window.marked;
         markdownInput.value = '# probe render';
-        if (savedParse) {
-            window.marked.parse = () => { throw new Error('probe'); };
+        if (savedMarked) {
+            // marked v18 khai báo `parse` bằng getter không configurable, nên gán
+            // window.marked.parse ném TypeError và làm hỏng cả selfcheck. Thay cả object
+            // `marked` (window.marked writable) rồi trả lại đúng reference cũ.
+            window.marked = { ...savedMarked, parse: () => { throw new Error('probe'); } };
             renderMarkdown();
             assert('render lỗi -> preview hiện văn bản thô', previewOutput.textContent === '# probe render');
-            window.marked.parse = savedParse;
+            window.marked = savedMarked;
         }
         markdownInput.value = savedValue;
     })();
@@ -357,11 +360,18 @@ export async function runSelfCheck() {
     }
 
     if (document.getElementById('btn-help')) {
+        const aboutItems = document.querySelectorAll('.about-item');
         assert('nút ? là nút cuối toolbar', document.querySelector('.toolbar').lastElementChild.querySelector('#btn-help') !== null);
-        const licenseItem = document.querySelector('.help-item[data-doc="LICENSE"]');
-        assert('menu ? có 2 mục', document.querySelectorAll('.help-item').length === 2);
-        // Mở modal rồi đợi fetch xong: showDoc là async nên check phải bất đồng bộ.
-        licenseItem.click();
+        assert('nút ? không còn dropdown', document.getElementById('help-menu') === null);
+        assert('about có 2 mục tài liệu', aboutItems.length === 2);
+
+        document.getElementById('btn-help').click();
+        assert('bấm ? mở thẳng modal About', isInfoDialogOpen());
+        assert('modal mở ra view About', !infoAbout.classList.contains('hidden') && infoDoc.classList.contains('hidden'));
+        assert('about hiện số phiên bản', /^\d+\.\d+\.\d+$/.test(document.getElementById('app-version').textContent.trim()));
+
+        // Mở tài liệu rồi đợi fetch xong: showDoc là async nên check phải bất đồng bộ.
+        aboutItems[0].click();
         await Promise.race([
             new Promise((resolve) => {
                 const observer = new MutationObserver(() => {
@@ -374,10 +384,18 @@ export async function runSelfCheck() {
             }),
             new Promise((resolve) => setTimeout(resolve, 3000))
         ]);
-        assert('modal license mở ra', isInfoDialogOpen());
+        assert('bấm mục đổi sang view tài liệu', infoAbout.classList.contains('hidden') && !infoDoc.classList.contains('hidden'));
         assert('modal license đọc được file', infoBody.textContent.includes('MIT License'));
+        // Chuỗi flex .dialog-wide > #info-doc > #info-body mới làm tài liệu dài (third-party
+        // notices) cuộn trong hộp thay vì tràn ra ngoài. Bỏ display:flex ở #info-doc là hỏng.
+        assert('nội dung tài liệu cuộn trong hộp', getComputedStyle(infoDoc).display === 'flex'
+            && infoBody.scrollHeight >= infoBody.clientHeight
+            && infoBody.getBoundingClientRect().bottom <= infoDialog.querySelector('.dialog').getBoundingClientRect().bottom);
+
+        document.getElementById('info-back').click();
+        assert('nút Back quay lại view About', !infoAbout.classList.contains('hidden') && infoDoc.classList.contains('hidden'));
         document.getElementById('info-close').click();
-        assert('đóng modal license', !isInfoDialogOpen());
+        assert('đóng modal about', !isInfoDialogOpen());
     }
 
     const failed = results.filter(r => r.startsWith('FAIL'));

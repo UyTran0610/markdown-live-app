@@ -57,7 +57,7 @@ Load order in `index.html` matters (cascade): tokens -> base -> layout -> format
 | `src/css/base.css` | Reset and `<body>` background. |
 | `src/css/layout.css` | App shell: header, workspace, panes, pane divider, 3 view modes, responsive. |
 | `src/css/format-bar.css` | Markdown format bar above the editor (icon buttons, dropdowns, table grid picker). |
-| `src/css/dialogs.css` | Input dialogs (Link / table size). |
+| `src/css/dialogs.css` | Dialogs: Link / table size and the About ("?") dialog (open / close + view switch animation). Hidden via `visibility` + `pointer-events: none`, never `display: none` — that would kill the transition. |
 | `src/css/toast.css` | Toast notifications. |
 | `src/css/toolbar.css` | Main toolbar: .btn, Export / View dropdowns, view-mode buttons, theme button. |
 | `src/css/editor.css` | Editing area + the Markdown syntax-highlight classes. |

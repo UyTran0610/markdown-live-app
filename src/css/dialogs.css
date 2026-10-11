@@ -1,4 +1,4 @@
-/* css/dialogs.css — Hộp thoại nhập liệu (Link / kích thước bảng). */
+/* css/dialogs.css — Hộp thoại Link / kích thước bảng và hộp thoại About (nút "?"). */
 
 /* ==========================================================================
    Hộp thoại nhập liệu (Link / Table custom size)
@@ -12,10 +12,27 @@
     padding-top: 18vh;
     background: rgba(0, 0, 0, 0.35);
     z-index: 1000;
+    /* Animation mở/đóng hộp thoại. Ẩn bằng `visibility` chứ không phải `display: none`
+       (y hệt .export-menu/.format-menu ở css/toolbar.css): display: none không transition
+       được, còn allow-discrete/@starting-style có thể không chạy trên WebView2 -> hộp nhảy.
+       Overlay là position: fixed nên ẩn kiểu này không chiếm chỗ, `pointer-events: none`
+       chặn click như display: none, và `visibility: hidden` đưa nút bên trong ra khỏi tab
+       order — nhờ vậy vòng focus (ui/about.js lọc theo offsetParent) và Esc vẫn đúng.
+       `visibility 0s` ở đây là chiều MỞ (hiện ngay, không trễ); chiều đóng nằm ở rule .hidden. */
+    transition: opacity 0.2s ease, visibility 0s;
 }
 
 .dialog-overlay.hidden {
-    display: none;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    /* Khi đóng: mờ dần 0.2s rồi mới ẩn hẳn (visibility trễ đúng bằng thời gian fade).
+       Khi mở: transition lấy theo rule trên, visibility 0s nên hiện ngay lập tức.
+       KHÔNG dùng chung "visibility 0.2s" cho cả hai chiều: ở frame đầu sau khi mở, giá trị
+       nội suy tại progress 0 vẫn là `hidden`, nên focus() gọi ngay trong cùng task đó bị từ
+       chối (ui/dialogs.js và showDoc() trong ui/about.js đều focus trong cùng task với lúc
+       bỏ .hidden) — assert "mở tài liệu thì focus nút Back" của selfcheck bắt được lỗi này. */
+    transition: opacity 0.2s ease, visibility 0s linear 0.2s;
 }
 
 .dialog {
@@ -25,6 +42,14 @@
     border-radius: 10px;
     background: var(--menu-bg);
     box-shadow: var(--menu-shadow);
+    /* Hộp trượt + thu nhẹ khi mở/đóng (chạy được cả hai chiều vì trạng thái ẩn ở trên),
+       và bề rộng co giãn khi modal About đổi giữa view About (400px) và view tài liệu
+       (.dialog-wide 760px) thay vì nhảy. */
+    transition: transform 0.2s ease, width 0.2s ease;
+}
+
+.dialog-overlay.hidden .dialog {
+    transform: translateY(-6px) scale(0.98);
 }
 
 .dialog h2 {
@@ -159,6 +184,26 @@
     display: none;
 }
 
+/* Đổi view (About <-> tài liệu): hai view là flex item trong luồng của .dialog nên phải giữ
+   `display: none` để view ẩn không chiếm chỗ (dùng visibility như overlay thì hộp sẽ cao bằng
+   tổng hai view). Vì display: none không transition được, view mới hiện lên bằng entry
+   animation; view cũ biến mất ngay, nhưng lúc đó bề rộng hộp đang co giãn nên vẫn liền mạch. */
+@keyframes dialog-view-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+#info-about,
+#info-doc {
+    animation: dialog-view-in 0.2s ease both;
+}
+
 /* #info-doc là flex item của .dialog-wide (max-height: 80vh), và lại là flex column bọc
    #info-body. Thiếu chuỗi này thì #info-body không còn co lại được: nó giữ chiều cao bằng
    nội dung, đẩy nút Close ra khỏi hộp và tràn ra ngoài viewport. */
@@ -204,4 +249,17 @@
     display: flex;
     justify-content: flex-start;
     margin-bottom: 14px;
+}
+
+/* Giảm chuyển động (Windows: Settings > Accessibility > Visual effects > Animation effects
+   off): tắt animation của hộp thoại. Trạng thái ẩn dựa trên visibility/display chứ không dựa
+   vào transition, nên hộp vẫn mở/đóng và Esc / Tab hoạt động y như thường. */
+@media (prefers-reduced-motion: reduce) {
+    .dialog-overlay,
+    .dialog,
+    #info-about,
+    #info-doc {
+        transition: none;
+        animation: none;
+    }
 }

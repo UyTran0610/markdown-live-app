@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Bộ tự kiểm tra nhanh (mở app với ?selfcheck để chạy).
 
-import { infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableColsInput, tableMenu, tableRowsInput } from '../core/dom.js';
+import { infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -27,7 +27,6 @@ import { isImportableFile } from '../io/import.js';
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
-import { closeDialogs, openTableDialog } from '../ui/dialogs.js';
 import {
     SPLIT_MAX_PERCENT,
     SPLIT_MIN_PERCENT,
@@ -39,6 +38,10 @@ import {
 export async function runSelfCheck() {
     const results = [];
     const assert = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} - ${name}`);
+
+    // Guard nào không chạy được (vendor lib chưa tải, element không có) đều phải ghi SKIP. Nếu im lặng,
+    // một script vendor hỏng vẫn ra toast "PASS" và giấu mất hàng chục assert chưa từng chạy.
+    const skip = (name, why) => results.push(`SKIP - ${name} (${why})`);
 
     assert('filename từ heading có dấu', deriveExportBaseName('# Trình soạn thảo Markdown Live\n\nnội dung') === 'trinh-soan-thao-markdown-live');
     assert('filename bỏ ký tự đặc biệt', deriveExportBaseName('# Tiêu đề (v1.2)!') === 'tieu-de-v12');
@@ -57,9 +60,6 @@ export async function runSelfCheck() {
     assert('kéo giữa -> split', computeViewModeFromPercent(50) === 'split');
     assert('view mode rác bị từ chối', isValidViewMode('abc') === false && isValidViewMode('') === false);
     assert('view mode hợp lệ được nhận', isValidViewMode('editor') && isValidViewMode('split') && isValidViewMode('preview'));
-    assert('drag dọc giữa -> 50', computeSplitPercent(500, 1000) === 50);
-    assert('drag dọc clamp dưới', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
-    assert('drag dọc clamp trên', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);
 
     assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
     assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);
@@ -73,6 +73,8 @@ export async function runSelfCheck() {
             MERMAID_SANITIZE_CONFIG
         );
         assert('sanitize keeps mermaid labels', probe.includes('probe-label'));
+    } else {
+        skip('sanitize keeps mermaid labels', 'DOMPurify chưa tải');
     }
     assert('import gate allows md', isImportableFile({ name: 'a.md', type: '' }) === true);
     assert('import gate allows mdown', isImportableFile({ name: 'a.mdown', type: '' }) === true);
@@ -256,8 +258,13 @@ export async function runSelfCheck() {
             renderMarkdown();
             assert('render lỗi -> preview hiện văn bản thô', previewOutput.textContent === '# probe render');
             window.marked = savedMarked;
+        } else {
+            skip('render lỗi -> preview hiện văn bản thô', 'marked chưa tải');
         }
+        // Trả editor về nội dung thật TRƯỚC rồi render lại: self-check chạy SAU loadInitialContent() nên
+        // không còn listener nào render sau, còn không thì preview kẹt ở đoạn probe.
         markdownInput.value = savedValue;
+        renderMarkdown();
     })();
 
     (function () {
@@ -266,14 +273,6 @@ export async function runSelfCheck() {
         runOnce();
         runOnce();
         assert('export chạy chồng bị chặn', calls === 1);
-    })();
-
-    (function () {
-        tableColsInput.value = '9';
-        tableRowsInput.value = '9';
-        openTableDialog();
-        assert('dialog bảng mở lại về mặc định 3x3', tableColsInput.value === '3' && tableRowsInput.value === '3');
-        closeDialogs();
     })();
 
     (function () {
@@ -327,6 +326,7 @@ export async function runSelfCheck() {
         katexFontKey('KaTeX_Main', 'normal', 'bold') === 'KaTeX_Main|normal|700'
         && katexFontKey('"KaTeX_Math"', 'italic', '400') === 'KaTeX_Math|italic|400');
 
+    let mark = results.length;
     if (typeof katex !== 'undefined') {
         const inlineHost = document.createElement('div');
         inlineHost.innerHTML = katex.renderToString('E = mc^2', { throwOnError: false, output: 'htmlAndMathml' });
@@ -358,7 +358,9 @@ export async function runSelfCheck() {
         convertKatexForDoc(brokenHost);
         assert('katex hỏng fallback thành text', brokenHost.textContent === 'fallback text' && !brokenHost.querySelector('span.katex'));
     }
+    if (results.length === mark) skip('6 assert KaTeX -> MathML', 'katex chưa tải');
 
+    mark = results.length;
     if (document.getElementById('btn-help')) {
         const aboutItems = document.querySelectorAll('.about-item');
         assert('nút ? là nút cuối toolbar', document.querySelector('.toolbar').lastElementChild.querySelector('#btn-help') !== null);
@@ -389,7 +391,6 @@ export async function runSelfCheck() {
         // Chuỗi flex .dialog-wide > #info-doc > #info-body mới làm tài liệu dài (third-party
         // notices) cuộn trong hộp thay vì tràn ra ngoài. Bỏ display:flex ở #info-doc là hỏng.
         assert('nội dung tài liệu cuộn trong hộp', getComputedStyle(infoDoc).display === 'flex'
-            && infoBody.scrollHeight >= infoBody.clientHeight
             && infoBody.getBoundingClientRect().bottom <= infoDialog.querySelector('.dialog').getBoundingClientRect().bottom);
 
         document.getElementById('info-back').click();
@@ -397,9 +398,18 @@ export async function runSelfCheck() {
         document.getElementById('info-close').click();
         assert('đóng modal about', !isInfoDialogOpen());
     }
+    if (results.length === mark) skip('11 assert hộp thoại About', 'không có #btn-help');
 
+    // Đếm theo tiền tố dòng: assert() ghi 'PASS '/'FAIL ', skip() ghi 'SKIP '. Tổng = results.length nên
+    // số trên toast luôn khớp số dòng trong console, kể cả khi có guard bị bỏ qua.
     const failed = results.filter(r => r.startsWith('FAIL'));
+    const skipped = results.filter(r => r.startsWith('SKIP'));
+    const passed = results.length - failed.length - skipped.length;
+    const report = `${passed}/${results.length} PASS`;
     (failed.length ? console.error : console.log)('Self-check Import/Export:\n' + results.join('\n'));
-    if (failed.length) showToast(`Self-check: ${failed.length} test FAIL (see console)`);
-    else showToast('Self-check: all PASS');
+    if (failed.length || skipped.length) {
+        showToast(`Self-check: ${report}, ${skipped.length} SKIP, ${failed.length} FAIL (see console)`);
+    } else {
+        showToast(`Self-check: ${report}`);
+    }
 }

@@ -30,10 +30,6 @@ initAbout();
 initImport();
 initContentPersistence();
 
-if (location.search.includes('selfcheck')) {
-    window.addEventListener('DOMContentLoaded', runSelfCheck);
-}
-
 window.addEventListener('DOMContentLoaded', () => {
     try {
         if (typeof mermaid !== 'undefined') {
@@ -58,5 +54,12 @@ window.addEventListener('DOMContentLoaded', () => {
         loadInitialContent();
     }
 });
+
+// Đăng ký SAU listener trên: self-check phải chạy trên app đã nạp xong (nội dung thật trong editor,
+// mermaid/KaTeX đã gắn vào marked) thì mới kiểm được đúng thứ cần kiểm. Đặt trước sẽ chạy trên
+// textarea rỗng và render ra preview rác mà không ai dọn sau.
+if (location.search.includes('selfcheck')) {
+    window.addEventListener('DOMContentLoaded', runSelfCheck);
+}
 
 window.renderMarkdown = renderMarkdown;

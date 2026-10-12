@@ -1,0 +1,163 @@
+/* css/tabs.css — Thanh tab đang mở, nằm trên toolbar trong .app-header.
+   Dùng lại đúng token của .btn / .btn.active (toolbar.css) để tab không lệch màu với phần còn lại. */
+
+/* Cuộn ngang khi mở nhiều tab. Thanh cuộn mảnh (không ẩn) để thấy còn bao nhiêu tab khuất. */
+.tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 4px 8px 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.tabs::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+}
+
+.tabs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    max-width: 220px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    color: var(--btn-text);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.tab:hover {
+    background: var(--btn-bg-hover);
+    color: var(--btn-text-hover);
+}
+
+.tab.active {
+    background: var(--pane-bg);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Tên dài cắt bằng CSS; tab.name giữ nguyên phần đầy đủ cho toast và session.
+   min-width: 0 là bắt buộc: .tab là inline-flex + white-space nowrap nên không có nó
+   flex item không co được dưới min-content, chữ sẽ tràn ra ngoài .tab (max-width
+   chỉ cắt hộp, không cắt chữ) và đè lên tab kế bên. */
+.tab-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Chấm "chưa lưu" là xám nhạt, không dùng màu xanh link: nổi quá sẽ kéo mắt vào dải
+   tab mỗi lần gõ. Độ mờ đặt bằng opacity (không đổi màu riêng cho từng theme) nên chấm dịu
+   đều ở cả theme sáng lẫn tối; tab active đậm lại đúng 1 bậc. */
+.tab-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+.tab.active .tab-dot {
+    opacity: 1;
+}
+
+.tab-dot[hidden] {
+    display: none;
+}
+
+/* Chỉ tab MỚI mới mang class .tab-enter (xem seenIds trong tabs.js). Cả dải tab được
+   replaceChildren() mỗi lần store emit, nên animation gắn bằng CSS cho mọi tab sẽ
+   nháy lại toàn bộ dải mỗi lần đổi tab. */
+.tab-enter {
+    animation: tab-enter 0.18s ease-out;
+}
+
+@keyframes tab-enter {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+}
+
+.tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+/* Không ẩn hẳn nút đóng: giữ 0.6 để affordance còn thấy khi không hover / không có chuột. */
+.tab:hover .tab-close,
+.tab:focus-within .tab-close {
+    opacity: 1;
+}
+
+.tab-close:hover {
+    background: var(--btn-bg-pressed);
+    color: var(--text-primary);
+}
+
+.tab-add {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    margin-left: 2px;
+    border: 1px solid transparent;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.tab-add:hover {
+    background: var(--btn-bg-hover);
+    color: var(--btn-text-hover);
+}
+
+.tab:focus-visible,
+.tab-add:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: -2px;
+}
+
+/* Windows: Settings > Accessibility > Visual effects > Animation effects off —
+   tắt chuyển động vào của tab, hover / đóng tab vẫn hoạt động y như thường. */
+@media (prefers-reduced-motion: reduce) {
+    .tab-enter {
+        animation: none;
+    }
+}

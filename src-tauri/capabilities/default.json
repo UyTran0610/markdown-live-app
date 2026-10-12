@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capability cho cửa sổ chính. fs:scope để mở/ghi .md chỉ trong các thư mục tài liệu thông thường; ngoài phạm vi ACL chặn, UI báo rõ nguyên nhân (writeTextFile trong js/export/file-save.js).",
   "windows": [
     "main"
   ],
@@ -12,10 +12,16 @@
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
     "dialog:default",
+    "fs:allow-read-text-file",
     "fs:allow-write-text-file",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOWNLOAD/**" }
+      ]
     }
   ]
 }

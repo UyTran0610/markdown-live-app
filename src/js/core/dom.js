@@ -12,13 +12,14 @@ export const editorHighlightCode = document.getElementById('editor-highlight-cod
 
 export const btnSync = document.getElementById('btn-sync');
 
-export const btnReset = document.getElementById('btn-reset');
 
 export const btnCopy = document.getElementById('btn-copy');
 
 export const btnImport = document.getElementById('btn-import');
 
-export const importFileInput = document.getElementById('import-file');
+export const btnSave = document.getElementById('btn-save');
+
+export const tabStrip = document.getElementById('tab-strip');
 
 export const btnExport = document.getElementById('btn-export');
 

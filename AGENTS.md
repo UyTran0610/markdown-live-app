@@ -12,28 +12,26 @@ Entry: `src/js/main.js` (ES module). Every module exports an `initXxx()` that on
 | `src/js/core/toast.js` | Small corner-of-screen toast notifications. |
 | `src/js/core/utils.js` | Shared helpers: debounce, safe external-URL check, `slugifyText` (slug shared by heading ids and export filenames). |
 | `src/js/dev/selfcheck.js` | Quick self-check suite (open the app with `?selfcheck` to run). |
-| `src/js/editor/content.js` | Loads / replaces editor content (sample, import, restore) and the Reset / Copy buttons. |
-| `src/js/editor/default-markdown.js` | Sample Markdown content (first run and on Reset). |
+| `src/js/editor/content.js` | The Copy button. |
 | `src/js/editor/edit.js` | Text-editing operations: Tab, Enter, format wrapping, link, duplicate line. |
 | `src/js/editor/events.js` | Editor keyboard events (shortcuts, auto-close brackets) and input events. |
 | `src/js/editor/format-actions.js` | Format-bar actions applied to the editor (heading, list, table, code block). |
 | `src/js/editor/format-helpers.js` | Pure functions behind the format bar (heading, list, table, link, HTML tag, fence). |
 | `src/js/editor/highlight.js` | Syntax-highlight layer behind the textarea, refreshed per frame. |
 | `src/js/editor/history.js` | The editor's own Undo / Redo stack. |
-| `src/js/editor/storage.js` | Saves / restores editor content in localStorage. |
-| `src/js/editor/sync.js` | Post-change sync: char count, highlighting, preview render, draft save. |
+| `src/js/editor/sync.js` | Post-change sync: char count, highlighting, preview render, push the new text into the active tab, save the session. |
 | `src/js/editor/syntax/block.js` | Line/block-level Markdown highlighting (heading, list, quote, fence, table...). |
 | `src/js/editor/syntax/inline.js` | Inline Markdown highlighting (bold, italic, link, code, math, HTML tag...). |
 | `src/js/export/doc-transform.js` | DOM transforms for the DOC file: strip stray ids, blockquote / alert into tables. |
 | `src/js/export/doc.js` | Exports a Word (.doc) file from the preview HTML. |
-| `src/js/export/file-save.js` | Document title (first H1 outside code fences), export filename (`slugifyText` with diacritics folded) and writing to disk: Tauri's Save As dialog, browser download fallback. |
+| `src/js/export/file-save.js` | Document title (first H1 outside code fences), export filename (`slugifyText` with diacritics folded) and disk I/O behind the fs ACL: `readTextFile` / `writeTextFile` (open tab vs. Save As) and Tauri's Save As dialog, browser download fallback. |
 | `src/js/export/html.js` | Exports a standalone .html file. |
 | `src/js/export/images.js` | Image handling for DOC export: SVG -> PNG, image sizing, Mermaid -> PNG. |
 | `src/js/export/math-fonts.js` | KaTeX fonts/CSS for formula images: parse `@font-face`, fetch the CSS once, woff2 -> data URI, list fonts a formula uses. |
 | `src/js/export/math-image.js` | KaTeX formula -> PNG for the DOC export (SVG `foreignObject` -> canvas); falls back to MathML when a formula fails. |
 | `src/js/export/math-mathml.js` | KaTeX formula -> plain MathML for the DOC / HTML export. |
 | `src/js/export/menu.js` | The Export dropdown and the file-export buttons, including the .md export and the PDF export (browser Print dialog). |
-| `src/js/io/import.js` | Imports Markdown files from disk into the editor. |
+| `src/js/io/documents.js` | The tab / document store: open tabs, per-tab content + dirty state + undo stack, reading and writing the files behind them, and the localStorage session (tab list, active tab, drafts). Still ONE textarea — switching tabs just reassigns `markdownInput.value`, so every other module keeps reading it. |
 | `src/js/main.js` | App entry: initialises the modules in the correct order. |
 | `src/js/preview/alerts.js` | GFM Alerts / Callouts ([!NOTE], [!TIP]...) in the preview. |
 | `src/js/preview/links.js` | Intercepts preview clicks and opens them in the system browser. |
@@ -45,11 +43,12 @@ Entry: `src/js/main.js` (ES module). Every module exports an `initXxx()` that on
 | `src/js/ui/dialogs.js` | Link insert and table-size dialogs. |
 | `src/js/ui/format-toolbar.js` | Format bar: the Heading / List / Table / HTML dropdowns and buttons. |
 | `src/js/ui/scroll-sync.js` | Synchronised editor/preview scrolling plus its on/off button. |
+| `src/js/ui/tabs.js` | The tab strip: renders the open tabs, the unsaved dot, close / new-tab buttons and the Save button state. |
 | `src/js/ui/view-mode.js` | Editor / Split / Preview view modes and the pane divider. |
 
 ### CSS
 
-Load order in `index.html` matters (cascade): tokens -> base -> layout -> format-bar -> dialogs -> toast -> toolbar -> editor -> preview -> print.
+Load order in `index.html` matters (cascade): tokens -> base -> layout -> format-bar -> dialogs -> toast -> toolbar -> tabs -> editor -> preview -> print.
 
 | File | Role |
 |---|---|
@@ -60,6 +59,7 @@ Load order in `index.html` matters (cascade): tokens -> base -> layout -> format
 | `src/css/dialogs.css` | Dialogs: Link / table size and the About ("?") dialog (open / close + view switch animation). Hidden via `visibility` + `pointer-events: none`, never `display: none` — that would kill the transition. |
 | `src/css/toast.css` | Toast notifications. |
 | `src/css/toolbar.css` | Main toolbar: .btn, Export / View dropdowns, view-mode buttons, theme button. |
+| `src/css/tabs.css` | Tab strip above the toolbar. Reuses the `.btn` / `.btn.active` tokens, no new colours. |
 | `src/css/editor.css` | Editing area + the Markdown syntax-highlight classes. |
 | `src/css/preview.css` | Preview area: GFM Alerts, Mermaid, task lists. |
 | `src/css/print.css` | Print / PDF export rules. |
@@ -73,8 +73,16 @@ Other paths:
 ## Module init order
 
 - `initSanitizer()` first: DOMPurify config is a global hook, not a per-call option — render earlier and the output is unsanitised.
-- `loadInitialContent()` last, inside a `finally` (`src/js/main.js:35-58`): it renders, so it must follow `mermaid.initialize()`, `marked.use(katexExt)` and `lucide.createIcons()`, or the first paint shows raw `$$`.
-- `window.renderMarkdown` (`src/js/main.js:60`) is a deliberate global escape hatch — don't re-export it.
+- `initTabs()` before `restoreSession()`: the store emits on restore, and the tab strip must already be subscribed.
+- `restoreSession()` last, inside a `finally` (`src/js/main.js`): it renders, so it must follow `mermaid.initialize()`, `marked.use(katexExt)` and `lucide.createIcons()`, or the first paint shows raw `$$`.
+- `window.renderMarkdown` (`src/js/main.js`) is a deliberate global escape hatch — don't re-export it.
+
+## Tabs gotcha
+
+- Still one textarea. Switching tabs is `markdownInput.value = tab.content`; every module that reads the editor keeps working unchanged. Don't add per-tab DOM.
+- `syncEditorAfterChange()` (`src/js/editor/sync.js`) is the only hook that needs to know a tab exists — it covers `input`, format actions, undo and redo. Add editor behaviour there, not at each call site.
+- `savedContent === null` means "never written to disk" and is therefore always dirty. The session stores only a `dirty` boolean and rebuilds `savedContent` on load — it never re-reads the file, so unsaved drafts survive a restart.
+- Undo stacks are per tab: `switchTab` must `clearTimeout(editorHistory.typingTimer)` before restoring a stack, or the pending timer pushes the new tab's text into the old tab's history.
 
 ## Commands
 

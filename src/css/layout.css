@@ -1,11 +1,14 @@
 /* css/layout.css — Khung ứng dụng: header, workspace, pane, thanh kéo chia pane, 3 chế độ xem, responsive. */
 
-/* Header & Toolbar */
+/* Header & Toolbar
+   Cột: hàng trên là #tab-strip (tabs.css), hàng dưới là .toolbar. Padding nằm ở từng hàng
+   (xem toolbar.css), nên .app-header không padding — nếu không tab bị dính mép. */
 .app-header {
     display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding: 6px 16px;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    padding: 0;
     background-color: var(--header-bg);
     color: var(--header-text);
     min-height: 44px;

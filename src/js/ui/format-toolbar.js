@@ -35,7 +35,7 @@ import {
 } from '../editor/format-actions.js';
 import { wrapHtmlTag } from '../editor/format-helpers.js';
 import { editorHistory } from '../editor/history.js';
-import { saveContentToStorage } from '../editor/storage.js';
+import { saveSession } from '../io/documents.js';
 import { closeDialogs, openTableDialog } from './dialogs.js';
 
 const formatMenus = [
@@ -123,7 +123,7 @@ export function initFormatToolbar() {
             return;
         }
         applyEditorChange('', 0, 0);
-        saveContentToStorage();
+        saveSession();
         showToast('Editor cleared. Press Ctrl+Z to undo.');
     });
 

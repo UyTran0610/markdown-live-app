@@ -7,6 +7,16 @@
     justify-content: flex-end;
     gap: 8px;
     row-gap: 6px;
+    /* .app-header giờ xếp dọc nên padding ngang nằm ở hàng này (tabs.css giữ padding riêng cho tab). */
+    padding: 6px 16px;
+}
+
+/* Nhóm trái (Open / Save / Copy / Export) đẩy hết nhóm phải sang cuối hàng. */
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: auto;
 }
 
 /* Buttons */
@@ -95,6 +105,13 @@
     background: var(--menu-bg);
     box-shadow: var(--menu-shadow);
     z-index: 500;
+}
+
+/* Menu Export nằm ở mép trái: neo theo cạnh trái nút, vì menu rộng hơn nút nên
+   neo `right: 0` (mặc định) sẽ tràn ra ngoài màn hình. #view-menu vẫn neo phải. */
+.export-wrap .export-menu {
+    left: 0;
+    right: auto;
 }
 
 /* Animation mở/đóng menu (Export / View / Heading / List / Table / HTML).

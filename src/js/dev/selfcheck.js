@@ -23,7 +23,7 @@ import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isImportableFile } from '../io/import.js';
+import { isTabDirty, isMarkdownPath, deserializeSession, serializeSession, updateActiveContent } from '../io/documents.js';
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
@@ -76,11 +76,51 @@ export async function runSelfCheck() {
     } else {
         skip('sanitize keeps mermaid labels', 'DOMPurify chưa tải');
     }
-    assert('import gate allows md', isImportableFile({ name: 'a.md', type: '' }) === true);
-    assert('import gate allows mdown', isImportableFile({ name: 'a.mdown', type: '' }) === true);
-    assert('import gate allows mkd', isImportableFile({ name: 'a.mkd', type: '' }) === true);
-    assert('import gate allows extensionless', isImportableFile({ name: 'README', type: '' }) === true);
-    assert('import gate rejects exe', isImportableFile({ name: 'a.exe', type: '' }) === false);
+    assert('open gate allows md', isMarkdownPath('a.md') === true);
+    assert('open gate allows mdown', isMarkdownPath('/x/y/a.mdown') === true);
+    assert('open gate allows mkd', isMarkdownPath('C:\\docs\\a.mkd') === true);
+    assert('open gate allows extensionless', isMarkdownPath('/x/README') === false);
+    assert('open gate rejects exe', isMarkdownPath('a.exe') === false);
+    assert('open gate không nhận đuôi trùng trong tên', isMarkdownPath('a.md.exe') === false);
+
+    // Session: round-trip giữ nguyên tab + tab đang mở, và quy tắc "chưa lưu".
+    (function () {
+        const isTabDirtyNow = (content, savedContent) => savedContent === null || content !== savedContent;
+        // Đúng shape serializeSession() xuất ra: history không lưu, dirty là boolean.
+        const wire = (id, path, name, content, savedContent) => ({
+            id, path, name, content, dirty: isTabDirtyNow(content, savedContent), scrollTop: 0, selStart: 0, selEnd: 0
+        });
+        assert('tab sạch khi content khớp savedContent', isTabDirty({ content: '# A', savedContent: '# A' }) === false);
+        assert('tab dirty khi content khác savedContent', isTabDirty({ content: '# B2', savedContent: '# B' }) === true);
+        assert('tab chưa lưu bao giờ cũng dirty', isTabDirty({ content: 'x', savedContent: null }) === true);
+
+        const back = deserializeSession(JSON.stringify({
+            activeId: 2,
+            tabs: [wire(1, '/a.md', 'a.md', '# A', '# A'), wire(2, '/b.md', 'b.md', '# B2', '# B'), wire(3, null, 'Untitled', 'x', null)]
+        }));
+        assert('session giữ số tab', back.tabs.length === 3);
+        assert('session giữ tab đang mở', back.activeId === 2);
+        assert('session giữ nội dung', back.tabs[1].content === '# B2');
+        assert('session giữ đường dẫn', back.tabs[0].path === '/a.md');
+        assert('tab sạch lúc đóng vẫn sạch sau khi mở lại', isTabDirty(back.tabs[0]) === false);
+        assert('tab sửa lúc đóng vẫn dirty sau khi mở lại', isTabDirty(back.tabs[1]) === true);
+        assert('tab chưa lưu vẫn dirty sau khi mở lại', isTabDirty(back.tabs[2]) === true);
+
+        assert('session không có tab -> null thay vì crash', deserializeSession('{"tabs":[]}') === null);
+        assert('session rỗng -> null', deserializeSession('null') === null);
+        assert('session hỏng -> null thay vì crash', (() => {
+            try { deserializeSession('{khong phai json'); return false; } catch (e) { return true; }
+        })());
+        assert('session thiếu tên/đường dẫn -> điền mặc định', (() => {
+            const r = deserializeSession(JSON.stringify({ activeId: 99, tabs: [{ content: 'y' }] }));
+            return r.activeId === 99 && r.tabs[0].name === 'Untitled' && r.tabs[0].path === null;
+        })());
+
+        // serializeSession() đọc store thật; chỉ kiểm tra nó không nổ và có đủ 2 trường.
+        const live = serializeSession();
+        assert('serialize session trả về shape đúng',
+            typeof live.activeId === 'number' && Array.isArray(live.tabs) && live.tabs.every((t) => 'dirty' in t));
+    })();
     (function () {
         const host = document.createElement('div');
         host.innerHTML = '<blockquote><p>a</p></blockquote><blockquote class="markdown-alert markdown-alert-tip"><p class="markdown-alert-title">Tip</p><p>b</p></blockquote>';
@@ -261,7 +301,7 @@ export async function runSelfCheck() {
         } else {
             skip('render lỗi -> preview hiện văn bản thô', 'marked chưa tải');
         }
-        // Trả editor về nội dung thật TRƯỚC rồi render lại: self-check chạy SAU loadInitialContent() nên
+        // Trả editor về nội dung thật TRƯỚC rồi render lại: self-check chạy SAU restoreSession() nên
         // không còn listener nào render sau, còn không thì preview kẹt ở đoạn probe.
         markdownInput.value = savedValue;
         renderMarkdown();
@@ -414,6 +454,11 @@ export async function runSelfCheck() {
 
     // Đếm theo tiền tố dòng: assert() ghi 'PASS '/'FAIL ', skip() ghi 'SKIP '. Tổng = results.length nên
     // số trên toast luôn khớp số dòng trong console, kể cả khi có guard bị bỏ qua.
+    // Các khối trên gán thẳng markdownInput.value rồi trả lại giá trị cũ, nhưng undo/redo gọi
+    // syncEditorAfterChange() nên store đã ghi nhận giá trị probe. Đồng bộ lại một lần ở đây, nếu không
+    // debounced saveSession của store sẽ ghi nhầm nội dung probe ra localStorage khi app đóng.
+    updateActiveContent(markdownInput.value);
+
     const failed = results.filter(r => r.startsWith('FAIL'));
     const skipped = results.filter(r => r.startsWith('SKIP'));
     const passed = results.length - failed.length - skipped.length;

@@ -11,6 +11,7 @@ import {
 } from './edit.js';
 import { editorHistory } from './history.js';
 import { syncEditorAfterChange } from './sync.js';
+import { cycleTab, saveActiveDoc } from '../io/documents.js';
 
 export function initEditorEvents() {
     markdownInput.addEventListener('keydown', (e) => {
@@ -20,6 +21,19 @@ export function initEditorEvents() {
 
         if (isCmdOrCtrl) {
             const lowerKey = key.toLowerCase();
+
+            // Chuyển tab phải bắt TRƯỚC nhánh Tab thường bên dưới, nếu không Tab sẽ chèn khoảng trắng.
+            if (key === 'Tab') {
+                e.preventDefault();
+                cycleTab(e.shiftKey ? -1 : 1);
+                return;
+            }
+
+            if (lowerKey === 's') {
+                e.preventDefault();
+                saveActiveDoc();
+                return;
+            }
 
             if (lowerKey === 'z' && !e.shiftKey) {
                 e.preventDefault();

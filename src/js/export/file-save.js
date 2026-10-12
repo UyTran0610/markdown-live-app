@@ -60,33 +60,50 @@ const hasTauriBridge = () => !!(tauriDialogPlugin()?.save && tauriFsPlugin()?.wr
 // trùng tên gây SyntaxError làm chết cả file script.
 const isTauriRuntime = () => !!window.__TAURI__;
 
+// Đọc file đã biết đường dẫn (tab được mở từ hộp thoại Open). Cùng ranh giới ACL với writeTextFile:
+// đọc cũng chỉ được trong các thư mục trong scope, nên lỗi phải báo rõ chứ không im lặng trả về rỗng.
+export async function readTextFile(path) {
+    try {
+        return await window.__TAURI__.fs.readTextFile(path);
+    } catch (err) {
+        console.error('Read failed:', err);
+        showToast('Could not read that file. This build can only open files inside your home, Documents, Desktop or Downloads folder.');
+        return null;
+    }
+}
+
+// Ghi đè một file đã biết đường dẫn (tab đang mở có path) — không mở hộp thoại.
+// Dùng chung đoạn bắt lỗi ACL với saveTextFile để thông báo nhất quán.
+export async function writeTextFile(path, contents) {
+    try {
+        await window.__TAURI__.fs.writeTextFile(path, contents);
+        return true;
+    } catch (err) {
+        console.error('Write failed:', err);
+        showToast('Could not write there. This build can only save inside your home, Documents, Desktop or Downloads folder - pick another location.');
+        return false;
+    }
+}
+
 // Lưu văn bản: trong Tauri dùng hộp thoại Save As (plugin dialog) + ghi file (plugin fs); ngoài Tauri
-// fallback <a download>. Trả về true nếu đã lưu, false nếu người dùng bấm Cancel.
+// fallback <a download>. Trả về ĐƯỜNG DẪN đã ghi, hoặc null nếu người dùng hủy / ghi lỗi.
+// (Callers cũ chỉ kiểm tra if (saved) nên đổi false -> null không phá gì.)
 export async function saveTextFile(contents, baseName, ext, mimeType) {
     if (hasTauriBridge()) {
         const path = await window.__TAURI__.dialog.save({
             defaultPath: baseName + '.' + ext,
             filters: [{ name: ext.toUpperCase() + ' file', extensions: [ext] }]
         });
-        if (!path) return false;
-        try {
-            await window.__TAURI__.fs.writeTextFile(path, contents);
-        } catch (err) {
-            // ACL plugin fs chỉ cho ghi trong $HOME (src-tauri/capabilities/default.json) mà hộp thoại Save As hiện cả
-            // ổ đĩa/mạng/USB -> chọn ngoài $HOME bị từ chối. Báo rõ nguyên nhân thay vì lỗi chung chung.
-            console.error('Write failed:', err);
-            showToast('Could not write there. This build can only save inside your home folder - pick another location.');
-            return false;
-        }
-        return true;
+        if (!path) return null;
+        return (await writeTextFile(path, contents)) ? path : null;
     }
 
     // Fallback trình duyệt. Trong WebView Tauri mà thiếu dialog/fs thì <a download> không chạy:
     // báo rõ thay vì im lặng "thành công".
     if (isTauriRuntime()) {
         showToast('Could not save the file: the app\'s file-saving plugin is missing.');
-        return false;
+        return null;
     }
     downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
-    return true;
+    return null;
 }

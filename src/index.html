@@ -45,6 +45,7 @@
     <link rel="stylesheet" href="css/dialogs.css?v=1.5.9">
     <link rel="stylesheet" href="css/toast.css?v=1.5.9">
     <link rel="stylesheet" href="css/toolbar.css?v=1.5.9">
+    <link rel="stylesheet" href="css/tabs.css?v=1.5.9">
     <link rel="stylesheet" href="css/editor.css?v=1.5.9">
     <link rel="stylesheet" href="css/preview.css?v=1.5.9">
     <link rel="stylesheet" href="css/print.css?v=1.5.9">
@@ -62,7 +63,50 @@
 
     <!-- Header / Toolbar -->
     <header class="app-header">
+        <!-- Thanh tab nằm ngay dưới titlebar native, trên toolbar. Không có tên app / logo ở đây. -->
+        <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files"></div>
         <div class="toolbar" role="toolbar" aria-label="Document toolbar">
+            <!-- Nhóm trái: hành động với tài liệu. Nhóm phải: chế độ xem, sync, theme, help. -->
+            <div class="toolbar-group">
+                <button id="btn-import" class="btn" title="Open one or more Markdown files" aria-label="Open files">
+                    <i data-lucide="folder-open"></i>
+                    <span class="btn-label">Open</span>
+                </button>
+                <button id="btn-save" class="btn" title="Save this file (Ctrl+S)" aria-label="Save" disabled>
+                    <i data-lucide="save"></i>
+                    <span class="btn-label">Save</span>
+                </button>
+                <button id="btn-copy" class="btn" title="Copy Markdown content" aria-label="Copy">
+                    <i data-lucide="copy"></i>
+                    <span class="btn-label">Copy</span>
+                </button>
+                <div class="export-wrap">
+                    <button id="btn-export" class="btn" title="Export file (MD / HTML / DOC / PDF)" aria-haspopup="menu" aria-expanded="false" aria-label="Export">
+                        <i data-lucide="file-output"></i>
+                        <span class="btn-label">Export</span>
+                        <i data-lucide="chevron-down" class="chevron"></i>
+                    </button>
+                    <div id="export-menu" class="export-menu hidden" role="menu">
+                        <button id="export-md" class="export-item" role="menuitem" title="Export Markdown file (.md)">
+                            <i data-lucide="file-code"></i>
+                            <span>Markdown (.md)</span>
+                        </button>
+                        <button id="export-html" class="export-item" role="menuitem" title="Export HTML file (.html)">
+                            <i data-lucide="file-code-2"></i>
+                            <span>HTML (.html)</span>
+                        </button>
+                        <button id="export-doc" class="export-item" role="menuitem" title="Export Word file (.doc)">
+                            <i data-lucide="file-text"></i>
+                            <span>Word (.doc)</span>
+                        </button>
+                        <button id="export-pdf" class="export-item" role="menuitem" title="Export PDF via the Print dialog">
+                            <i data-lucide="printer"></i>
+                            <span>Print (.pdf)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="view-wrap">
                 <button id="btn-view" class="btn" title="Switch view mode (Editor / Split / Preview)" aria-haspopup="menu" aria-expanded="false" aria-label="View mode">
                     <i data-lucide="pencil" class="icon-editor"></i>
@@ -93,49 +137,6 @@
                 <i data-lucide="arrow-up-down"></i>
                 <span class="btn-label">Scroll</span>
             </button>
-
-            <div class="format-bar-sep" role="separator"></div>
-
-            <button id="btn-reset" class="btn" title="Restore the default example" aria-label="Reset">
-                <i data-lucide="rotate-ccw"></i>
-                <span class="btn-label">Reset</span>
-            </button>
-            <button id="btn-copy" class="btn" title="Copy Markdown content" aria-label="Copy">
-                <i data-lucide="copy"></i>
-                <span class="btn-label">Copy</span>
-            </button>
-            <button id="btn-import" class="btn" title="Import a Markdown file from your device" aria-label="Import">
-                <i data-lucide="file-up"></i>
-                <span class="btn-label">Import</span>
-            </button>
-            <input type="file" id="import-file" accept=".md,.markdown,.mdown,.mkd,.txt" hidden>
-            <div class="export-wrap">
-                <button id="btn-export" class="btn" title="Export file (MD / HTML / DOC / PDF)" aria-haspopup="menu" aria-expanded="false" aria-label="Export">
-                    <i data-lucide="file-output"></i>
-                    <span class="btn-label">Export</span>
-                    <i data-lucide="chevron-down" class="chevron"></i>
-                </button>
-                <div id="export-menu" class="export-menu hidden" role="menu">
-                    <button id="export-md" class="export-item" role="menuitem" title="Export Markdown file (.md)">
-                        <i data-lucide="file-code"></i>
-                        <span>Markdown (.md)</span>
-                    </button>
-                    <button id="export-html" class="export-item" role="menuitem" title="Export HTML file (.html)">
-                        <i data-lucide="file-code-2"></i>
-                        <span>HTML (.html)</span>
-                    </button>
-                    <button id="export-doc" class="export-item" role="menuitem" title="Export Word file (.doc)">
-                        <i data-lucide="file-text"></i>
-                        <span>Word (.doc)</span>
-                    </button>
-                    <button id="export-pdf" class="export-item" role="menuitem" title="Export PDF via the Print dialog">
-                        <i data-lucide="printer"></i>
-                        <span>Print (.pdf)</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="format-bar-sep" role="separator"></div>
 
             <button id="btn-theme" class="btn" title="Toggle Light / Dark theme" aria-label="Toggle theme">
                 <i data-lucide="sun" class="icon-sun"></i>

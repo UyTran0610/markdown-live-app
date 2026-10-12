@@ -1,11 +1,10 @@
 // js/main.js — Điểm vào của ứng dụng: khởi tạo các module theo đúng thứ tự.
 
 import { runSelfCheck } from './dev/selfcheck.js';
-import { initContentActions, loadInitialContent } from './editor/content.js';
+import { initContentActions } from './editor/content.js';
 import { initEditorEvents } from './editor/events.js';
-import { initContentPersistence } from './editor/storage.js';
 import { initExportMenu } from './export/menu.js';
-import { initImport } from './io/import.js';
+import { initDocuments, restoreSession } from './io/documents.js';
 import { initPreviewLinks } from './preview/links.js';
 import { renderMarkdown } from './preview/render.js';
 import { initSanitizer } from './preview/sanitize.js';
@@ -14,6 +13,7 @@ import { initAbout } from './ui/about.js';
 import { initDialogs } from './ui/dialogs.js';
 import { initFormatToolbar } from './ui/format-toolbar.js';
 import { initScrollSync } from './ui/scroll-sync.js';
+import { initTabs } from './ui/tabs.js';
 import { initViewMode } from './ui/view-mode.js';
 
 initSanitizer();
@@ -27,8 +27,8 @@ initExportMenu();
 initFormatToolbar();
 initDialogs();
 initAbout();
-initImport();
-initContentPersistence();
+initTabs();
+initDocuments();
 
 window.addEventListener('DOMContentLoaded', () => {
     try {
@@ -51,7 +51,7 @@ window.addEventListener('DOMContentLoaded', () => {
         // Nạp nội dung CUỐI: renderMarkdown() đầu tiên phải chạy sau khi mermaid initialize và marked gắn
         // KaTeX extension, nếu không công thức ($...$ / $$...$$) lần mở đầu chỉ hiện chữ thô. Đặt trong finally
         // để editor vẫn có nội dung dù khối init bên trên ném lỗi.
-        loadInitialContent();
+        restoreSession();
     }
 });
 

@@ -124,7 +124,6 @@ After launching the application, type or paste your Markdown content into the **
 | :--- | :--- |
 | **View** | Switch between **Editor**, **Split**, and **Preview** modes |
 | **Sync Scroll** | Toggle synchronized scrolling between Editor and Preview |
-| **Reset** | Restore the default template content (confirmation required) |
 | **Copy** | Copy the full raw Markdown content to the clipboard |
 | **Import** | Load a Markdown file from your device into the editor |
 | **Export** | Open a menu to export content as **Markdown** (`.md`), **HTML** (`.html`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |

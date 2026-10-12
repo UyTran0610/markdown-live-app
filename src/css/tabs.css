@@ -1,27 +1,82 @@
-/* css/tabs.css — Thanh tab đang mở, nằm trên toolbar trong .app-header.
-   Dùng lại đúng token của .btn / .btn.active (toolbar.css) để tab không lệch màu với phần còn lại. */
+/* css/tabs.css — Thanh tab đang mở: nằm trong .titlebar (layout.css), cùng hàng với vùng kéo
+   cửa sổ và 3 nút cửa sổ tự vẽ. Dùng lại đúng token của .btn / .btn.active (toolbar.css) để tab
+   không lệch màu với phần còn lại. */
 
-/* Cuộn ngang khi mở nhiều tab. Thanh cuộn mảnh (không ẩn) để thấy còn bao nhiêu tab khuất. */
+/* Cuộn ngang khi mở nhiều tab.
+   Thanh cuộn KHÔNG chiếm chỗ (height: 0) và KHÔNG dùng scrollbar-width: mọi thanh cuộn có
+   mặt trong hàng titlebar 34px đều ăn mất 4px đáy (thin ~11px còn ăn nhiều hơn), làm tab
+   bị đẩy lên và mất viền dưới — tab sẽ nhảy 4px đúng lúc mở tới tab đầu tiên bị tràn.
+   Cuộn vẫn đủ cách: lăn chuột / trackpad (initTabs map deltaY sang scrollLeft), Ctrl+Tab,
+   và tab đang mở luôn được kéo vào khung nhìn sau mỗi lần store emit. */
 .tabs {
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    padding: 4px 8px 0;
+    /* 4 + 26 + 4 = 34 = đúng hàng titlebar (layout.css): tab luôn cách trên/dưới 4px,
+       viền bao quanh trọn tab không dính vào đường kẻ của toolbar bên dưới. */
+    padding: 4px 8px;
     overflow-x: auto;
-    scrollbar-width: thin;
 }
 
 .tabs::-webkit-scrollbar {
-    height: 4px;
+    height: 0;
 }
 
-.tabs::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 2px;
+/* Tab bị khuất cần một chỉ báo nhìn thấy được. Fade 2 mép chỉ bật ở mép đang còn tab bị cắt
+   (class do tabs.js bật/tắt): bật sẵn vô điều kiện sẽ fade luôn nút "+" ở mép phải dù
+   không tab nào bị khuất. */
+.tabs.can-left {
+    mask-image: linear-gradient(90deg, transparent 0, #000 16px);
 }
 
-.tabs::-webkit-scrollbar-track {
+.tabs.can-right {
+    mask-image: linear-gradient(90deg, #000 calc(100% - 16px), transparent 100%);
+}
+
+.tabs.can-left.can-right {
+    mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+}
+
+/* Hai nút cuộn dải tab, nằm ngoài #tab-strip (index.html) nên không dính data-tauri-drag-region.
+   Cùng bề rộng hàng titlebar 34px, chỉ hiện khi dải tab tràn (tabs.js bật/tắt [hidden]). */
+.tabs-nav {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: stretch;
+}
+
+.tabs-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 100%;
+    padding: 0;
+    border: none;
     background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.tabs-nav-btn:hover:not(:disabled) {
+    background: var(--btn-bg-hover);
+    color: var(--btn-text-hover);
+}
+
+.tabs-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+/* display:inline-flex ở trên đè [hidden] của user-agent, phải khai báo lại. */
+.tabs-nav-btn[hidden] {
+    display: none;
+}
+
+.tabs-nav-btn:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: -2px;
 }
 
 .tab {
@@ -32,9 +87,12 @@
     max-width: 220px;
     height: 26px;
     padding: 0 8px;
-    border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
+    /* Viền bao quanh trọn tab (đủ 4 cạnh, bo cả 4 góc): tab không còn dán liền
+       xuống hàng dưới như kiểu tab gắn vào nội dung. Mọi tab đều có viền, tab active
+       mới đậm màu hơn (xem .tab.active) — trước đây viền là transparent nên tab không
+       active không có gì để nhìn ở tràn nhiều tab. */
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     background: transparent;
     color: var(--btn-text);
     font-family: inherit;
@@ -52,7 +110,7 @@
 
 .tab.active {
     background: var(--pane-bg);
-    border-color: var(--border-color);
+    border-color: var(--text-secondary);
     color: var(--text-primary);
 }
 
@@ -101,25 +159,20 @@
     }
 }
 
+/* Dấu X không ẩn hẳn: luôn hiện đủ đậm (--text-secondary) để affordance đóng tab
+   thấy được khi không hover và không có chuột. */
 .tab-close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     border-radius: 4px;
-    color: var(--text-muted);
-    font-size: 14px;
+    color: var(--text-secondary);
+    font-size: 15px;
     line-height: 1;
-    opacity: 0.6;
-    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
-}
-
-/* Không ẩn hẳn nút đóng: giữ 0.6 để affordance còn thấy khi không hover / không có chuột. */
-.tab:hover .tab-close,
-.tab:focus-within .tab-close {
-    opacity: 1;
+    transition: background-color 0.15s, color 0.15s;
 }
 
 .tab-close:hover {
@@ -133,7 +186,7 @@
     height: 26px;
     margin-left: 2px;
     border: 1px solid transparent;
-    border-radius: 6px 6px 0 0;
+    border-radius: 6px;
     background: transparent;
     color: var(--text-muted);
     font-family: inherit;

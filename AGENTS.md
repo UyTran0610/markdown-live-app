@@ -45,6 +45,7 @@ Entry: `src/js/main.js` (ES module). Every module exports an `initXxx()` that on
 | `src/js/ui/scroll-sync.js` | Synchronised editor/preview scrolling plus its on/off button. |
 | `src/js/ui/tabs.js` | The tab strip: renders the open tabs, the unsaved dot, close / new-tab buttons and the Save button state. |
 | `src/js/ui/view-mode.js` | Editor / Split / Preview view modes and the pane divider. |
+| `src/js/ui/window-controls.js` | The self-drawn titlebar's Minimize / Maximize-Restore / Close buttons (native frame is off) and the maximize-state glyph. |
 
 ### CSS
 
@@ -54,7 +55,7 @@ Load order in `index.html` matters (cascade): tokens -> base -> layout -> format
 |---|---|
 | `src/css/tokens.css` | Colour variables (design tokens) for Light / Dark theme. |
 | `src/css/base.css` | Reset and `<body>` background. |
-| `src/css/layout.css` | App shell: header, workspace, panes, pane divider, 3 view modes, responsive. |
+| `src/css/layout.css` | App shell: header — self-drawn titlebar (drag region, tab strip, window buttons) above the toolbar — workspace, panes, pane divider, 3 view modes, responsive. |
 | `src/css/format-bar.css` | Markdown format bar above the editor (icon buttons, dropdowns, table grid picker). |
 | `src/css/dialogs.css` | Dialogs: Link / table size and the About ("?") dialog (open / close + view switch animation). Hidden via `visibility` + `pointer-events: none`, never `display: none` — that would kill the transition. |
 | `src/css/toast.css` | Toast notifications. |
@@ -99,5 +100,7 @@ Other paths:
 ## Tauri config notes
 
 - New plugin permissions go in `src-tauri/capabilities/default.json`, never in Rust code. `frontendDist` is `../src`, targets `nsis`/`msi`.
+- The main window is `"decorations": false`, so Windows draws no titlebar (no app icon, no title, no buttons): the app draws that row itself (`.titlebar` in `src/css/layout.css`, markup in `index.html`): app icon (icon only, no title text), tab strip, drag region, window buttons. `data-tauri-drag-region` goes on the exact elements that may be dragged (`#tab-strip`, `.titlebar-drag`) — the attribute is not inherited by children, and putting it on the `.titlebar` container would turn the tabs and the buttons into drag handles. Drag, minimize, maximize/restore and close run through `core:window:allow-start-dragging`, `allow-minimize`, `allow-toggle-maximize` and `allow-close`; double-click on the drag region is Tauri's own `internal-toggle-maximize`, already covered by `core:default`.
+- Price of dropping the native frame: Windows 11 Snap Layouts on hovering the Maximize button is gone (it needs a native `WM_NCHITTEST`/`HTMAXBUTTON` hit test, i.e. a Rust plugin). `Win` + arrow snapping is expected to keep working but is unverified here.
 - CSP stays `null`, so XSS defence is JS's job: fail-closed DOMPurify, Mermaid re-sanitize, external-URL allowlist.
 - Vendor scripts stay `defer` in order: lucide, marked, purify, highlight, mermaid, katex, marked-katex-extension.

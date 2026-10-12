@@ -1,6 +1,6 @@
 // js/ui/tabs.js — Thanh tab: dựng lại từ store mỗi khi store đổi, gắn thao tác bấm / middle-click.
 
-import { btnSave, tabStrip } from '../core/dom.js';
+import { btnSave, btnTabScrollLeft, btnTabScrollRight, tabStrip } from '../core/dom.js';
 import { closeTab, getActiveTab, getTabs, isTabDirty, newTab, subscribe, switchTab } from '../io/documents.js';
 
 // Dùng ký tự "×" chứ không phải icon lucide: lucide.createIcons() chỉ chạy một lần lúc DOMContentLoaded,
@@ -38,6 +38,29 @@ function buildTab(tab, isActive) {
 // Ids đã có ở lần render trước: chỉ tab mới mới được class .tab-enter, vì cả dải tab
 // bị replaceChildren() mỗi lần store emit — animation trên mọi tab sẽ nháy lại liên tục.
 let seenIds = new Set();
+
+// Trạng thái cuộn dải tab, tách khỏi DOM để self-check kiểm được:
+// canScroll = dải tab tràn, left/right = còn tab bị khuất ở mép tương ứng.
+export function tabScrollState(scrollWidth, clientWidth, scrollLeft) {
+    const max = scrollWidth - clientWidth;
+    return { canScroll: max > 0, left: scrollLeft > 0, right: scrollLeft < max };
+}
+
+// Tab bị khuất thì fade ở mép tương ứng (tabs.css) và bật nút cuộn về hướng đó.
+// Nút ở hướng đã hết cần cuộn bị disable thay vì ẩn: cặp nút luôn cùng hiện/ẩn.
+function updateOverflow() {
+    const state = tabScrollState(tabStrip.scrollWidth, tabStrip.clientWidth, tabStrip.scrollLeft);
+    tabStrip.classList.toggle('can-left', state.left);
+    tabStrip.classList.toggle('can-right', state.right);
+    if (btnTabScrollLeft) {
+        btnTabScrollLeft.hidden = !state.canScroll;
+        btnTabScrollLeft.disabled = !state.left;
+    }
+    if (btnTabScrollRight) {
+        btnTabScrollRight.hidden = !state.canScroll;
+        btnTabScrollRight.disabled = !state.right;
+    }
+}
 
 function render() {
     const active = getActiveTab();
@@ -78,9 +101,12 @@ function render() {
 
     // Dải tab vừa được dựng lại từ đầu nên mất vị trí cuộn: kéo tab active vào khung nhìn.
     tabStrip.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    updateOverflow();
 
     seenIds = ids;
 }
+
+const SCROLL_STEP = 120;
 
 export function initTabs() {
     subscribe(render);
@@ -92,4 +118,14 @@ export function initTabs() {
         e.preventDefault();
         tabStrip.scrollLeft += e.deltaY;
     }, { passive: false });
+
+    // Cuộn bằng nút ‹ ›: chuột không lăn dọc thì đây là đường duy nhất tới tab bị khuất.
+    // Không gọi updateOverflow() ở đây: sự kiện scroll của dải tab đã gọi rồi.
+    btnTabScrollLeft?.addEventListener('click', () => { tabStrip.scrollLeft -= SCROLL_STEP; });
+    btnTabScrollRight?.addEventListener('click', () => { tabStrip.scrollLeft += SCROLL_STEP; });
+    tabStrip.addEventListener('scroll', updateOverflow);
+
+    // Bề rộng dải tab đổi theo số tab, theo maximize/restore và theo kéo cửa sổ; ResizeObserver
+    // bắt hết ba trường hợp nên không cần nghe resize.
+    new ResizeObserver(updateOverflow).observe(tabStrip);
 }

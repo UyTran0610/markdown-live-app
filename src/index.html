@@ -63,8 +63,41 @@
 
     <!-- Header / Toolbar -->
     <header class="app-header">
-        <!-- Thanh tab nằm ngay dưới titlebar native, trên toolbar. Không có tên app / logo ở đây. -->
-        <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files"></div>
+        <!-- Thanh tab thay chỗ icon + tên app của titlebar native (khung native đã tắt:
+             tauri.conf.json "decorations": false). Một hàng: dải tab, vùng kéo cửa sổ, 3 nút cửa sổ.
+             Không có tên app / logo ở đây. -->
+        <div class="titlebar">
+            <!-- data-tauri-drag-region chỉ đặt trên ĐÚNG phần tử cần kéo: thuộc tính không kế thừa
+                 cho con, nên đặt lên .titlebar cha sẽ biến cả tab lẫn nút thành vùng kéo. -->
+            <!-- Icon app quay lại trên cùng như titlebar native cũ, nhưng chỉ icon, không tên app.
+                 draggable="false": .titlebar đã user-select: none nhưng ảnh vẫn bị kéo thả kiểu HTML5. -->
+            <img class="titlebar-icon" src="assets/icon-128.png" alt="" draggable="false">
+            <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files" data-tauri-drag-region></div>
+            <!-- Vùng kéo dự phòng: dải tab co lại nhường chỗ cho nó khi mở nhiều tab. -->
+            <div class="titlebar-drag" data-tauri-drag-region></div>
+            <!-- 2 nút cuộn dải tab, chỉ hiện khi tab tràn (tabs.js bật/tắt [hidden]).
+                 Đặt ngoài #tab-strip để không dính data-tauri-drag-region. -->
+            <div class="tabs-nav">
+                <button id="tab-scroll-left" class="tabs-nav-btn" type="button" title="Scroll tabs left" aria-label="Scroll tabs left" hidden>
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <button id="tab-scroll-right" class="tabs-nav-btn" type="button" title="Scroll tabs right" aria-label="Scroll tabs right" hidden>
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+            <div class="window-controls">
+                <button id="win-min" class="win-btn" type="button" title="Minimize" aria-label="Minimize">
+                    <i data-lucide="minus"></i>
+                </button>
+                <button id="win-max" class="win-btn" type="button" title="Maximize / Restore" aria-label="Maximize or restore">
+                    <i data-lucide="square" class="icon-max"></i>
+                    <i data-lucide="copy" class="icon-restore"></i>
+                </button>
+                <button id="win-close" class="win-btn win-close" type="button" title="Close" aria-label="Close">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+        </div>
         <div class="toolbar" role="toolbar" aria-label="Document toolbar">
             <!-- Nhóm trái: hành động với tài liệu. Nhóm phải: chế độ xem, sync, theme, help. -->
             <div class="toolbar-group">

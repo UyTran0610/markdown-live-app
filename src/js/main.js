@@ -15,6 +15,7 @@ import { initFormatToolbar } from './ui/format-toolbar.js';
 import { initScrollSync } from './ui/scroll-sync.js';
 import { initTabs } from './ui/tabs.js';
 import { initViewMode } from './ui/view-mode.js';
+import { initWindowControls } from './ui/window-controls.js';
 
 initSanitizer();
 initTheme();
@@ -22,6 +23,7 @@ initEditorEvents();
 initScrollSync();
 initPreviewLinks();
 initViewMode();
+initWindowControls();
 initContentActions();
 initExportMenu();
 initFormatToolbar();

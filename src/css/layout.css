@@ -1,8 +1,9 @@
 /* css/layout.css — Khung ứng dụng: header, workspace, pane, thanh kéo chia pane, 3 chế độ xem, responsive. */
 
 /* Header & Toolbar
-   Cột: hàng trên là #tab-strip (tabs.css), hàng dưới là .toolbar. Padding nằm ở từng hàng
-   (xem toolbar.css), nên .app-header không padding — nếu không tab bị dính mép. */
+   Cột: hàng trên là .titlebar (vùng kéo cửa sổ + #tab-strip + 3 nút cửa sổ tự vẽ), hàng dưới
+   là .toolbar. Padding nằm ở từng hàng (xem toolbar.css và .titlebar bên dưới), nên .app-header
+   không padding — nếu không tab bị dính mép. */
 .app-header {
     display: flex;
     flex-direction: column;
@@ -11,7 +12,6 @@
     padding: 0;
     background-color: var(--header-bg);
     color: var(--header-text);
-    min-height: 44px;
     height: auto;
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
@@ -137,4 +137,103 @@ body.view-editor .editor-pane {
     body.resizing {
         cursor: row-resize;
     }
+}
+
+/* ==========================================================================
+   Titlebar tự vẽ — khung cửa sổ native đã tắt (tauri.conf.json "decorations": false),
+   nên hàng này phải tự lo cả vùng kéo lẫn 3 nút cửa sổ.
+   Một hàng: [dải tab][vùng kéo][thu nhỏ / phóng to / đóng].
+   ========================================================================== */
+.titlebar {
+    display: flex;
+    align-items: stretch;
+    height: 34px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Icon app (chỉ icon, không tên app) — đúng chỗ titlebar native cũ đặt nó: sát mép trái.
+   16px cho gọn bằng hàng tab cao 26px + 2 * 4px padding. */
+.titlebar-icon {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 16px;
+    height: 16px;
+    margin: 0 2px 0 10px;
+    -webkit-user-drag: none;
+}
+
+/* Dải tab co lại và tự cuộn ngang (tabs.css); phần trống còn lại thuộc .titlebar-drag nên
+   vùng kéo không bao giờ bị tab chiếm hết. */
+.titlebar .tabs {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.titlebar-drag {
+    flex: 1 1 24px;
+    min-width: 24px;
+}
+
+.window-controls {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: stretch;
+}
+
+.win-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    cursor: default;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.win-btn:hover {
+    background: var(--btn-bg-hover);
+    color: var(--text-primary);
+}
+
+.win-btn:active {
+    background: var(--btn-bg-pressed);
+}
+
+.win-btn:focus-visible {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: -2px;
+}
+
+/* Glyph nhỏ hơn icon toolbar (14 vs 15) cho giống tỉ lệ nút caption của Windows. */
+.win-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* Đóng: đỏ Windows 11 giống nhau ở cả 2 theme nên không tạo token riêng. */
+.win-close:hover,
+.win-close:active {
+    background: #c42b1c;
+    color: #ffffff;
+}
+
+/* Nút giữa đổi glyph theo trạng thái cửa sổ. .is-maximized do js/ui/window-controls.js gắn
+   lên .titlebar (cùng pattern ẩn/hiện icon của #btn-theme, vì lucide chỉ vẽ icon một lần). */
+.window-controls .icon-restore {
+    display: none;
+}
+
+.titlebar.is-maximized .window-controls .icon-max {
+    display: none;
+}
+
+.titlebar.is-maximized .window-controls .icon-restore {
+    display: inline-flex;
 }

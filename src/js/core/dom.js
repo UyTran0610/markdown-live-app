@@ -21,6 +21,18 @@ export const btnSave = document.getElementById('btn-save');
 
 export const tabStrip = document.getElementById('tab-strip');
 
+export const btnTabScrollLeft = document.getElementById('tab-scroll-left');
+
+export const btnTabScrollRight = document.getElementById('tab-scroll-right');
+
+export const titlebar = document.querySelector('.titlebar');
+
+export const btnWinMin = document.getElementById('win-min');
+
+export const btnWinMax = document.getElementById('win-max');
+
+export const btnWinClose = document.getElementById('win-close');
+
 export const btnExport = document.getElementById('btn-export');
 
 export const exportWrap = document.querySelector('.export-wrap');

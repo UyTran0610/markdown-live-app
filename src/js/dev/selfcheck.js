@@ -27,6 +27,7 @@ import { isTabDirty, isMarkdownPath, deserializeSession, serializeSession, updat
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
+import { tabScrollState } from '../ui/tabs.js';
 import {
     SPLIT_MAX_PERCENT,
     SPLIT_MIN_PERCENT,
@@ -50,6 +51,15 @@ export async function runSelfCheck() {
     assert('filename giữ H1 tiếng Nga', deriveExportBaseName('# Отчёт за Q3') === 'отчёт-за-q3');
     assert('filename loại ký tự cấm trong tên file', deriveExportBaseName('# a/b:c*d?e"f<g>h|i') === 'abcdefghi');
     assert('filename bỏ heading trong code fence', deriveExportBaseName('```md\n# comment\n```\n\n# Real Title') === 'real-title');
+
+    (function () {
+        const noOverflow = tabScrollState(400, 400, 0);
+        assert('tab không tràn -> không fade, không nút cuộn', !noOverflow.canScroll && !noOverflow.left && !noOverflow.right);
+        const mid = tabScrollState(1000, 400, 100);
+        assert('tab tràn giữa chừng -> fade + nút ở cả hai mép', mid.canScroll && mid.left && mid.right);
+        const end = tabScrollState(1000, 400, 600);
+        assert('tab cuộn hết sang phải -> tắt nút phải', end.canScroll && end.left && !end.right);
+    })();
 
     assert('split clamp dưới ngưỡng', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);
     assert('split clamp trên ngưỡng', computeSplitPercent(9999, 1000) === SPLIT_MAX_PERCENT);

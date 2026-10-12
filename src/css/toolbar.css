@@ -19,6 +19,14 @@
     margin-right: auto;
 }
 
+/* Nhóm trái hiển thị như menu chữ (kiểu Typora / VS Code): chỉ chữ, không icon,
+   không viền — kể cả khi hover. Nhóm phải (View / Scroll / Theme / ?) giữ nguyên
+   nút có viền như hiện tại. */
+.toolbar-group .btn,
+.toolbar-group .btn:hover {
+    border-color: transparent;
+}
+
 /* Buttons */
 .btn {
     display: inline-flex;

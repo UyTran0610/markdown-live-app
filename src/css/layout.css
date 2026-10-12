@@ -109,21 +109,6 @@ body.view-editor .editor-pane {
     border-right: 1px solid var(--border-color);
 }
 
-.pane-header {
-    background-color: var(--pane-header-bg);
-    padding: 4px 16px;
-    font-size: 0.72rem;
-    line-height: 1.4;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: var(--pane-header-text);
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
-}
-
 /* Responsive (Chuyển sang dạng dọc trên màn hình nhỏ) */
 @media (max-width: 768px) {
     .workspace {

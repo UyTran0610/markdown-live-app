@@ -48,7 +48,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Dynamic Syntax Overlay:** Textarea synchronized with real-time Markdown syntax highlighting directly in the editor.
 - **Full Editing Toolkit:** A dedicated toolbar for Undo/Redo/Clear, Headings, Lists, Bold, Italic, Strikethrough, Links, Tables, inline HTML tags (Superscript, Subscript, `<kbd>`, `<mark>`), inline/block code, inline/block math, Blockquotes, and Mermaid diagram snippets — no need to memorize the syntax.
 - **Visual Table & Link Insertion:** Build tables by hovering a 5×5 grid (or pick a custom size for larger tables), and insert links through a dialog with separate text/URL fields.
-- **Live Character Counter:** The editor pane header shows a real-time character count as you type.
+- **Live Character Counter:** The right end of the formatting toolbar shows a real-time character count as you type.
 - **Multi-Format Export:** Export content as Markdown (`.md`), standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
 - **File Import:** Open a local Markdown file (`.md`, `.markdown`, `.txt`) directly into the editor.
 - **Light/Dark Theme:** Automatic system theme detection, manual theme switching, and state persistence between sessions.

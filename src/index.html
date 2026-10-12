@@ -153,10 +153,6 @@
     <main class="workspace">
         <!-- Editor Column -->
         <section class="pane editor-pane">
-            <div class="pane-header">
-                <span>EDITOR</span>
-                <span id="char-counter" class="counter">0 characters</span>
-            </div>
             <div class="format-bar" role="toolbar" aria-label="Formatting toolbar">
                 <button id="btn-undo" class="btn-icon" title="Undo (Ctrl+Z)" aria-label="Undo">
                     <i data-lucide="undo-2"></i>
@@ -249,6 +245,9 @@
                 <button id="btn-mermaid" class="btn-icon" title="Mermaid diagram" aria-label="Mermaid diagram">
                     <i data-lucide="workflow"></i>
                 </button>
+                <!-- Số ký tự: header EDITOR/PREVIEW đã bỏ nên counter nằm ở cuối thanh định dạng
+                     (canh phải bằng margin-left: auto, xem css/format-bar.css). -->
+                <span id="char-counter" class="counter">0 characters</span>
             </div>
             <div class="editor-container">
                 <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"><code id="editor-highlight-code"></code></pre>
@@ -261,7 +260,6 @@
 
         <!-- Preview Column -->
         <section class="pane preview-pane">
-            <div class="pane-header">PREVIEW</div>
             <div id="preview-output" class="markdown-body"></div>
         </section>
     </main>

@@ -48,7 +48,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Dynamic Syntax Overlay:** Khung textarea được xử lý đồng bộ màu cú pháp Markdown trực tiếp.
 - **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ với Undo/Redo/Clear, Tiêu đề, Danh sách, In đậm, In nghiêng, Gạch ngang, Liên kết, Bảng, các thẻ HTML nội dòng (Superscript, Subscript, `<kbd>`, `<mark>`), code/công thức nội dòng và dạng khối, Blockquote, và mẫu sơ đồ Mermaid — không cần nhớ cú pháp.
 - **Chèn bảng & liên kết trực quan:** Dựng bảng bằng cách rê chuột trên lưới 5×5 (hoặc chọn kích thước tùy chỉnh cho bảng lớn hơn), và chèn liên kết qua hộp thoại riêng với ô nhập văn bản/URL.
-- **Đếm ký tự trực tiếp:** Phần đầu khung EDITOR hiển thị số ký tự theo thời gian thực khi bạn gõ.
+- **Đếm ký tự trực tiếp:** Cuối thanh định dạng hiển thị số ký tự theo thời gian thực khi bạn gõ.
 - **Multi-Format Export:** Xuất nội dung ra Markdown (`.md`), HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
 - **File Import:** Mở file Markdown từ máy tính (`.md`, `.markdown`, `.txt`) trực tiếp vào trình soạn thảo.
 - **Light/Dark Theme:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ lựa chọn giữa các lần mở ứng dụng.

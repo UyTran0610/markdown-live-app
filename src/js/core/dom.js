@@ -39,8 +39,6 @@ export const exportWrap = document.querySelector('.export-wrap');
 
 export const exportMenu = document.getElementById('export-menu');
 
-export const exportMdBtn = document.getElementById('export-md');
-
 export const exportHtmlBtn = document.getElementById('export-html');
 
 export const exportDocBtn = document.getElementById('export-doc');

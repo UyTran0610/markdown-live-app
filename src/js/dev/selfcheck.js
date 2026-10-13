@@ -27,7 +27,7 @@ import { isTabDirty, isMarkdownPath, deserializeSession, serializeSession, updat
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
-import { tabScrollState } from '../ui/tabs.js';
+import { dropIndex, tabScrollState } from '../ui/tabs.js';
 import {
     SPLIT_MAX_PERCENT,
     SPLIT_MIN_PERCENT,
@@ -59,6 +59,14 @@ export async function runSelfCheck() {
         assert('tab tràn giữa chừng -> fade + nút ở cả hai mép', mid.canScroll && mid.left && mid.right);
         const end = tabScrollState(1000, 400, 600);
         assert('tab cuộn hết sang phải -> tắt nút phải', end.canScroll && end.left && !end.right);
+    })();
+
+    (function () {
+        const rects = [{ left: 0, width: 100 }, { left: 100, width: 100 }, { left: 200, width: 100 }];
+        assert('kéo sang trái mép giữa -> chèn đầu', dropIndex(rects, 40) === 0);
+        assert('kéo sang phải mép giữa -> chèn sau', dropIndex(rects, 60) === 1);
+        assert('kéo quá mép phải -> chèn cuối', dropIndex(rects, 900) === 3);
+        assert('không còn tab nào -> chèn cuối', dropIndex([], 120) === 0);
     })();
 
     assert('split clamp dưới ngưỡng', computeSplitPercent(-50, 1000) === SPLIT_MIN_PERCENT);

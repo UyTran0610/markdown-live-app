@@ -1,19 +1,16 @@
-// js/export/menu.js — Menu thả xuống Export và các nút xuất file (.md và PDF xuất thẳng ở đây; HTML/DOC có module riêng).
+// js/export/menu.js — Menu thả xuống Export và các nút xuất file (PDF xuất thẳng ở đây; HTML/DOC có module riêng).
 
 import {
     btnExport,
     exportDocBtn,
     exportHtmlBtn,
-    exportMdBtn,
     exportMenu,
     exportPdfBtn,
-    exportWrap,
-    markdownInput
+    exportWrap
 } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 import { exportDoc } from './doc.js';
-import { deriveExportBaseName, saveTextFile } from './file-save.js';
 import { exportHtml } from './html.js';
 
 function closeExportMenu() {
@@ -37,21 +34,6 @@ export function makeExclusive(fn) {
     };
 }
 
-async function exportMarkdown() {
-    const text = markdownInput.value;
-    if (!text.trim()) {
-        showToast("Content is empty, nothing to export.");
-        return;
-    }
-    try {
-        const saved = await saveTextFile(text, deriveExportBaseName(text), 'md', 'text/markdown;charset=utf-8');
-        if (saved) showToast("Markdown file exported!");
-    } catch (err) {
-        console.error('Markdown export failed:', err);
-        showToast("An error occurred while exporting the Markdown file.");
-    }
-}
-
 // PDF = hộp thoại In của hệ điều hành: render lại và chờ Mermaid + font xong rồi mới window.print().
 async function exportPdf() {
     showToast("Preparing the print page / exporting PDF...");
@@ -65,7 +47,7 @@ async function exportPdf() {
     window.print();
 }
 
-const exportButtons = [exportMdBtn, exportHtmlBtn, exportDocBtn, exportPdfBtn];
+const exportButtons = [exportHtmlBtn, exportDocBtn, exportPdfBtn];
 
 function setExportDisabled(disabled) {
     exportButtons.forEach((btn) => { btn.disabled = disabled; });
@@ -101,8 +83,6 @@ export function initExportMenu() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeExportMenu();
     });
-
-    exportMdBtn.addEventListener('click', () => { runExport(exportMarkdown); });
 
     exportHtmlBtn.addEventListener('click', () => { runExport(exportHtml); });
 

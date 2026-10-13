@@ -141,6 +141,19 @@ export function cycleTab(step) {
     switchTab(tabs[(i + step + tabs.length) % tabs.length].id);
 }
 
+// Đổi chỗ một tab: thứ tự trong mảng `tabs` chính là thứ tự hiển thị và thứ tự lưu vào
+// session, nên chỉ cần splice rồi emit — không cần trường order riêng.
+// `toIndex` tính trên danh sách ĐÃ bỏ tab đang kéo (tabs.js truyền vào đúng nghĩa đó).
+export function moveTab(id, toIndex) {
+    const from = tabs.findIndex((tab) => tab.id === id);
+    if (from < 0) return;
+    const to = Math.max(0, Math.min(toIndex, tabs.length - 1));
+    if (from === to) return;
+    tabs.splice(to, 0, tabs.splice(from, 1)[0]);
+    emit();
+    saveSession();
+}
+
 export function newTab() {
     captureActive();
     const tab = createTab({ content: '', savedContent: null });

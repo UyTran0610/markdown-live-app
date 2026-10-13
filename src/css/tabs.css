@@ -37,8 +37,8 @@
     mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }
 
-/* Hai nút cuộn dải tab, nằm ngoài #tab-strip (index.html) nên không dính data-tauri-drag-region.
-   Cùng bề rộng hàng titlebar 34px, chỉ hiện khi dải tab tràn (tabs.js bật/tắt [hidden]). */
+/* Hai nút cuộn dải tab, nằm ngoài #tab-strip (index.html) nên chắc chắn không phải vùng kéo
+   cửa sổ. Cùng bề rộng hàng titlebar 34px, chỉ hiện khi dải tab tràn (tabs.js bật/tắt [hidden]). */
 .tabs-nav {
     display: flex;
     flex: 0 0 auto;
@@ -207,10 +207,53 @@
     outline-offset: -2px;
 }
 
+/* ==== Kéo tab để đổi thứ tự (tabs.js) ==== */
+/* Ô trống hộ chỗ cho tab đang kéo: rộng bằng tab gốc (đặt inline), nên các tab khác
+   trượt theo đúng khoảng trống mà tab kéo sẽ nằm vào. */
+.tab-slot {
+    flex: 0 0 auto;
+    height: 26px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+}
+
+/* Tab đang kéo: nhấc ra khỏi luồng (position: fixed) và bám chuột bằng transform.
+   pointer-events: none để chuột đi xuyên xuống dải tab thay vì bị dính vào nó. */
+.tab-dragging {
+    position: fixed;
+    z-index: 60;
+    pointer-events: none;
+    cursor: grabbing;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    opacity: 0.92;
+}
+
+.tabs.reordering {
+    cursor: grabbing;
+}
+
+/* Tab đang kéo là position: fixed nên không bị overflow cắt, nhưng vẫn dính mask ở mép
+   (mask áp cho cả con) — tắt trong lúc kéo để tab kéo không bị mờ khi kéo sát biên. */
+.tabs.reordering.can-left,
+.tabs.reordering.can-right {
+    mask-image: none;
+}
+
+/* Chỉ tab bị đẩy mới trượt; tab đang kéo phải bám chuột tức thì nên không có transition. */
+.tabs.reordering .tab:not(.tab-dragging),
+.tabs.reordering .tab-slot {
+    transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
 /* Windows: Settings > Accessibility > Visual effects > Animation effects off —
    tắt chuyển động vào của tab, hover / đóng tab vẫn hoạt động y như thường. */
 @media (prefers-reduced-motion: reduce) {
     .tab-enter {
         animation: none;
+    }
+
+    .tabs.reordering .tab:not(.tab-dragging),
+    .tabs.reordering .tab-slot {
+        transition: none;
     }
 }

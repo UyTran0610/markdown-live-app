@@ -67,16 +67,21 @@
              tauri.conf.json "decorations": false). Một hàng: dải tab, vùng kéo cửa sổ, 3 nút cửa sổ.
              Không có tên app / logo ở đây. -->
         <div class="titlebar">
-            <!-- data-tauri-drag-region chỉ đặt trên ĐÚNG phần tử cần kéo: thuộc tính không kế thừa
-                 cho con, nên đặt lên .titlebar cha sẽ biến cả tab lẫn nút thành vùng kéo. -->
+            <!-- KHÔNG đặt data-tauri-drag-region lên #tab-strip. Tauri dò ngược
+                 e.composedPath() từ điểm bấm lên trên: nó dừng ở phần tử cha đầu tiên
+                 mang thuộc tính, nên attribute trên dải tab khiến cú bấm vào tab cũng mở
+                 vùng kéo cửa sổ. OS kéo cửa sổ đi, JS drag tab chạy song song, tab đang
+                 kéo (position: fixed) bị đóng băng theo viewport nên lệch dần khỏi chuột.
+                 Vùng kéo cửa sổ là .titlebar-drag ngay bên phải, nó chiếm hết khoảng
+                 trống còn lại nên không mất gì. -->
             <!-- Icon app quay lại trên cùng như titlebar native cũ, nhưng chỉ icon, không tên app.
                  draggable="false": .titlebar đã user-select: none nhưng ảnh vẫn bị kéo thả kiểu HTML5. -->
             <img class="titlebar-icon" src="assets/icon-128.png" alt="" draggable="false">
-            <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files" data-tauri-drag-region></div>
-            <!-- Vùng kéo dự phòng: dải tab co lại nhường chỗ cho nó khi mở nhiều tab. -->
+            <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files"></div>
+            <!-- Vùng kéo cửa sổ: dải tab không mang data-tauri-drag-region nên phần trống
+                 bên phải dải tab (nút cuộn ‹ ›, cửa sổ) do .titlebar-drag này đảm nhiệm. -->
             <div class="titlebar-drag" data-tauri-drag-region></div>
-            <!-- 2 nút cuộn dải tab, chỉ hiện khi tab tràn (tabs.js bật/tắt [hidden]).
-                 Đặt ngoài #tab-strip để không dính data-tauri-drag-region. -->
+            <!-- 2 nút cuộn dải tab, chỉ hiện khi tab tràn (tabs.js bật/tắt [hidden]). -->
             <div class="tabs-nav">
                 <button id="tab-scroll-left" class="tabs-nav-btn" type="button" title="Scroll tabs left" aria-label="Scroll tabs left" hidden>
                     <i data-lucide="chevron-left"></i>
@@ -111,15 +116,11 @@
                     <span class="btn-label">Copy</span>
                 </button>
                 <div class="export-wrap">
-                    <button id="btn-export" class="btn" title="Export file (MD / HTML / DOC / PDF)" aria-haspopup="menu" aria-expanded="false" aria-label="Export">
+                    <button id="btn-export" class="btn" title="Export file (HTML / DOC / PDF)" aria-haspopup="menu" aria-expanded="false" aria-label="Export">
                         <span class="btn-label">Export</span>
                         <i data-lucide="chevron-down" class="chevron"></i>
                     </button>
                     <div id="export-menu" class="export-menu hidden" role="menu">
-                        <button id="export-md" class="export-item" role="menuitem" title="Export Markdown file (.md)">
-                            <i data-lucide="file-code"></i>
-                            <span>Markdown (.md)</span>
-                        </button>
                         <button id="export-html" class="export-item" role="menuitem" title="Export HTML file (.html)">
                             <i data-lucide="file-code-2"></i>
                             <span>HTML (.html)</span>

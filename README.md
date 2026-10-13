@@ -49,10 +49,10 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Full Editing Toolkit:** A dedicated toolbar for Undo/Redo/Clear, Headings, Lists, Bold, Italic, Strikethrough, Links, Tables, inline HTML tags (Superscript, Subscript, `<kbd>`, `<mark>`), inline/block code, inline/block math, Blockquotes, and Mermaid diagram snippets — no need to memorize the syntax.
 - **Visual Table & Link Insertion:** Build tables by hovering a 5×5 grid (or pick a custom size for larger tables), and insert links through a dialog with separate text/URL fields.
 - **Live Character Counter:** The right end of the formatting toolbar shows a real-time character count as you type.
-- **Multi-Format Export:** Export content as Markdown (`.md`), standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
-- **File Import:** Open a local Markdown file (`.md`, `.markdown`, `.txt`) directly into the editor.
+- **Multi-Format Export:** Export content as standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
+- **File Import:** Open one or more local Markdown files (`.md`, `.markdown`, `.txt`), each in its own tab.
 - **Light/Dark Theme:** Automatic system theme detection, manual theme switching, and state persistence between sessions.
-- **Auto-Save Session:** Your Markdown content and last-used view mode are saved locally and restored automatically the next time you launch the app.
+- **Auto-Save Session:** Every open tab's Markdown draft and the tab order, plus your last-used view mode, are saved locally and restored automatically the next time you launch the app.
 
 ---
 
@@ -125,8 +125,9 @@ After launching the application, type or paste your Markdown content into the **
 | **View** | Switch between **Editor**, **Split**, and **Preview** modes |
 | **Sync Scroll** | Toggle synchronized scrolling between Editor and Preview |
 | **Copy** | Copy the full raw Markdown content to the clipboard |
-| **Import** | Load a Markdown file from your device into the editor |
-| **Export** | Open a menu to export content as **Markdown** (`.md`), **HTML** (`.html`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
+| **Import** | Open one or more Markdown files from your device; each opens as its own tab |
+| **Save** | Write the current tab back to its file on disk, or prompt for a location if the tab has no file yet (disabled until that tab has unsaved edits) |
+| **Export** | Open a menu to export content as **HTML** (`.html`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
 | **Theme** | Toggle between Light and Dark themes |
 
 ### View Modes & Resizing Panes
@@ -177,6 +178,7 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 | `Ctrl`/`Cmd` + `E` or `Ctrl` + backtick key | Wrap selection in inline code |
 | `Ctrl`/`Cmd` + `K` | Insert link, automatically highlighting the `url` for quick pasting |
 | `Ctrl`/`Cmd` + `D` | Duplicate current line (or selection) |
+| `Ctrl`/`Cmd` + `S` | Save the current tab to disk (prompts for a location if it has no file yet) |
 | `Ctrl`/`Cmd` + `Z` | Undo |
 | `Ctrl`/`Cmd` + `Y` or `Ctrl`/`Cmd` + `Shift` + `Z` | Redo |
 | `Tab` / `Shift` + `Tab` | Indent / Unindent — supports multi-line selections |
@@ -248,22 +250,25 @@ markdown-live-app/
 │   │   ├── dialogs.css
 │   │   ├── toast.css
 │   │   ├── toolbar.css
+│   │   ├── tabs.css
 │   │   ├── editor.css
 │   │   ├── preview.css
 │   │   └── print.css
 │   ├── js/                     # ES modules, grouped by responsibility
 │   │   ├── main.js             # Entry point: initialises modules in order
 │   │   ├── core/               # DOM references, toasts, shared helpers
-│   │   ├── editor/             # Editing ops, history, storage, live highlight
+│   │   ├── editor/             # Editing ops, undo/redo history, live highlight
 │   │   │   └── syntax/         # Block + inline Markdown highlighting
 │   │   ├── preview/            # Markdown -> HTML render, sanitize, links
-│   │   ├── export/             # .md / .html / .doc / .pdf pipelines
-│   │   ├── io/                 # Import Markdown files from disk
-│   │   ├── ui/                 # Format bar, dialogs, scroll sync, view modes
+│   │   ├── export/             # .html / .doc / .pdf pipelines
+│   │   ├── io/                 # Tab & document store, import from disk
+│   │   ├── ui/                 # Format bar, dialogs, tabs, scroll sync, view modes
 │   │   ├── theme/              # Light / Dark theme
 │   │   └── dev/                # Self-check suite (open with ?selfcheck)
-│   └── vendor/                 # Local 3rd-party bundles (marked, katex,
-│       └── fonts/              # mermaid...) + KaTeX web fonts
+│   ├── vendor/                 # Local 3rd-party bundles (marked, katex,
+│   │   └── fonts/              # mermaid...) + KaTeX web fonts
+│   ├── THIRD_PARTY_NOTICES.md  # Licences of the bundled vendor libraries
+│   └── LICENSE                 # MIT licence for the frontend
 ├── src-tauri/                  # Rust backend + Tauri configuration
 │   ├── src/
 │   │   ├── lib.rs
@@ -273,9 +278,12 @@ markdown-live-app/
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── scripts/
-│   └── sync-version.js         # Version sync + asset cache-busting
+│   ├── sync-version.js         # Version sync + asset cache-busting
+│   └── vendor-update.js        # Refresh src/vendor/ (npm run vendor)
 ├── images/                     # README screenshots
-└── .github/workflows/          # Automated CI/CD build & release workflows
+├── icon.png                    # App icon shown in the README
+├── README.vi.md                # Vietnamese translation
+└── .github/workflows/          # CI/CD build & release (release.yml)
 ```
 
 ---

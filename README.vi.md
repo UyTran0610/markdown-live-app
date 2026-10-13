@@ -49,10 +49,10 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ với Undo/Redo/Clear, Tiêu đề, Danh sách, In đậm, In nghiêng, Gạch ngang, Liên kết, Bảng, các thẻ HTML nội dòng (Superscript, Subscript, `<kbd>`, `<mark>`), code/công thức nội dòng và dạng khối, Blockquote, và mẫu sơ đồ Mermaid — không cần nhớ cú pháp.
 - **Chèn bảng & liên kết trực quan:** Dựng bảng bằng cách rê chuột trên lưới 5×5 (hoặc chọn kích thước tùy chỉnh cho bảng lớn hơn), và chèn liên kết qua hộp thoại riêng với ô nhập văn bản/URL.
 - **Đếm ký tự trực tiếp:** Cuối thanh định dạng hiển thị số ký tự theo thời gian thực khi bạn gõ.
-- **Multi-Format Export:** Xuất nội dung ra Markdown (`.md`), HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
-- **File Import:** Mở file Markdown từ máy tính (`.md`, `.markdown`, `.txt`) trực tiếp vào trình soạn thảo.
+- **Multi-Format Export:** Xuất nội dung ra HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
+- **File Import:** Mở một hoặc nhiều file Markdown từ máy tính (`.md`, `.markdown`, `.txt`), mỗi file một tab riêng.
 - **Light/Dark Theme:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ lựa chọn giữa các lần mở ứng dụng.
-- **Tự động lưu phiên làm việc:** Nội dung Markdown và chế độ xem gần nhất được lưu cục bộ và tự động khôi phục ở lần mở ứng dụng tiếp theo.
+- **Tự động lưu phiên làm việc:** Bản nháp Markdown của từng tab cùng thứ tự tab, và chế độ xem gần nhất, đều được lưu cục bộ và tự động khôi phục ở lần mở ứng dụng tiếp theo.
 
 ---
 
@@ -124,10 +124,10 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 | :--- | :--- |
 | **View** | Chuyển đổi giữa chế độ **Editor**, **Split** và **Preview** |
 | **Sync Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview |
-| **Reset** | Khôi phục nội dung ví dụ mặc định (có xác nhận trước khi thực hiện) |
 | **Copy** | Sao chép toàn bộ nội dung Markdown vào clipboard |
-| **Import** | Nhập file Markdown từ máy vào trình soạn thảo |
-| **Export** | Mở menu xuất nội dung ra **Markdown** (`.md`), **HTML** (`.html`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
+| **Import** | Mở một hoặc nhiều file Markdown từ máy; mỗi file mở thành một tab riêng |
+| **Save** | Ghi nội dung tab hiện tại về lại file trên ổ đĩa, hoặc hỏi vị trí lưu nếu tab chưa có file (nút bị vô hiệu cho tới khi tab có thay đổi chưa lưu) |
+| **Export** | Mở menu xuất nội dung ra **HTML** (`.html`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
 
 ### Chế độ xem & chia màn hình
@@ -178,6 +178,7 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 | `Ctrl`/`Cmd` + `E` hoặc `Ctrl` + phím backtick | Bọc đoạn chọn thành code inline |
 | `Ctrl`/`Cmd` + `K` | Chèn liên kết, tự động bôi đen phần `url` để dán nhanh |
 | `Ctrl`/`Cmd` + `D` | Nhân bản dòng hiện tại (hoặc vùng đang chọn) |
+| `Ctrl`/`Cmd` + `S` | Lưu tab hiện tại xuống đĩa (hỏi vị trí lưu nếu tab chưa có file) |
 | `Ctrl`/`Cmd` + `Z` | Hoàn tác (Undo) |
 | `Ctrl`/`Cmd` + `Y` hoặc `Ctrl`/`Cmd` + `Shift` + `Z` | Làm lại (Redo) |
 | `Tab` / `Shift` + `Tab` | Thụt lề / hủy thụt lề — dùng được cả khi bôi đen nhiều dòng |
@@ -249,22 +250,25 @@ markdown-live-app/
 │   │   ├── dialogs.css
 │   │   ├── toast.css
 │   │   ├── toolbar.css
+│   │   ├── tabs.css
 │   │   ├── editor.css
 │   │   ├── preview.css
 │   │   └── print.css
 │   ├── js/                     # Module ES, nhóm theo trách nhiệm
 │   │   ├── main.js             # Điểm vào app: khởi tạo các module theo thứ tự
 │   │   ├── core/               # Tham chiếu DOM, toast, hàm dùng chung
-│   │   ├── editor/             # Thao tác soạn thảo, history, storage, tô màu trực tiếp
+│   │   ├── editor/             # Thao tác soạn thảo, lịch sử undo/redo, tô màu trực tiếp
 │   │   │   └── syntax/         # Tô màu cú pháp Markdown block + inline
 │   │   ├── preview/            # Render Markdown -> HTML, sanitize, liên kết
-│   │   ├── export/             # Pipeline xuất .md / .html / .doc / .pdf
-│   │   ├── io/                 # Nhập file Markdown từ ổ đĩa
-│   │   ├── ui/                 # Thanh định dạng, hộp thoại, đồng bộ cuộn, chế độ xem
+│   │   ├── export/             # Pipeline xuất .html / .doc / .pdf
+│   │   ├── io/                 # Lưu trữ tab & tài liệu, nhập file từ ổ đĩa
+│   │   ├── ui/                 # Thanh định dạng, hộp thoại, tab, đồng bộ cuộn, chế độ xem
 │   │   ├── theme/              # Theme Sáng / Tối
 │   │   └── dev/                # Bộ tự kiểm tra (mở với ?selfcheck)
-│   └── vendor/                 # Thư viện bên thứ 3 lưu cục bộ (marked, katex,
-│       └── fonts/              # mermaid...) + font web KaTeX
+│   ├── vendor/                 # Thư viện bên thứ 3 lưu cục bộ (marked, katex,
+│   │   └── fonts/              # mermaid...) + font web KaTeX
+│   ├── THIRD_PARTY_NOTICES.md  # Giấy phép của các thư viện trong vendor/
+│   └── LICENSE                 # Giấy phép MIT cho frontend
 ├── src-tauri/                  # Backend Rust + cấu hình Tauri
 │   ├── src/
 │   │   ├── lib.rs
@@ -274,9 +278,12 @@ markdown-live-app/
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── scripts/
-│   └── sync-version.js         # Đồng bộ version + cache-busting tài nguyên
+│   ├── sync-version.js         # Đồng bộ version + cache-busting tài nguyên
+│   └── vendor-update.js        # Làm mới src/vendor/ (npm run vendor)
 ├── images/                     # Ảnh chụp màn hình cho README
-└── .github/workflows/          # CI/CD tự động build & release
+├── icon.png                    # Icon ứng dụng hiển thị trong README
+├── README.vi.md                # Bản dịch tiếng Việt
+└── .github/workflows/          # CI/CD build & release (release.yml)
 ```
 
 ---

@@ -28,8 +28,10 @@ export function slugifyText(text, { fold = false } = {}) {
     let s = String(text);
     if (fold) {
         s = s.normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')   // bỏ dấu thanh/dấu phụ sau khi tách NFD
-            .replace(/đ/gi, 'd');               // đ không bị tách trong NFD nên phải thay riêng
+            // Chỉ bỏ dấu phụ đứng sau chữ Latin: ё/й (Cyrillic) và kana/Hangul phải giữ nguyên chữ.
+            .replace(/(\p{Script=Latin})[\u0300-\u036f]+/gu, '$1')
+            .replace(/đ/gi, 'd')                // đ không bị tách trong NFD nên phải thay riêng
+            .normalize('NFC');                  // ghép lại phần NFD còn sót (Cyrillic, Hangul, kana)
     }
     return s.trim().toLowerCase()
         .replace(/[^\p{L}\p{N}\s-]/gu, '')

@@ -7,7 +7,7 @@ import { btnImport, btnSave, editorHighlight, markdownInput, previewOutput } fro
 import { showToast } from '../core/toast.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
 import { editorHistory } from '../editor/history.js';
-import { deriveExportBaseName, readTextFile, saveTextFile, writeTextFile } from '../export/file-save.js';
+import { deriveExportBaseName, detectEol, readTextFile, sameFilePath, saveTextFile, toLf, writeTextFile } from '../export/file-save.js';
 import { renderMarkdown } from '../preview/render.js';
 
 const SESSION_KEY = 'markdown-live-session';
@@ -21,8 +21,9 @@ const MAX_FILE_CHARS = 5 * 1024 * 1024;
 
 const UNTITLED = 'Untitled';
 
-// tabs: [{ id, path, name, content, savedContent, scrollTop, selStart, selEnd, history }]
+// tabs: [{ id, path, name, content, savedContent, eol, scrollTop, selStart, selEnd, history }]
 // savedContent === null nghĩa là "chưa bao giờ ghi xuống đĩa" => luôn coi là chưa lưu, không so sánh chuỗi.
+// eol: kiểu xuống dòng của file trên đĩa ('\r\n' hoặc '\n'); nội dung trong tab luôn là LF.
 const tabs = [];
 let activeId = null;
 const listeners = [];
@@ -57,13 +58,15 @@ function emit() {
     listeners.forEach((fn) => fn());
 }
 
-function createTab({ path = null, name = UNTITLED, content = '', savedContent = content }) {
+// `= {}` bắt buộc: restoreSession dựng tab Untitled cho lần chạy đầu bằng createTab() không tham số.
+function createTab({ path = null, name = UNTITLED, content = '', savedContent = content, eol = '\n' } = {}) {
     const tab = {
         id: nextId++,
         path,
         name,
         content,
         savedContent,
+        eol,
         scrollTop: 0,
         selStart: 0,
         selEnd: 0,
@@ -156,7 +159,9 @@ export function moveTab(id, toIndex) {
 
 export function newTab() {
     captureActive();
-    const tab = createTab({ content: '', savedContent: null });
+    // Tab rỗng chưa gõ gì thì không có gì để mất: dùng mặc định của createTab (sạch) cho giống tab
+    // Untitled lúc khởi động, không đánh dấu chưa lưu chỉ vì vừa bấm "+".
+    const tab = createTab();
     restoreTabIntoEditor(tab);
     emit();
     saveSession();
@@ -175,7 +180,7 @@ export function closeTab(id) {
     if (wasActive) {
         if (!tabs.length) {
             // Không để app rơi vào trạng thái không có editor.
-            const fresh = createTab({ content: '', savedContent: null });
+            const fresh = createTab();
             restoreTabIntoEditor(fresh);
         } else {
             const next = tabs[Math.min(index, tabs.length - 1)];
@@ -223,24 +228,27 @@ export async function openFiles() {
     let opened = 0;
     let failed = 0;
     for (const path of paths) {
-        const existing = tabs.find((tab) => tab.path === path);
+        const existing = tabs.find((tab) => sameFilePath(tab.path, path));
         if (existing) {
             switchTab(existing.id);
             opened++;
             continue;
         }
-        const text = await readTextFile(path);
-        if (text === null) {
+        const raw = await readTextFile(path);
+        if (raw === null) {
             failed++;
             continue;
         }
-        if (text.length > MAX_FILE_CHARS) {
+        if (raw.length > MAX_FILE_CHARS) {
             showToast(`"${path.split(/[\\/]/).pop()}" is too large (5MB max).`);
             failed++;
             continue;
         }
+        // Giữ kiểu xuống dòng của file; textarea chỉ hiểu LF nên nội dung trong tab luôn là LF.
+        const eol = detectEol(raw);
+        const text = toLf(raw);
         captureActive();
-        const tab = createTab({ path, name: path.split(/[\\/]/).pop(), content: text, savedContent: text });
+        const tab = createTab({ path, name: path.split(/[\\/]/).pop(), content: text, savedContent: text, eol });
         restoreTabIntoEditor(tab);
         opened++;
     }
@@ -248,29 +256,59 @@ export async function openFiles() {
     emit();
     saveSession();
     showToast(opened === 1 && !failed
-        ? `Opened "${tabs.find((t) => t.path === paths[0])?.name ?? ''}".`
+        ? `Opened "${tabs.find((t) => sameFilePath(t.path, paths[0]))?.name ?? ''}".`
         : `Opened ${opened} file${opened === 1 ? '' : 's'}${failed ? `, ${failed} failed` : ''}.`);
 }
 
+// Tên gợi ý cho hộp thoại Save As: tab mở từ file thì theo tên file (đổi tên theo H1 sẽ gợi ý sai
+// file), tab chưa có đường dẫn thì mới lấy H1.
+function defaultSaveName(tab, content) {
+    if (!tab.path) return deriveExportBaseName(content);
+    return tab.name.replace(/\.[^./\\]+$/, '') || deriveExportBaseName(content);
+}
+
+// Ctrl+S liên tiếp (hoặc bấm nút Save nhiều lần) không được mở hai hộp thoại / ghi chồng lên nhau.
+let saving = false;
+
 export async function saveActiveDoc() {
     const tab = getActiveTab();
-    if (!tab) return;
+    if (!tab || saving) return;
+    saving = true;
+    try {
+        // Chụp nội dung TRƯỚC mọi await: nếu người dùng gõ thêm trong lúc hộp thoại Save As đang mở
+        // hoặc lúc ghi, đĩa nhận bản đã chụp và tab phải vẫn hiện chưa lưu - gán tab.content sau await
+        // sẽ đánh dấu "đã lưu" cho phần chưa từng xuống đĩa.
+        const snapshot = tab.content;
+        let path = tab.path;
 
-    let path = tab.path;
-    if (!path) {
-        const saved = await saveTextFile(tab.content, deriveExportBaseName(tab.content), 'md', 'text/markdown;charset=utf-8');
-        if (!saved) return;
-        path = saved;
-        tab.path = path;
-        tab.name = path.split(/[\\/]/).pop();
-    } else if (!await writeTextFile(path, tab.content)) {
-        return;
+        if (!path) {
+            const saved = await saveTextFile(snapshot, defaultSaveName(tab, snapshot), 'md', 'text/markdown;charset=utf-8');
+            if (!saved) return;
+            path = saved;
+        } else if (!await writeTextFile(path, snapshot, tab.eol)) {
+            // Ghi đè thất bại (đường dẫn ngoài scope sau khi khởi động lại, file bị khoá, chỉ đọc...):
+            // đường dẫn cũ không còn dùng được nên cho chọn chỗ mới ngay, không để tab kẹt không lưu được.
+            const saved = await saveTextFile(snapshot, defaultSaveName(tab, snapshot), 'md', 'text/markdown;charset=utf-8');
+            if (!saved) return;
+            path = saved;
+        }
+
+        if (!sameFilePath(tab.path, path)) {
+            const clash = tabs.find((other) => other !== tab && sameFilePath(other.path, path));
+            if (clash) showToast(`That file is already open in the "${clash.name}" tab.`);
+            tab.path = path;
+            tab.name = path.split(/[\\/]/).pop();
+            // saveTextFile không biết eol của file đích: nó luôn ghi LF, nên đích mới là file LF.
+            tab.eol = '\n';
+        }
+
+        tab.savedContent = snapshot;
+        emit();
+        saveSession();
+        showToast(`Saved "${tab.name}".`);
+    } finally {
+        saving = false;
     }
-
-    tab.savedContent = tab.content;
-    emit();
-    saveSession();
-    showToast(`Saved "${tab.name}".`);
 }
 
 // ---- Session ----------------------------------------------------------------
@@ -284,6 +322,9 @@ export function serializeSession() {
             path: tab.path,
             name: tab.name,
             content: tab.content,
+            // Kiểu xuống dòng phải sống cùng session: tab khôi phục không đọc lại file từ đĩa nên
+            // mất eol là lần lưu sau ghi đè file CRLF thành LF.
+            eol: tab.eol,
             // Không lưu savedContent (nhân đôi dung lượng). dirty === false nghĩa là lúc đóng nội dung
             // khớp đĩa; dirty === true nghĩa là đã sửa sau lần lưu cuối -> vẫn phải hiện chưa lưu.
             dirty: isTabDirty(tab),
@@ -304,6 +345,7 @@ export function deserializeSession(raw) {
         name: typeof t.name === 'string' && t.name ? t.name : UNTITLED,
         content: typeof t.content === 'string' ? t.content : '',
         savedContent: t.dirty ? null : (typeof t.content === 'string' ? t.content : ''),
+        eol: t.eol === '\r\n' ? '\r\n' : '\n',
         scrollTop: Number(t.scrollTop) || 0,
         selStart: Number(t.selStart) || 0,
         selEnd: Number(t.selEnd) || 0,

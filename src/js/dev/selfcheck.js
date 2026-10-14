@@ -17,7 +17,7 @@ import {
 import { editorHistory } from '../editor/history.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { deriveDocumentTitle, deriveExportBaseName } from '../export/file-save.js';
+import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectEol, sameFilePath, toLf } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
@@ -51,6 +51,19 @@ export async function runSelfCheck() {
     assert('filename giữ H1 tiếng Nga', deriveExportBaseName('# Отчёт за Q3') === 'отчёт-за-q3');
     assert('filename loại ký tự cấm trong tên file', deriveExportBaseName('# a/b:c*d?e"f<g>h|i') === 'abcdefghi');
     assert('filename bỏ heading trong code fence', deriveExportBaseName('```md\n# comment\n```\n\n# Real Title') === 'real-title');
+
+    // Xuống dòng: file Windows là CRLF còn textarea chỉ có LF, nên phải nhớ kiểu của file để lần lưu
+    // sau không đổi mọi dòng, và so sánh "đã sửa chưa" phải chạy trên bản LF.
+    assert('eol nhận file CRLF', detectEol('a\r\nb') === '\r\n');
+    assert('eol nhận file LF', detectEol('a\nb') === '\n');
+    assert('eol nhận file một dòng', detectEol('abc') === '\n');
+    assert('eol chuẩn hoá CRLF và CR cũ về LF', toLf('a\r\nb\rc') === 'a\nb\nc');
+    assert('eol ghi lại đúng CRLF của file', applyEol('a\nb', '\r\n') === 'a\r\nb');
+    assert('eol giữ nguyên LF', applyEol('a\nb', '\n') === 'a\nb');
+    // Cùng một file trên Windows không được mở thành hai tab (hai tab ghi đè nhau).
+    assert('path Windows không phân biệt hoa thường và dấu gạch', sameFilePath('C:\\Docs\\A.md', 'c:/docs/a.md') === true);
+    assert('path khác thư mục vẫn khác file', sameFilePath('/x/a.md', '/y/a.md') === false);
+    assert('path thiếu đường dẫn không khớp', sameFilePath(null, '/x/a.md') === false);
 
     (function () {
         const noOverflow = tabScrollState(400, 400, 0);
@@ -105,8 +118,8 @@ export async function runSelfCheck() {
     (function () {
         const isTabDirtyNow = (content, savedContent) => savedContent === null || content !== savedContent;
         // Đúng shape serializeSession() xuất ra: history không lưu, dirty là boolean.
-        const wire = (id, path, name, content, savedContent) => ({
-            id, path, name, content, dirty: isTabDirtyNow(content, savedContent), scrollTop: 0, selStart: 0, selEnd: 0
+        const wire = (id, path, name, content, savedContent, eol = '\n') => ({
+            id, path, name, content, eol, dirty: isTabDirtyNow(content, savedContent), scrollTop: 0, selStart: 0, selEnd: 0
         });
         assert('tab sạch khi content khớp savedContent', isTabDirty({ content: '# A', savedContent: '# A' }) === false);
         assert('tab dirty khi content khác savedContent', isTabDirty({ content: '# B2', savedContent: '# B' }) === true);
@@ -124,6 +137,11 @@ export async function runSelfCheck() {
         assert('tab sửa lúc đóng vẫn dirty sau khi mở lại', isTabDirty(back.tabs[1]) === true);
         assert('tab chưa lưu vẫn dirty sau khi mở lại', isTabDirty(back.tabs[2]) === true);
 
+        // Tab khôi phục không đọc lại file từ đĩa: mất eol là lần Ctrl+S sau ghi đè file CRLF bằng LF.
+        const crlf = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, 'C:\\a.md', 'a.md', '# A', '# A', '\r\n')] }));
+        assert('session giữ kiểu xuống dòng CRLF', crlf.tabs[0].eol === '\r\n');
+        assert('session thiếu eol -> mặc định LF', back.tabs[0].eol === '\n');
+
         assert('session không có tab -> null thay vì crash', deserializeSession('{"tabs":[]}') === null);
         assert('session rỗng -> null', deserializeSession('null') === null);
         assert('session hỏng -> null thay vì crash', (() => {
@@ -137,7 +155,8 @@ export async function runSelfCheck() {
         // serializeSession() đọc store thật; chỉ kiểm tra nó không nổ và có đủ 2 trường.
         const live = serializeSession();
         assert('serialize session trả về shape đúng',
-            typeof live.activeId === 'number' && Array.isArray(live.tabs) && live.tabs.every((t) => 'dirty' in t));
+            typeof live.activeId === 'number' && Array.isArray(live.tabs)
+            && live.tabs.every((t) => 'dirty' in t && (t.eol === '\n' || t.eol === '\r\n')));
     })();
     (function () {
         const host = document.createElement('div');

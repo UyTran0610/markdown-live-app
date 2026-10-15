@@ -11,7 +11,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     row-gap: 4px;
     padding: 2px 6px;
     background-color: var(--pane-header-bg);

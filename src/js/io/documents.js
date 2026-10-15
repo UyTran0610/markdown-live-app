@@ -7,7 +7,7 @@ import { btnImport, btnSave, editorHighlight, markdownInput, previewOutput } fro
 import { showToast } from '../core/toast.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
 import { editorHistory } from '../editor/history.js';
-import { deriveExportBaseName, detectEol, readTextFile, sameFilePath, saveTextFile, toLf, writeTextFile } from '../export/file-save.js';
+import { deriveExportBaseName, detectBom, detectEol, readTextFile, sameFilePath, saveTextFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { renderMarkdown } from '../preview/render.js';
 
 const SESSION_KEY = 'markdown-live-session';
@@ -21,9 +21,10 @@ const MAX_FILE_CHARS = 5 * 1024 * 1024;
 
 const UNTITLED = 'Untitled';
 
-// tabs: [{ id, path, name, content, savedContent, eol, scrollTop, selStart, selEnd, history }]
+// tabs: [{ id, path, name, content, savedContent, eol, bom, scrollTop, selStart, selEnd, history }]
 // savedContent === null nghĩa là "chưa bao giờ ghi xuống đĩa" => luôn coi là chưa lưu, không so sánh chuỗi.
 // eol: kiểu xuống dòng của file trên đĩa ('\r\n' hoặc '\n'); nội dung trong tab luôn là LF.
+// bom: file gốc có BOM không; BOM bị bỏ khỏi nội dung tab và ghi lại khi lưu.
 const tabs = [];
 let activeId = null;
 const listeners = [];
@@ -59,7 +60,7 @@ function emit() {
 }
 
 // `= {}` bắt buộc: restoreSession dựng tab Untitled cho lần chạy đầu bằng createTab() không tham số.
-function createTab({ path = null, name = UNTITLED, content = '', savedContent = content, eol = '\n' } = {}) {
+function createTab({ path = null, name = UNTITLED, content = '', savedContent = content, eol = '\n', bom = false } = {}) {
     const tab = {
         id: nextId++,
         path,
@@ -67,6 +68,7 @@ function createTab({ path = null, name = UNTITLED, content = '', savedContent = 
         content,
         savedContent,
         eol,
+        bom,
         scrollTop: 0,
         selStart: 0,
         selEnd: 0,
@@ -246,9 +248,10 @@ export async function openFiles() {
         }
         // Giữ kiểu xuống dòng của file; textarea chỉ hiểu LF nên nội dung trong tab luôn là LF.
         const eol = detectEol(raw);
-        const text = toLf(raw);
+        const bom = detectBom(raw);
+        const text = toLf(stripBom(raw));
         captureActive();
-        const tab = createTab({ path, name: path.split(/[\\/]/).pop(), content: text, savedContent: text, eol });
+        const tab = createTab({ path, name: path.split(/[\\/]/).pop(), content: text, savedContent: text, eol, bom });
         restoreTabIntoEditor(tab);
         opened++;
     }
@@ -285,7 +288,7 @@ export async function saveActiveDoc() {
             const saved = await saveTextFile(snapshot, defaultSaveName(tab, snapshot), 'md', 'text/markdown;charset=utf-8');
             if (!saved) return;
             path = saved;
-        } else if (!await writeTextFile(path, snapshot, tab.eol)) {
+        } else if (!await writeTextFile(path, snapshot, tab.eol, tab.bom)) {
             // Ghi đè thất bại (đường dẫn ngoài scope sau khi khởi động lại, file bị khoá, chỉ đọc...):
             // đường dẫn cũ không còn dùng được nên cho chọn chỗ mới ngay, không để tab kẹt không lưu được.
             const saved = await saveTextFile(snapshot, defaultSaveName(tab, snapshot), 'md', 'text/markdown;charset=utf-8');
@@ -298,8 +301,9 @@ export async function saveActiveDoc() {
             if (clash) showToast(`That file is already open in the "${clash.name}" tab.`);
             tab.path = path;
             tab.name = path.split(/[\\/]/).pop();
-            // saveTextFile không biết eol của file đích: nó luôn ghi LF, nên đích mới là file LF.
+            // saveTextFile không biết eol/bom của file đích: nó luôn ghi LF không BOM, nên đích mới là file LF không BOM.
             tab.eol = '\n';
+            tab.bom = false;
         }
 
         tab.savedContent = snapshot;
@@ -313,6 +317,13 @@ export async function saveActiveDoc() {
 
 // ---- Session ----------------------------------------------------------------
 
+// Nội dung tab sạch có đường dẫn không lưu vào session: lúc khôi phục đọc lại từ đĩa. Quota
+// localStorage tính cho CẢ origin (~5M ký tự) trong khi một file được phép tới 5M, nên nhồi nội
+// dung mọi tab là tự đặt mình vào chỗ chết: session vừa to vừa không ghi được xuống.
+export function sessionKeepsContent(tab) {
+    return !tab.path || isTabDirty(tab);
+}
+
 // Hàm thuần: selfcheck gọi được mà không đụng editor thật.
 export function serializeSession() {
     return {
@@ -321,10 +332,13 @@ export function serializeSession() {
             id: tab.id,
             path: tab.path,
             name: tab.name,
-            content: tab.content,
-            // Kiểu xuống dòng phải sống cùng session: tab khôi phục không đọc lại file từ đĩa nên
-            // mất eol là lần lưu sau ghi đè file CRLF thành LF.
+            // null = "không lưu, đọc từ đĩa lúc khôi phục" (khác '' là tab sạch thật sự rỗng).
+            content: sessionKeepsContent(tab) ? tab.content : null,
+            // Kiểu xuống dòng và BOM phải sống cùng session: tab lưu được nội dung (dirty / chưa có path)
+            // không được đọc lại từ đĩa, nên mất eol là lần lưu sau ghi đè file CRLF thành LF, mất
+            // bom là file gốc bị mất BOM.
             eol: tab.eol,
+            bom: tab.bom,
             // Không lưu savedContent (nhân đôi dung lượng). dirty === false nghĩa là lúc đóng nội dung
             // khớp đĩa; dirty === true nghĩa là đã sửa sau lần lưu cuối -> vẫn phải hiện chưa lưu.
             dirty: isTabDirty(tab),
@@ -339,18 +353,32 @@ export function serializeSession() {
 export function deserializeSession(raw) {
     const data = JSON.parse(raw);
     if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return null;
-    const restored = data.tabs.map((t) => ({
-        id: t.id,
-        path: typeof t.path === 'string' ? t.path : null,
-        name: typeof t.name === 'string' && t.name ? t.name : UNTITLED,
-        content: typeof t.content === 'string' ? t.content : '',
-        savedContent: t.dirty ? null : (typeof t.content === 'string' ? t.content : ''),
-        eol: t.eol === '\r\n' ? '\r\n' : '\n',
-        scrollTop: Number(t.scrollTop) || 0,
-        selStart: Number(t.selStart) || 0,
-        selEnd: Number(t.selEnd) || 0,
-        history: null
-    }));
+    const restored = data.tabs.map((t) => {
+        const path = typeof t.path === 'string' ? t.path : null;
+        // Session của build cũ lưu BOM trong content -> bỏ luôn, nếu không dòng đầu mất heading
+        // vĩnh viễn và lần lưu sau âm thầm mất BOM của file. Strip MỘT lần rồi dùng lại cho cả
+        // content lẫn savedContent, không thì hai bên lệch nhau khiến tab sạch hoá dirty.
+        const stored = typeof t.content === 'string' ? stripBom(t.content) : null;
+        // content === null + có path = session không lưu nội dung tab này, đọc lại từ đĩa.
+        const reload = stored === null && !!path;
+        const content = stored === null ? '' : stored;
+        return {
+            id: t.id,
+            path,
+            name: typeof t.name === 'string' && t.name ? t.name : UNTITLED,
+            content,
+            savedContent: t.dirty ? null : content,
+            // Session không lưu nội dung tab này -> restoreSession phải đọc lại từ đĩa, và
+            // chỉ được nạp vào editor sau khi đọc xong (xem vòng lặp trong restoreSession).
+            reload,
+            eol: t.eol === '\r\n' ? '\r\n' : '\n',
+            bom: t.bom === true,
+            scrollTop: Number(t.scrollTop) || 0,
+            selStart: Number(t.selStart) || 0,
+            selEnd: Number(t.selEnd) || 0,
+            history: null
+        };
+    });
     return { activeId: data.activeId, tabs: restored };
 }
 
@@ -359,16 +387,28 @@ export function saveSession() {
     try {
         localStorage.setItem(SESSION_KEY, JSON.stringify(serializeSession()));
     } catch (e) {
+        // setItem hỏng thì session CŨ vẫn nằm nguyên trong localStorage. Để vậy, lần mở sau khôi
+        // phục nội dung cũ và tab đó lại hiện "đã lưu" -> mất thay đổi trong im lặng. Xoá key là
+        // mất session; để nguyên là khôi phục sai, nên fail-closed.
+        // try riêng: storage bị chính sách chặn thì removeItem cũng ném, lỗi đó không được escape ra
+        // ngoài (saveSession được debounce gọi, lỗi nổ ở đó thành unhandled rejection).
+        try {
+            localStorage.removeItem(SESSION_KEY);
+        } catch (e2) {
+            console.error('Không xoá được session:', e2);
+        }
         const isQuota = e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014);
         const now = Date.now();
         if (isQuota && now - quotaWarnedAt > 10000) {
             quotaWarnedAt = now;
-            showToast('Storage is full, new content may be lost when the app closes.');
+            showToast('Storage is full - this session will not be saved, so closing the app now loses unsaved changes.');
         }
     }
 }
 
-export function restoreSession() {
+// Đọc lại nội dung các tab mà session không lưu (tab sạch có path). File trên đĩa có thể đã
+// đổi kể từ lúc session được ghi, nên đây là nguồn đúng - không phải phục hồi bản cache.
+export async function restoreSession() {
     tabs.length = 0;
     activeId = null;
     nextId = 1;
@@ -388,6 +428,24 @@ export function restoreSession() {
     } else {
         // Chưa từng dùng app: mở sẵn một tab Untitled rỗng (savedContent = content -> không dirty).
         createTab();
+    }
+
+    // ponytail: đọc tuần tự, đủ vì vài tab; nếu số tab mở thường xuyên lớn thì Promise.all.
+    for (const tab of tabs) {
+        if (!tab.reload) continue;
+        tab.reload = false;
+        const raw = await readTextFile(tab.path);
+        // Đọc lỗi (file bị xoá/di chuyển, ngoài ACL) hoặc file đã phình quá giới hạn: giữ
+        // savedContent = null để tab hiện "chưa lưu" và Ctrl+S hỏi Save As. readTextFile đã tự
+        // báo lỗi bằng toast.
+        if (raw === null || raw.length > MAX_FILE_CHARS) {
+            tab.savedContent = null;
+            continue;
+        }
+        tab.eol = detectEol(raw);
+        tab.bom = detectBom(raw);
+        tab.content = toLf(stripBom(raw));
+        tab.savedContent = tab.content;
     }
 
     restoreTabIntoEditor(getActiveTab());

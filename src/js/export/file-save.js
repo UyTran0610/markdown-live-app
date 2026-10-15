@@ -72,6 +72,17 @@ export function toLf(text) {
     return String(text).replace(/\r\n?/g, '\n');
 }
 
+// BOM (U+FEFF) do Notepad/Word ghi ở đầu file UTF-8. Để nó lọt vào textarea thì dòng "# ..." đầu
+// file không còn khớp /^ {0,3}#/ nên mất heading trong preview và mất tiêu đề export. Xử lý y hệt
+// eol: bỏ lúc đọc, nhớ cờ để ghi lại đúng file gốc.
+export function detectBom(text) {
+    return String(text).charCodeAt(0) === 0xFEFF;
+}
+
+export function stripBom(text) {
+    return detectBom(text) ? String(text).slice(1) : String(text);
+}
+
 export function applyEol(text, eol) {
     return eol === '\r\n' ? String(text).replace(/\n/g, '\r\n') : String(text);
 }
@@ -122,9 +133,10 @@ export async function readTextFile(path) {
 
 // Ghi đè một file đã biết đường dẫn (tab đang mở có path) — không mở hộp thoại.
 // Dùng chung đoạn bắt lỗi ACL với saveTextFile để thông báo nhất quán.
-export async function writeTextFile(path, contents, eol = '\n') {
+export async function writeTextFile(path, contents, eol = '\n', bom = false) {
     try {
-        await window.__TAURI__.fs.writeTextFile(path, applyEol(contents, eol));
+        const body = applyEol(contents, eol);
+        await window.__TAURI__.fs.writeTextFile(path, bom ? '\uFEFF' + body : body);
         return true;
     } catch (err) {
         console.error('Write failed:', err);

@@ -32,7 +32,12 @@ initAbout();
 initTabs();
 initDocuments();
 
-window.addEventListener('DOMContentLoaded', () => {
+// restoreSession() là async (đọc lại nội dung tab mà session không lưu). Gán `ready` TRƯỚC await
+// để listener selfcheck đăng ký sau nhìn thấy đúng promise này: không có nó thì selfcheck chạy
+// ngay khi listener dưới đây nhường quyền, tức là trên editor chưa khôi phục xong.
+let ready = Promise.resolve();
+
+window.addEventListener('DOMContentLoaded', async () => {
     try {
         if (typeof mermaid !== 'undefined') {
             mermaid.initialize({ startOnLoad: false, theme: getCurrentTheme() === 'dark' ? 'dark' : 'default' });
@@ -53,7 +58,8 @@ window.addEventListener('DOMContentLoaded', () => {
         // Nạp nội dung CUỐI: renderMarkdown() đầu tiên phải chạy sau khi mermaid initialize và marked gắn
         // KaTeX extension, nếu không công thức ($...$ / $$...$$) lần mở đầu chỉ hiện chữ thô. Đặt trong finally
         // để editor vẫn có nội dung dù khối init bên trên ném lỗi.
-        restoreSession();
+        ready = restoreSession();
+        await ready;
     }
 });
 
@@ -61,7 +67,10 @@ window.addEventListener('DOMContentLoaded', () => {
 // mermaid/KaTeX đã gắn vào marked) thì mới kiểm được đúng thứ cần kiểm. Đặt trước sẽ chạy trên
 // textarea rỗng và render ra preview rác mà không ai dọn sau.
 if (location.search.includes('selfcheck')) {
-    window.addEventListener('DOMContentLoaded', runSelfCheck);
+    window.addEventListener('DOMContentLoaded', async () => {
+        await ready;
+        runSelfCheck();
+    });
 }
 
 window.renderMarkdown = renderMarkdown;

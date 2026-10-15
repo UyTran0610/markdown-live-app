@@ -121,6 +121,17 @@ export function initEditorEvents() {
             return;
         }
 
+        const closers = [')', ']', '}', '"', "'", '`'];
+        // Nhảy qua ký tự đóng phải ĐỨNG TRƯỚC auto-close. Với cặp đối xứng (" ` ') hai nhánh cùng
+        // khớp nên thứ tự ngược lại khiến nhánh này chết: gõ " mở ra "abc"| rồi gõ " lần nữa thì
+        // auto-close chèn thêm một cặp -> "abc"|"" thay vì nhảy qua dấu đóng đã có.
+        // Thứ tự này không đổi gì với ) ] } vì chúng vốn không nằm trong autoClosePairs.
+        if (selStart === selEnd && closers.includes(key) && selStart < val.length && val[selStart] === key) {
+            e.preventDefault();
+            markdownInput.setSelectionRange(selStart + 1, selStart + 1);
+            return;
+        }
+
         const autoClosePairs = {
             '(': ')',
             '[': ']',
@@ -144,13 +155,6 @@ export function initEditorEvents() {
             const closeChar = autoClosePairs[key];
             const newText = val.substring(0, selStart) + openChar + closeChar + val.substring(selEnd);
             applyEditorChange(newText, selStart + 1, selStart + 1);
-            return;
-        }
-
-        const closers = [')', ']', '}', '"', "'", '`'];
-        if (selStart === selEnd && closers.includes(key) && selStart < val.length && val[selStart] === key) {
-            e.preventDefault();
-            markdownInput.setSelectionRange(selStart + 1, selStart + 1);
             return;
         }
 

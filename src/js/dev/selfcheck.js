@@ -18,13 +18,13 @@ import { editorHistory } from '../editor/history.js';
 import { syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectEol, sameFilePath, toLf } from '../export/file-save.js';
+import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, sameFilePath, stripBom, toLf } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isTabDirty, isMarkdownPath, deserializeSession, serializeSession } from '../io/documents.js';
+import { isTabDirty, isMarkdownPath, deserializeSession, serializeSession, sessionKeepsContent } from '../io/documents.js';
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
@@ -89,6 +89,13 @@ export async function runSelfCheck() {
         assert('eol chuẩn hoá CRLF và CR cũ về LF', toLf('a\r\nb\rc') === 'a\nb\nc');
         assert('eol ghi lại đúng CRLF của file', applyEol('a\nb', '\r\n') === 'a\r\nb');
         assert('eol giữ nguyên LF', applyEol('a\nb', '\n') === 'a\nb');
+        // BOM đứng trước "#" làm dòng đầu mất heading trong preview và mất tiêu đề export.
+        assert('bom nhận file có BOM', detectBom('\uFEFF# A') === true);
+        assert('bom file thường', detectBom('# A') === false);
+        assert('bom file rỗng', detectBom('') === false);
+        assert('bom bỏ sạch ký tự đầu', stripBom('\uFEFF# A') === '# A');
+        assert('bom file không BOM thì giữ nguyên', stripBom('# A') === '# A');
+        assert('bom bỏ đi thì dòng đầu lại là heading', deriveDocumentTitle(stripBom('\uFEFF# A\nx')) === 'A');
         // Cùng một file trên Windows không được mở thành hai tab (hai tab ghi đè nhau).
         assert('path Windows không phân biệt hoa thường và dấu gạch', sameFilePath('C:\\Docs\\A.md', 'c:/docs/a.md') === true);
         assert('path khác thư mục vẫn khác file', sameFilePath('/x/a.md', '/y/a.md') === false);
@@ -146,8 +153,8 @@ export async function runSelfCheck() {
         // Session: round-trip giữ nguyên tab + tab đang mở, và quy tắc "chưa lưu".
         await section('khối #3', async () => {
             // Đúng shape serializeSession() xuất ra: history không lưu, dirty là boolean.
-            const wire = (id, path, name, content, savedContent, eol = '\n') => ({
-                id, path, name, content, eol, dirty: isTabDirty({ content, savedContent }), scrollTop: 0, selStart: 0, selEnd: 0
+            const wire = (id, path, name, content, savedContent, eol = '\n', bom = false) => ({
+                id, path, name, content, eol, bom, dirty: isTabDirty({ content, savedContent }), scrollTop: 0, selStart: 0, selEnd: 0
             });
             assert('tab sạch khi content khớp savedContent', isTabDirty({ content: '# A', savedContent: '# A' }) === false);
             assert('tab dirty khi content khác savedContent', isTabDirty({ content: '# B2', savedContent: '# B' }) === true);
@@ -165,10 +172,34 @@ export async function runSelfCheck() {
             assert('tab sửa lúc đóng vẫn dirty sau khi mở lại', isTabDirty(back.tabs[1]) === true);
             assert('tab chưa lưu vẫn dirty sau khi mở lại', isTabDirty(back.tabs[2]) === true);
 
-            // Tab khôi phục không đọc lại file từ đĩa: mất eol là lần Ctrl+S sau ghi đè file CRLF bằng LF.
+            // Tab lưu được nội dung (dirty / chưa có path) không được đọc lại đĩa: mất eol là lần Ctrl+S
+            // sau ghi đè file CRLF bằng LF.
             const crlf = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, 'C:\\a.md', 'a.md', '# A', '# A', '\r\n')] }));
             assert('session giữ kiểu xuống dòng CRLF', crlf.tabs[0].eol === '\r\n');
             assert('session thiếu eol -> mặc định LF', back.tabs[0].eol === '\n');
+
+            // BOM phải sống cùng session: tab lưu được nội dung không đọc lại đĩa, mất bom là file
+            // gốc bị mất BOM ở lần lưu kế tiếp.
+            const bomBack = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, 'C:\\a.md', 'a.md', '# A', '# A', '\n', true)] }));
+            assert('session giữ cờ BOM', bomBack.tabs[0].bom === true);
+            assert('session thiếu bom -> mặc định không BOM', back.tabs[0].bom === false);
+
+            // Session của build cũ còn BOM trong content: bỏ BOM và tab vẫn phải sạch (bỏ lệch với
+            // savedContent thì tab sạch hoá dirty).
+            const legacyBom = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, '/a.md', 'a.md', '\uFEFF# A', '\uFEFF# A')] }));
+            assert('session cũ có BOM -> bỏ khi khôi phục', legacyBom.tabs[0].content === '# A');
+            assert('bỏ BOM xong tab vẫn sạch', isTabDirty(legacyBom.tabs[0]) === false);
+
+            // Nội dung tab sạch có path không lưu (content = null) -> lúc khôi phục phải đọc lại đĩa.
+            assert('tab sạch có path không lưu nội dung', sessionKeepsContent({ path: '/a.md', content: 'x', savedContent: 'x' }) === false);
+            assert('tab dirty có path vẫn lưu nội dung', sessionKeepsContent({ path: '/a.md', content: 'y', savedContent: 'x' }) === true);
+            assert('tab chưa có path luôn lưu nội dung', sessionKeepsContent({ path: null, content: '', savedContent: '' }) === true);
+            const noContent = deserializeSession(JSON.stringify({
+                activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: null, dirty: false, eol: '\n', bom: false }]
+            }));
+            assert('session content null + có path -> đánh dấu đọc lại đĩa', noContent.tabs[0].reload === true);
+            assert('tab đọc lại đĩa chưa xong thì chưa có nội dung', noContent.tabs[0].content === '' && isTabDirty(noContent.tabs[0]) === false);
+            assert('session có content -> không đọc lại đĩa (tương thích session cũ)', back.tabs[0].reload === false);
 
             assert('session không có tab -> null thay vì crash', deserializeSession('{"tabs":[]}') === null);
             assert('session rỗng -> null', deserializeSession('null') === null);
@@ -186,6 +217,45 @@ export async function runSelfCheck() {
                 typeof live.activeId === 'number' && Array.isArray(live.tabs)
                 && live.tabs.every((t) => 'dirty' in t && (t.eol === '\n' || t.eol === '\r\n')));
         });
+
+        // Auto-close / bỏ qua ký tự đóng. Handler gắn thẳng vào textarea nên gõ giả bằng
+        // KeyboardEvent là đủ: các nhánh tự gán markdownInput.value + selection đồng bộ.
+        // Event giả KHÔNG tự chèn ký tự như trình duyệt thật, nên nhánh "để trình duyệt tự
+        // chèn" phải assert qua prevented === false chứ không assert nội dung có thêm ký tự.
+        await section('auto-close', async () => {
+            const press = (key, value, caret) => {
+                markdownInput.value = value;
+                markdownInput.setSelectionRange(caret, caret);
+                const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+                markdownInput.dispatchEvent(e);
+                return { value: markdownInput.value, caret: markdownInput.selectionStart, prevented: e.defaultPrevented };
+            };
+
+            const quoteOpen = press('"', '', 0);
+            assert('gõ " trên nội dung rỗng -> mở cặp', quoteOpen.value === '""' && quoteOpen.caret === 1);
+            // Đây là assert bắt bug: trước đây gõ lại " chèn thêm một cặp -> '"abc"|""'.
+            const quoteSkip = press('"', '"abc"', 4);
+            assert('gõ lại " nhảy qua dấu đóng, không nhân đôi', quoteSkip.value === '"abc"' && quoteSkip.caret === 5);
+            const backtickSkip = press('`', '`a`', 2);
+            assert('gõ lại ` nhảy qua, không nhân đôi', backtickSkip.value === '`a`' && backtickSkip.caret === 3);
+            const singleSkip = press("'", "'a'", 2);
+            assert("gõ lại ' nhảy qua dấu đóng", singleSkip.value === "'a'" && singleSkip.caret === 3);
+            // Caret ở CUỐI "don't": đặt giữa "don" và "'t" thì ký tự kế tiếp là ' nên nhánh nhảy qua bắt
+// trước, không kiểm được guard nháy đơn nữa.
+            const apostrophe = press("'", "don't", 5);
+            assert("' sau chữ là dấu nháy đơn, không tự đóng", !apostrophe.prevented);
+
+            const parenOpen = press('(', '', 0);
+            assert('gõ ( vẫn mở cặp', parenOpen.value === '()' && parenOpen.caret === 1);
+            const parenSkip = press(')', '(x)', 2);
+            assert('gõ ) vẫn nhảy qua (không bị đổi thứ tự)', parenSkip.value === '(x)' && parenSkip.caret === 3);
+
+            markdownInput.value = '""';
+            markdownInput.setSelectionRange(1, 1);
+            markdownInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }));
+            assert('Backspace giữa cặp xoá cả hai dấu', markdownInput.value === '');
+        });
+
         await section('khối #4', async () => {
             const host = document.createElement('div');
             host.innerHTML = '<blockquote><p>a</p></blockquote><blockquote class="markdown-alert markdown-alert-tip"><p class="markdown-alert-title">Tip</p><p>b</p></blockquote>';

@@ -95,7 +95,7 @@ body.view-editor .editor-pane {
 }
 
 /* ==== Thanh trạng thái ====
-   Nằm dưới .workspace, chiếm 22px. Ngắn gọn, chỉ có 3 mục; không dùng lại .btn vì đây là dải thụt
+   Nằm dưới .workspace, chiếm 22px. Ngắn gọn, chỉ có 4 mục; không dùng lại .btn vì đây là dải thụt
    bị xuống dòng của app chứ không phải hàng nút. */
 .status-bar {
     display: flex;
@@ -107,7 +107,8 @@ body.view-editor .editor-pane {
     border-top: 1px solid var(--border-color);
     background: var(--bg-body);
     font-size: 0.6875rem;
-    color: var(--text-muted);
+    font-weight: 500;
+    color: var(--text-secondary);
     user-select: none;
 }
 
@@ -119,6 +120,7 @@ body.view-editor .editor-pane {
     color: inherit;
     font-family: inherit;
     font-size: inherit;
+    font-weight: inherit;
     line-height: 1;
 }
 
@@ -129,6 +131,11 @@ button.status-item {
 button.status-item:hover {
     background: var(--btn-bg-hover);
     color: var(--btn-text-hover);
+}
+
+/* Số ký tự: đẩy sát phải thanh trạng thái (trước nằm ở cuối thanh định dạng). */
+#char-counter {
+    margin-left: auto;
 }
 
 .pane {

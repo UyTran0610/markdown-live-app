@@ -288,9 +288,6 @@
                 <button id="btn-mermaid" class="btn-icon" title="Mermaid diagram" aria-label="Mermaid diagram">
                     <i data-lucide="workflow"></i>
                 </button>
-                <!-- Số ký tự: header EDITOR/PREVIEW đã bỏ nên counter nằm ở cuối thanh định dạng
-                     (canh phải bằng margin-left: auto, xem css/format-bar.css). -->
-                <span id="char-counter" class="counter">0 characters</span>
             </div>
             <div class="editor-container">
                 <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"><code id="editor-highlight-code"></code></pre>
@@ -307,12 +304,14 @@
         </section>
     </main>
 
-    <!-- Thanh trạng thái: kiểu xuống dòng đang dùng (bấm để đổi), vị trí con trỏ, mã hoá.
-         Encoding cố định UTF-8 vì readTextFile từ chối file không phải UTF-8 ngay từ đầu. -->
+    <!-- Thanh trạng thái: kiểu xuống dòng đang dùng (bấm để đổi), vị trí con trỏ, mã hoá, số ký tự.
+         Encoding cố định UTF-8 vì readTextFile từ chối file không phải UTF-8 ngay từ đầu.
+         Số ký tự nằm ở đây (không phải thanh định dạng) để vẫn hiện ở chế độ Preview. -->
     <footer class="status-bar" role="status" aria-label="Document status">
         <button id="status-eol" class="status-item" type="button" title="Line ending - click to switch (LF / CRLF)"></button>
         <span id="status-pos" class="status-item"></span>
         <span id="status-encoding" class="status-item">UTF-8</span>
+        <span id="char-counter" class="status-item">0 characters</span>
     </footer>
 
     <!-- Link Dialog -->

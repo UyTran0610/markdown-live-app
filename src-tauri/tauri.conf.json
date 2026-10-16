@@ -34,6 +34,26 @@
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["md"],
+        "name": "Markdown",
+        "description": "Markdown document",
+        "role": "Editor"
+      },
+      {
+        "ext": ["markdown", "mdown", "mkd"],
+        "name": "Markdown",
+        "description": "Markdown document",
+        "role": "Editor"
+      },
+      {
+        "ext": ["txt"],
+        "name": "Text",
+        "description": "Plain text document",
+        "role": "Editor"
+      }
     ]
   }
 }

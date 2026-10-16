@@ -83,7 +83,11 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex: 0 0 auto;
+    /* Co giãn thay vì cuộn ngay: flex 0 1 auto + min-width để tab thu dần về 96px rồi mới tràn,
+       đúng kiểu Chrome/Edge. min-width buộc phải có vì .tab là inline-flex + nowrap nên không có
+       nó flex item không co dưới min-content. */
+    flex: 0 1 auto;
+    min-width: 96px;
     max-width: 220px;
     height: 26px;
     padding: 0 8px;
@@ -100,6 +104,10 @@
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
+    /* Kéo bằng cảm ứng/but viết: không có touch-action:none thì trình duyệt hủy chuỗi pointer
+       để cuộn, kéo tab bị giữa chừng. */
+    touch-action: none;
+    position: relative;
     transition: background-color 0.15s, color 0.15s;
 }
 
@@ -119,9 +127,39 @@
    flex item không co được dưới min-content, chữ sẽ tràn ra ngoài .tab (max-width
    chỉ cắt hộp, không cắt chữ) và đè lên tab kế bên. */
 .tab-name {
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Tab không đọc/ghi được file (status !== 'ok'): dấu ! thay vì icon để không phụ thuộc
+   lucide.createIcons() chạy lại sau khi dải tab được dựng lại. */
+.tab-broken {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--text-muted);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* Tab ghim: đánh dấu góc phải, không chiếm chiều ngang nên không đẩy layout khi bật/tắt. */
+.tab[data-pinned]::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 0;
+    height: 0;
+    border-top: 6px solid var(--text-muted);
+    border-left: 6px solid transparent;
 }
 
 /* Chấm "chưa lưu" là xám nhạt, không dùng màu xanh link: nổi quá sẽ kéo mắt vào dải
@@ -181,13 +219,17 @@
 }
 
 .tab-add {
+    /* position:sticky giữ nút "+" dính mép phải khi dải tab cuộn: nút này là đường duy nhất mở
+       tab mới, cuộn mất nó là mất khả năng mở tab mà không phải lăn ngược lại đầu dải. */
+    position: sticky;
+    right: 0;
     flex: 0 0 auto;
     width: 26px;
     height: 26px;
     margin-left: 2px;
     border: 1px solid transparent;
     border-radius: 6px;
-    background: transparent;
+    background: var(--bg-body);
     color: var(--text-muted);
     font-family: inherit;
     font-size: 15px;

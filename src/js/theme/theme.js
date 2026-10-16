@@ -2,6 +2,7 @@
 
 import { btnTheme, themeCssLinks } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
+import { invalidatePreviewCaches } from '../io/documents.js';
 import { clearMermaidCache } from '../preview/mermaid-cache.js';
 import { renderMarkdown } from '../preview/render.js';
 
@@ -70,6 +71,7 @@ export function initTheme() {
             // ảnh "sau" sẽ đứng yên cả trang rồi mới fade — đó là cảm giác lag),
             // nhưng PHẢI sau applyTheme, không thì Mermaid vẽ ra màu theme cũ.
             clearMermaidCache();
+            invalidatePreviewCaches();
             if (typeof renderMarkdown === 'function') renderMarkdown();
         });
     }
@@ -85,6 +87,7 @@ export function initTheme() {
             if (!hasManualPreference) {
                 switchTheme(event.matches ? 'dark' : 'light', false);
                 clearMermaidCache();
+                invalidatePreviewCaches();
                 if (typeof renderMarkdown === 'function') renderMarkdown();
             }
         });

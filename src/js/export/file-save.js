@@ -131,12 +131,45 @@ export async function readTextFile(path) {
     }
 }
 
+// fs.stat() bọc lại: trả null thay vì ném (file bị xoá, ngoài ACL) vì cả hai trường hợp đều chỉ
+// cần "không đọc được mtime". Không tự báo lỗi: đây là phép kiểm, lỗi thật do read/write báo.
+export async function statFile(path) {
+    try {
+        return await window.__TAURI__.fs.stat(path);
+    } catch (err) {
+        console.warn('Stat failed:', err);
+        return null;
+    }
+}
+
+// mtime của file về dạng số phẳng để so sánh bằng ===. fs trả Date; Math.round vì độ phân giải
+// filesystem Windows là 100ns còn Date giữ ms nên so sánh Date gốc là hợp lý nhưng làm tròn thì
+// không bao giờ lệch do độ chính xác. Hàm thuần, selfcheck gọi được.
+export function mtimeOf(stat) {
+    if (!stat || !stat.mtime) return null;
+    const ms = typeof stat.mtime === 'number' ? stat.mtime : new Date(stat.mtime).getTime();
+    return Number.isFinite(ms) ? Math.round(ms) : null;
+}
+
 // Ghi đè một file đã biết đường dẫn (tab đang mở có path) — không mở hộp thoại.
 // Dùng chung đoạn bắt lỗi ACL với saveTextFile để thông báo nhất quán.
 export async function writeTextFile(path, contents, eol = '\n', bom = false) {
     try {
         const body = applyEol(contents, eol);
-        await window.__TAURI__.fs.writeTextFile(path, bom ? '\uFEFF' + body : body);
+        const payload = bom ? '\uFEFF' + body : body;
+        // Ghi atomic: tạm cạnh file rồi rename đè lên file thật. writeTextFile thẳng sẽ truncate
+        // file trước rồi mới ghi, app bị kill giữa chừng là còn một file rỗng/rút cụt.
+        // std::fs::rename trên Windows dùng MoveFileEx(MOVEFILE_REPLACE_EXISTING) nên rename đè
+        // được file đã tồn tại; file tạm nằm cùng thư mục nên trong fs:scope sẵn có.
+        const tmp = path + '.md-live.tmp';
+        await window.__TAURI__.fs.writeTextFile(tmp, payload);
+        try {
+            await window.__TAURI__.fs.rename(tmp, path);
+        } catch (err) {
+            // Đổi tên hỏng (file thật bị khoá bởi chương trình khác, ACL khác...) -> ghi thẳng để
+            // không mất thay đổi chỉ vì không atomic được.
+            await window.__TAURI__.fs.writeTextFile(path, payload);
+        }
         return true;
     } catch (err) {
         console.error('Write failed:', err);

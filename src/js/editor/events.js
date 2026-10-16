@@ -11,85 +11,148 @@ import {
 } from './edit.js';
 import { editorHistory } from './history.js';
 import { syncEditorAfterChange } from './sync.js';
-import { cycleTab, saveActiveDoc } from '../io/documents.js';
+import { closeTab, cycleTab, getActiveTab, getTabs, newTab, openFiles, reopenClosedTab, saveActiveDoc, saveAllTabs, switchTab } from '../io/documents.js';
+
+// Ctrl+1..9 -> tab thứ N. Nằm ngoài handler vì cần ngưỡng (Ctrl+0 / Ctrl+9 khi có ít tab là hợp lệ).
+function switchToTabByNumber(e) {
+    const digit = Number(e.key.slice(1));
+    if (!Number.isInteger(digit) || digit < 1 || digit > 9) return false;
+    const target = getTabs()[digit - 1];
+    if (!target) return true;
+    e.preventDefault();
+    switchTab(target.id);
+    return true;
+}
+
+// Phím tắt toàn cục: gắn trên window chứ không gắn trên textarea, vì ở chế độ Preview cả
+// .editor-pane bị display:none (layout.css) nên phím bấm trong textarea không bắn được, và sau khi
+// bấm vào toolbar thì con trỏ cũng không còn trong textarea. Ctrl+S/Ctrl+B chết đúng lúc người
+// dùng đang nhìn preview là lỗi nặng nhất của kiểu gắn vào phần tử.
+function handleGlobalShortcut(e) {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+    if (!isCmdOrCtrl) return;
+
+    const key = e.key;
+    const lowerKey = key.toLowerCase();
+
+    // Chuyển tab phải bắt TRƯỚC nhánh Tab thường bên dưới, nếu không Tab sẽ chèn khoảng trắng.
+    if (key === 'Tab') {
+        e.preventDefault();
+        cycleTab(e.shiftKey ? -1 : 1);
+        return;
+    }
+
+    if (lowerKey === 's') {
+        e.preventDefault();
+        saveActiveDoc(e.shiftKey ? { as: true } : undefined);
+        return;
+    }
+
+    if (lowerKey === 'o') {
+        e.preventDefault();
+        openFiles();
+        return;
+    }
+
+    if (lowerKey === 't') {
+        e.preventDefault();
+        if (e.shiftKey) reopenClosedTab();
+        else newTab();
+        return;
+    }
+
+    if (lowerKey === 'w') {
+        const active = getActiveTab();
+        if (!active) return;
+        e.preventDefault();
+        closeTab(active.id);
+        return;
+    }
+
+    if (lowerKey === 'a' && e.altKey) {
+        e.preventDefault();
+        saveAllTabs();
+        return;
+    }
+
+    if (key === 'PageDown' || key === 'PageUp') {
+        e.preventDefault();
+        cycleTab(key === 'PageDown' ? 1 : -1);
+        return;
+    }
+
+    if (switchToTabByNumber(e)) return;
+
+    // Dưới đây là phím chỉ có nghĩa khi con trỏ đang ở trong editor.
+    if (e.target !== markdownInput) return;
+
+    if (lowerKey === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        editorHistory.undo(markdownInput);
+        return;
+    }
+
+    if (lowerKey === 'y' || (lowerKey === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        editorHistory.redo(markdownInput);
+        return;
+    }
+
+    if (lowerKey === 'b') {
+        e.preventDefault();
+        wrapOrToggleFormat('**');
+        return;
+    }
+
+    if (lowerKey === 'i') {
+        e.preventDefault();
+        wrapOrToggleFormat('*');
+        return;
+    }
+
+    if (lowerKey === 'k') {
+        e.preventDefault();
+        handleEditorLink();
+        return;
+    }
+
+    if (lowerKey === 'e' || key === '`') {
+        e.preventDefault();
+        wrapOrToggleFormat('`');
+        return;
+    }
+
+    if (e.shiftKey && lowerKey === 'x') {
+        e.preventDefault();
+        wrapOrToggleFormat('~~');
+        return;
+    }
+
+    if (lowerKey === 'd') {
+        e.preventDefault();
+        handleEditorDuplicate();
+    }
+}
 
 export function initEditorEvents() {
+    window.addEventListener('keydown', handleGlobalShortcut);
+
     markdownInput.addEventListener('keydown', (e) => {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
         const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
         const key = e.key;
 
-        if (isCmdOrCtrl) {
-            const lowerKey = key.toLowerCase();
-
-            // Chuyển tab phải bắt TRƯỚC nhánh Tab thường bên dưới, nếu không Tab sẽ chèn khoảng trắng.
-            if (key === 'Tab') {
-                e.preventDefault();
-                cycleTab(e.shiftKey ? -1 : 1);
-                return;
-            }
-
-            if (lowerKey === 's') {
-                e.preventDefault();
-                saveActiveDoc();
-                return;
-            }
-
-            if (lowerKey === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                editorHistory.undo(markdownInput);
-                return;
-            }
-
-            if (lowerKey === 'y' || (lowerKey === 'z' && e.shiftKey)) {
-                e.preventDefault();
-                editorHistory.redo(markdownInput);
-                return;
-            }
-
-            if (lowerKey === 'b') {
-                e.preventDefault();
-                wrapOrToggleFormat('**');
-                return;
-            }
-
-            if (lowerKey === 'i') {
-                e.preventDefault();
-                wrapOrToggleFormat('*');
-                return;
-            }
-
-            if (lowerKey === 'k') {
-                e.preventDefault();
-                handleEditorLink();
-                return;
-            }
-
-            if (lowerKey === 'e' || key === '`') {
-                e.preventDefault();
-                wrapOrToggleFormat('`');
-                return;
-            }
-
-            if (e.shiftKey && lowerKey === 'x') {
-                e.preventDefault();
-                wrapOrToggleFormat('~~');
-                return;
-            }
-
-            if (lowerKey === 'd') {
-                e.preventDefault();
-                handleEditorDuplicate();
-                return;
-            }
-        }
+        // Phím đã xử lý ở tầng toàn cục thì không chạy lại ở đây. Ctrl+Alt+S (Save All) cũng bị chặn
+        // ở đây dù tầng toàn cục bắt nó.
+        if (isCmdOrCtrl || e.altKey) return;
 
         if (key === 'Tab') {
             handleEditorTab(e);
             return;
         }
 
-        if (key === 'Enter' && !e.shiftKey && !e.altKey && !isCmdOrCtrl) {
+        if (key === 'Enter' && !e.shiftKey) {
             handleEditorEnter(e);
             return;
         }

@@ -1,6 +1,7 @@
 // js/ui/view-mode.js — Chế độ xem Editor / Split / Preview và thanh kéo chia pane.
 
 import { btnView, paneResizer, viewItems, viewMenu, viewWrap, workspace } from '../core/dom.js';
+import { renderActivePreview } from '../io/documents.js';
 
 const VIEW_STORAGE_KEY = 'markdown-live-view';
 
@@ -49,6 +50,9 @@ function applyViewMode(mode, persist = true) {
     viewItems.forEach((item) => {
         item.classList.toggle('active', item.dataset.view === mode);
     });
+    // Ở chế độ Editor mọi lượt render đều bị bỏ qua (preview-pane bị display:none), nên chuyển
+    // sang chế độ có preview phải render bù, nếu không người dùng thấy preview cũ hoặc rỗng.
+    if (mode !== 'editor') renderActivePreview();
     if (persist) {
         try {
             localStorage.setItem(VIEW_STORAGE_KEY, mode);

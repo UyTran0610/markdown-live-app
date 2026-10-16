@@ -11,6 +11,7 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
+    "core:window:allow-destroy",
     "core:window:allow-start-dragging",
     "opener:default",
     "clipboard-manager:default",
@@ -18,6 +19,8 @@
     "dialog:default",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "fs:allow-rename",
+    "fs:allow-stat",
     {
       "identifier": "fs:scope",
       "allow": [

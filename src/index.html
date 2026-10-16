@@ -106,11 +106,20 @@
         <div class="toolbar" role="toolbar" aria-label="Document toolbar">
             <!-- Nhóm trái: hành động với tài liệu. Nhóm phải: chế độ xem, sync, theme, help. -->
             <div class="toolbar-group">
-                <button id="btn-import" class="btn" title="Open one or more Markdown files" aria-label="Open files">
+                <button id="btn-import" class="btn" title="Open one or more Markdown files (Ctrl+O)" aria-label="Open files">
                     <span class="btn-label">Open</span>
+                </button>
+                <button id="btn-recent" class="btn" title="Recently opened files" aria-label="Recently opened files" aria-haspopup="menu" hidden>
+                    <span class="btn-label">Recent</span>
                 </button>
                 <button id="btn-save" class="btn" title="Save this file (Ctrl+S)" aria-label="Save" disabled>
                     <span class="btn-label">Save</span>
+                </button>
+                <button id="btn-save-as" class="btn" title="Save this file under a new name (Ctrl+Shift+S)" aria-label="Save as">
+                    <span class="btn-label">Save As</span>
+                </button>
+                <button id="btn-save-all" class="btn" title="Save every changed tab (Ctrl+Alt+S)" aria-label="Save all" hidden>
+                    <span class="btn-label">Save All</span>
                 </button>
                 <button id="btn-copy" class="btn" title="Copy Markdown content" aria-label="Copy">
                     <span class="btn-label">Copy</span>
@@ -298,6 +307,14 @@
         </section>
     </main>
 
+    <!-- Thanh trạng thái: kiểu xuống dòng đang dùng (bấm để đổi), vị trí con trỏ, mã hoá.
+         Encoding cố định UTF-8 vì readTextFile từ chối file không phải UTF-8 ngay từ đầu. -->
+    <footer class="status-bar" role="status" aria-label="Document status">
+        <button id="status-eol" class="status-item" type="button" title="Line ending - click to switch (LF / CRLF)"></button>
+        <span id="status-pos" class="status-item"></span>
+        <span id="status-encoding" class="status-item">UTF-8</span>
+    </footer>
+
     <!-- Link Dialog -->
     <div id="link-dialog" class="dialog-overlay hidden">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title">
@@ -356,6 +373,23 @@
             </div>
             <div class="dialog-actions">
                 <button id="info-close" class="dialog-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog: hộp thoại hỏi chung cho các quyết định KHÔNG THỂ ĐẢO NGƯỢC (đóng tab
+         chưa lưu, file bên ngoài đã sửa, file bị xoá khỏi đĩa, ghi đè file của tab khác).
+         confirm() của WebView là hộp thoại kiểu trình duyệt và không có nút "Lưu", nên không dùng.
+         Nội dung đổi bằng innerHTML của app, không phải dữ liệu người dùng — nguồn trong confirmAction
+         chỉ là chuỗi ta tự ghép từ tên file, có escapeHtml. -->
+    <div id="confirm-dialog" class="dialog-overlay hidden">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h2 id="confirm-title">Confirm</h2>
+            <p id="confirm-message" class="confirm-message"></p>
+            <div class="dialog-actions">
+                <button id="confirm-primary" class="dialog-btn primary" type="button"></button>
+                <button id="confirm-secondary" class="dialog-btn" type="button"></button>
+                <button id="confirm-cancel" class="dialog-btn" type="button">Cancel</button>
             </div>
         </div>
     </div>

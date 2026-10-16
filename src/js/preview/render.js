@@ -155,6 +155,7 @@ export function renderMarkdown() {
                             cacheMermaidResult(code, node.innerHTML);
                         }
                     });
+                    notifyPreviewChanged();
                     // Có lượt renderMarkdown() mới hơn chạy trong lúc Mermaid vẽ (vd người dùng gõ tiếp): lượt này đã lỗi
                     // thời, scrollTopBeforeMermaid không còn đúng. Bỏ qua khôi phục scroll để khỏi ghi đè vị trí của lượt mới.
                     if (myRenderVersion !== renderVersion) return;
@@ -184,6 +185,40 @@ function restorePreviewScrollTop(desiredScrollTop) {
 }
 
 let previewScrollGen = 0;
+
+// HTML preview đã qua hết pipeline (sanitize + hljs + Mermaid + icon), dùng để dựng lại preview của
+// một tab đã xem mà không phải chạy lại toàn bộ pipeline.
+export function currentPreviewHtml() {
+    return previewOutput.innerHTML;
+}
+
+// Dựng lại preview từ HTML cache. Vẫn phải làm đúng phần bookkeeping của renderMarkdown: tăng
+// renderVersion và huỷ lượt Mermaid đang bay, nếu không lượt cũ ghi scrollTop vào tab mới.
+// Không chạy lại hljs/mermaid: HTML cache đã có kết quả, chạy lần hai sẽ bọc span hai lần.
+export function renderCachedHtml(html, scrollTop) {
+    renderVersion++;
+    clearTimeout(mermaidTimeout);
+    if (mermaidScheduled) {
+        mermaidScheduled = false;
+        pendingMermaidJobs--;
+    }
+    previewOutput.innerHTML = html;
+    charCounter.textContent = `${markdownInput.value.length} characters`;
+    restorePreviewScrollTop(scrollTop);
+}
+
+// Cache theo tab nằm ở documents.js; render.js chỉ báo "preview vừa đổi ngoài dự kiến" để cache được
+// bỏ. Mermaid vẽ bất đồng bộ và thay cả khối <pre> sau khi hàm đã trả về, nên cache chụp ở đó
+// không có SVG — bỏ cache thay vì giữ bản thiếu sơ đồ.
+const previewChangedListeners = [];
+
+export function onPreviewChanged(fn) {
+    previewChangedListeners.push(fn);
+}
+
+function notifyPreviewChanged() {
+    previewChangedListeners.forEach((fn) => fn());
+}
 
 // Được gọi từ scroll-sync mỗi khi người dùng cuộn Preview: renderMarkdown dùng số này để biết
 // người dùng đã cuộn trong lúc Mermaid vẽ (giữ vị trí mới, không ghi đè bằng vị trí cũ).

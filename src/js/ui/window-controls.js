@@ -2,6 +2,7 @@
 // "decorations": false) nên đây là cách duy nhất để thu nhỏ / phóng to / đóng cửa sổ.
 
 import { btnWinClose, btnWinMax, btnWinMin, titlebar } from '../core/dom.js';
+import { checkActiveTabDisk, flushSession } from '../io/documents.js';
 
 // Bản chạy trong trình duyệt (không có __TAURI__) không có cửa sổ để điều khiển:
 // nút vẫn hiện để layout đúng nhưng bấm không làm gì.
@@ -36,6 +37,21 @@ export function initWindowControls() {
     btnWinMax.addEventListener('click', () => run(() => win.toggleMaximize()));
     btnWinClose.addEventListener('click', () => run(() => win.close()));
 
+    // Chặn đóng để gửi nốt phiên trước. beforeunload không đáng tin trong Tauri: WebView bị
+    // huỷ cùng cửa sổ nên handler ghi bộ nhớ tạm có thể không kịp chạy. onCloseRequested thì
+    // chặn được, nhưng phải preventDefault() rồi tự destroy sau khi ghi xong.
+    run(() => win.onCloseRequested(async (event) => {
+        event.preventDefault();
+        await flushSession();
+        await win.destroy();
+    }));
+
     syncMaximizedState(win);
     run(() => win.onResized(() => syncMaximizedState(win)));
+
+    // Quay lại app (Alt+Tab, bấm vào cửa sổ) là lúc file trên đĩa nhiều khả năng vừa bị đụng bởi
+    // git / Word / sync đám mây. Chỉ hỏi khi thật sự lệch, tab sạch thì tự tải lại.
+    run(() => win.onFocusChanged(({ payload: focused }) => {
+        if (focused) checkActiveTabDisk();
+    }));
 }

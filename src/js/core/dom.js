@@ -142,3 +142,27 @@ export const tableRowsInput = document.getElementById('table-rows');
 export const tableInsertBtn = document.getElementById('table-insert');
 
 export const tableCancelBtn = document.getElementById('table-cancel');
+
+export const confirmDialog = document.getElementById('confirm-dialog');
+
+export const confirmTitle = document.getElementById('confirm-title');
+
+export const confirmMessage = document.getElementById('confirm-message');
+
+export const confirmPrimaryBtn = document.getElementById('confirm-primary');
+
+export const confirmSecondaryBtn = document.getElementById('confirm-secondary');
+
+export const confirmCancelBtn = document.getElementById('confirm-cancel');
+
+export const btnSaveAs = document.getElementById('btn-save-as');
+
+export const btnSaveAll = document.getElementById('btn-save-all');
+
+export const btnRecent = document.getElementById('btn-recent');
+
+export const statusEol = document.getElementById('status-eol');
+
+export const statusPos = document.getElementById('status-pos');
+
+export const statusEncoding = document.getElementById('status-encoding');

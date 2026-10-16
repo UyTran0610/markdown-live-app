@@ -26,6 +26,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-clipboard-manager = "2"
 
+[target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+tauri-plugin-single-instance = "2"
+
 [package.metadata.winres]
 FileDescription = "Trình soạn thảo Markdown hai chiều thời gian thực"
 CompanyName = "Uy Tran"

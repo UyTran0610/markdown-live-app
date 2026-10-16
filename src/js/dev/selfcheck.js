@@ -14,21 +14,22 @@ import {
     setHeadingLevel,
     wrapHtmlTag
 } from '../editor/format-helpers.js';
-import { editorHistory } from '../editor/history.js';
+import { editorHistory, pruneAllHistories } from '../editor/history.js';
 import { syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, sameFilePath, stripBom, toLf } from '../export/file-save.js';
+import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isTabDirty, isMarkdownPath, deserializeSession, serializeSession, sessionKeepsContent } from '../io/documents.js';
+import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, serializeSession, sessionKeepsContent } from '../io/documents.js';
+import { escapeHtml } from '../ui/confirm-dialog.js';
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
-import { dropIndex, tabScrollState } from '../ui/tabs.js';
+import { dropIndex, disambiguateTabName, tabScrollState } from '../ui/tabs.js';
 import {
     SPLIT_MAX_PERCENT,
     SPLIT_MIN_PERCENT,
@@ -210,6 +211,81 @@ export async function runSelfCheck() {
                 const r = deserializeSession(JSON.stringify({ activeId: 99, tabs: [{ content: 'y' }] }));
                 return r.activeId === 99 && r.tabs[0].name === 'Untitled' && r.tabs[0].path === null;
             })());
+
+            // Id hỏng (session cũ, sửa tay) làm nextId = NaN, kéo theo activeId và getActiveTab() hỏng
+            // theo; id trùng làm hai tab cùng nhận mọi lệnh của nhau.
+            const badIds = deserializeSession(JSON.stringify({
+                tabs: [{ id: 'abc', content: 'a' }, { id: 5, content: 'b' }, { id: 5, content: 'c' }, { id: -3, content: 'd' }, { id: 2.5, content: 'e' }]
+            }));
+            assert('id hỏng / trùng / âm / thực đều được cấp lại',
+                badIds.tabs.every((t) => Number.isSafeInteger(t.id) && t.id > 0)
+                && new Set(badIds.tabs.map((t) => t.id)).size === badIds.tabs.length);
+            assert('id hợp lệ giữ nguyên', deserializeSession(JSON.stringify({ tabs: [{ id: 9, content: 'a' }] })).tabs[0].id === 9);
+
+            // Tab CHƯA có path: mốc "đã lưu" là chuỗi rỗng, không phải null. null nghĩa là "chưa bao
+            // giờ xuống đĩa" nên tab vĩnh viễn dirty và cứ hỏi khi đóng dù đã xoá hết nội dung.
+            const draft = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: null, name: 'Untitled', content: '', dirty: true }] }));
+            assert('tab chưa có path + dirty -> mốc rỗng, không phải null', draft.tabs[0].savedContent === '');
+            assert('tab chưa có path đã xoá hết nội dung thì không hỏi khi đóng', isTabDirty(draft.tabs[0]) === false);
+            const dirtyPath = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: 'x', dirty: true }] }));
+            assert('tab có path + dirty -> savedContent null (chặn ghi đè bản rỗng)', dirtyPath.tabs[0].savedContent === null);
+
+            // status + diskMtime phải sống cùng session: status là chốt chặn duy nhất khiến Ctrl+S
+            // không ghi đè file thật bằng nội dung rỗng sau khi khởi động lại.
+            const st = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: '', dirty: true, status: 'unreadable', diskMtime: 1712345678901 }] }));
+            assert('session giữ status lỗi', st.tabs[0].status === 'unreadable');
+            assert('session giữ mốc đĩa', st.tabs[0].diskMtime === 1712345678901);
+            const stBad = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: 'x', status: 'bogus', diskMtime: 'x' }] }));
+            assert('status lạ -> ok, mtime lạ -> null', stBad.tabs[0].status === 'ok' && stBad.tabs[0].diskMtime === null);
+            assert('mtimeOf nhận Date và số', mtimeOf({ mtime: new Date(1712345678901) }) === 1712345678901 && mtimeOf({ mtime: 1712345678901 }) === 1712345678901);
+            assert('mtimeOf thiếu mtime -> null', mtimeOf(null) === null && mtimeOf({}) === null);
+
+            // Quyết định ghi đè: chỉ hỏi khi mốc đĩa THẬT sự lệch. 'unknown' (chưa có mốc) phải
+            // im lặng, nếu không mỗi lần Ctrl+S là một hộp thoại vô nghĩa.
+            assert('stat hỏng -> file đã mất', diskRevision(null, 1000) === 'gone');
+            assert('mtime khớp -> không hỏi', diskRevision({ mtime: 1000 }, 1000) === 'same');
+            assert('mtime lệch -> hỏi', diskRevision({ mtime: 2000 }, 1000) === 'changed');
+            assert('chưa có mốc -> im lặng, không hỏi', diskRevision({ mtime: 2000 }, null) === 'unknown');
+            assert('mtime không đọc được -> im lặng', diskRevision({}, 1000) === 'unknown');
+
+            // Trần ký tự lịch sử toàn app: mỗi mục giữ nguyên chuỗi nội dung nên vài tab tài liệu
+            // lớn là hàng trăm MB. Cắt ở lúc chuyển tab, tab nền trước, tab đang mở sau cùng.
+            const bigEntry = () => ({ val: 'x'.repeat(1000), start: 0, end: 0 });
+            const hA = { stack: [bigEntry(), bigEntry(), bigEntry()], index: 2 };
+            const hB = { stack: [bigEntry()], index: 0 };
+            pruneAllHistories([hA, hB]);
+            assert('lịch sử nhỏ hơn trần thì không bị cắt', hA.stack.length === 3 && hB.stack.length === 1);
+            const hChars = (h) => h.stack.reduce((s, e) => s + e.val.length, 0);
+            const hBig = { stack: Array.from({ length: 12 }, bigEntry), index: 11 };
+            pruneAllHistories([hBig], 2500);
+            assert('vượt trần bị cắt, và sau khi cắt không còn vượt trần', hChars(hBig) <= 2500 && hBig.stack.length < 12);
+            assert('index hợp lệ sau khi cắt', hBig.index >= -1 && hBig.index <= hBig.stack.length - 1);
+            const hMid = { stack: Array.from({ length: 12 }, bigEntry), index: 11 };
+            pruneAllHistories([hMid], 5000);
+            assert('cắt một phần, không cắt quá tay', hChars(hMid) <= 5000 && hMid.stack.length > 0);
+            const hBgA = { stack: Array.from({ length: 10 }, bigEntry), index: 9 };
+            const hBgB = { stack: Array.from({ length: 10 }, bigEntry), index: 9 };
+            pruneAllHistories([hBgA, hBgB], 5000);
+            assert('tổng lịch sử mọi tab không vượt trần', hChars(hBgA) + hChars(hBgB) <= 5000);
+            assert('tab nền bị cắt trước tab đang mở', hChars(hBgB) > hChars(hBgA));
+            const hBack = { stack: Array.from({ length: 5 }, bigEntry), index: 2 };
+            pruneAllHistories([hBack], 500);
+            assert('cắt hết stack -> index về -1, không âm', hBack.stack.length === 0 && hBack.index === -1);
+
+            // Tên tab trùng nhau phải phân biệt được, và không phân biệt thừa khi không trùng.
+            const dupes = [
+                { name: 'README.md', path: 'C:\\a\\README.md' },
+                { name: 'README.md', path: 'C:\\b\\README.md' },
+                { name: 'notes.md', path: 'C:\\a\\notes.md' }
+            ];
+            assert('hai tab trùng tên -> ghi kèm thư mục cha', disambiguateTabName(dupes[0], dupes) === 'a/README.md');
+            assert('tên không trùng -> giữ nguyên', disambiguateTabName(dupes[2], dupes) === 'notes.md');
+            assert('tab chưa lưu -> tên gốc', disambiguateTabName({ name: 'Untitled', path: null }, dupes) === 'Untitled');
+
+            // confirmAction chèn câu hỏi bằng innerHTML: tên file do người dùng đặt là dữ liệu
+            // không tin được, phải escape trước khi vào DOM.
+            assert('escapeHtml chặn thẻ trong tên file', escapeHtml('<img src=x onerror=alert(1)>') === '&lt;img src=x onerror=alert(1)&gt;');
+            assert('escapeHtml chặn dấu nháy', escapeHtml('a"b\'c&d') === 'a&quot;b&#39;c&amp;d');
 
             // serializeSession() đọc store thật; chỉ kiểm tra nó không nổ và có đủ 2 trường.
             const live = serializeSession();

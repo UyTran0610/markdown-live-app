@@ -47,6 +47,12 @@
     transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
+.btn[hidden] {
+    /* display:inline-flex ở .btn đè [hidden] của user-agent, phải khai báo lại — cùng lý do với
+       .tabs-nav-btn[hidden] trong tabs.css. Save All chỉ hiện khi có >= 2 tab đang sửa. */
+    display: none;
+}
+
 .btn:hover {
     background: var(--btn-bg-hover);
     border-color: var(--btn-border-hover);

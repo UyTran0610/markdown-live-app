@@ -1,12 +1,19 @@
 // js/ui/tabs.js — Thanh tab: dựng lại từ store mỗi khi store đổi, gắn thao tác bấm / middle-click.
 
-import { btnSave, btnTabScrollLeft, btnTabScrollRight, tabStrip } from '../core/dom.js';
+import { btnSave, btnSaveAll, btnSaveAs, btnTabScrollLeft, btnTabScrollRight, tabStrip } from '../core/dom.js';
 import { closeTab, getActiveTab, getTabs, isTabDirty, moveTab, newTab, subscribe, switchTab } from '../io/documents.js';
+import { openAllTabsMenu } from './tab-menu.js';
+
+const STATUS_TITLE = {
+    unreadable: 'Could not read this file - use Save As, saving here would overwrite it',
+    missing: 'This file was deleted from disk'
+};
 
 // Dùng ký tự "×" chứ không phải icon lucide: lucide.createIcons() chỉ chạy một lần lúc DOMContentLoaded,
 // nên icon trong tab tạo sau đó sẽ không bao giờ được vẽ.
-function buildTab(tab, isActive) {
+function buildTab(tab, isActive, displayName, dupeCount) {
     const dirty = isTabDirty(tab);
+    const broken = tab.status !== 'ok';
 
     const el = document.createElement('div');
     el.className = isActive ? 'tab active' : 'tab';
@@ -14,15 +21,28 @@ function buildTab(tab, isActive) {
     el.title = tab.path || tab.name;
     el.setAttribute('role', 'tab');
     el.setAttribute('aria-selected', String(isActive));
+    // Roving tabindex: chỉ tab đang mở nhận focus, các tab khác vào bằng phím mũi tên. Không có
+    // tabindex thì div không nhận focus và :focus-visible trong tabs.css không bao giờ chạy.
+    el.tabIndex = isActive ? 0 : -1;
 
     const name = document.createElement('span');
     name.className = 'tab-name';
-    name.textContent = tab.name;
+    name.textContent = displayName;
 
     const dot = document.createElement('span');
     dot.className = 'tab-dot';
     dot.hidden = !dirty;
     dot.title = 'Unsaved changes';
+
+    el.append(name, dot);
+
+    if (broken) {
+        const mark = document.createElement('span');
+        mark.className = 'tab-broken';
+        mark.textContent = '!';
+        mark.title = STATUS_TITLE[tab.status] || '';
+        el.append(mark);
+    }
 
     const close = document.createElement('span');
     close.className = 'tab-close';
@@ -31,13 +51,30 @@ function buildTab(tab, isActive) {
     close.setAttribute('aria-label', `Close ${tab.name}`);
     close.textContent = '\u00d7';
 
-    el.append(name, dot, close);
+    el.append(close);
+    if (dupeCount > 1) el.dataset.dupe = String(dupeCount);
+    if (tab.pinned) el.dataset.pinned = 'true';
     return el;
+}
+
+// Tên hiển thị: hai tab cùng tên thì phân biệt bằng thư mục cha (kiểu VS Code). `Untitled` đánh số
+// thứ tự tạo nên vốn đã phân biệt được, chỉ tên file từ đĩa mới cần viết rõ hơn.
+export function disambiguateTabName(tab, tabs) {
+    if (!tab.path) return tab.name;
+    const sameName = tabs.filter((other) => other.name === tab.name).length;
+    if (sameName < 2) return tab.name;
+    const parent = tab.path.split(/[\\/]/).slice(-2, -1)[0];
+    return parent ? `${parent}/${tab.name}` : tab.name;
 }
 
 // Ids đã có ở lần render trước: chỉ tab mới mới được class .tab-enter, vì cả dải tab
 // bị replaceChildren() mỗi lần store emit — animation trên mọi tab sẽ nháy lại liên tục.
 let seenIds = new Set();
+
+// Lần render đầu là lúc cả session vừa được dựng: không có tab nào là "mới", chỉ toàn bộ dải
+// đang hiện ra lần đầu. Không gắn .tab-enter cho chúng, nếu không lúc mở app thấy cả dải trượt
+// vào cùng lúc.
+let firstRender = true;
 
 // Trạng thái cuộn dải tab, tách khỏi DOM để self-check kiểm được:
 // canScroll = dải tab tràn, left/right = còn tab bị khuất ở mép tương ứng.
@@ -64,13 +101,14 @@ function updateOverflow() {
 
 function render() {
     if (drag) endDrag(false);
+    const all = getTabs();
     const active = getActiveTab();
-    const ids = new Set(getTabs().map((tab) => tab.id));
+    const ids = new Set(all.map((tab) => tab.id));
     tabStrip.replaceChildren();
 
-    getTabs().forEach((tab) => {
-        const el = buildTab(tab, !!active && tab.id === active.id);
-        if (!seenIds.has(tab.id)) el.classList.add('tab-enter');
+    all.forEach((tab) => {
+        const el = buildTab(tab, !!active && tab.id === active.id, disambiguateTabName(tab, all), all.filter((t) => t.name === tab.name).length);
+        if (!firstRender && !seenIds.has(tab.id)) el.classList.add('tab-enter');
         el.addEventListener('click', (e) => {
             // Sau khi kéo xong, chuột vẫn sinh một click trên tab vừa kéo: nuốt đúng click đó
             // để kéo không mở nhầm tab. draggedId tự xoá sau một nhịp, nên click thật kế tiếp vẫn ăn.
@@ -91,26 +129,37 @@ function render() {
             e.preventDefault();
             closeTab(tab.id);
         });
+        // Windows bật chế độ autoscroll (con trỏ 4 mũi tên) ngay ở mousedown chuột giữa, trước khi
+        // auxclick kịp nổ — preventDefault ở auxclick không tắt được. Phải chặn ở mousedown.
+        el.addEventListener('mousedown', (e) => {
+            if (e.button === 1) e.preventDefault();
+        });
         tabStrip.appendChild(el);
     });
 
     const add = document.createElement('button');
     add.className = 'tab-add';
     add.type = 'button';
-    add.title = 'New tab';
+    add.title = 'New tab (Ctrl+T)';
     add.setAttribute('aria-label', 'New tab');
     add.textContent = '+';
     add.addEventListener('click', () => newTab());
     tabStrip.appendChild(add);
 
-    // Lưu chỉ dùng được khi tab đang mở thực sự khác ổ đĩa.
-    if (btnSave) btnSave.disabled = !(active && isTabDirty(active));
+    // Lưu chỉ dùng được khi tab đang mở thực sự khác ổ đĩa. Tab lỗi (đọc hỏng / file đã bị xoá)
+    // KHÔNG bật Save: bấm Save khi đó sẽ vào hộp thoại Save As, nút nên nói đúng việc mình làm.
+    const dirty = !!(active && isTabDirty(active));
+    const broken = !!(active && active.status !== 'ok');
+    if (btnSave) btnSave.disabled = !dirty || broken;
+    if (btnSaveAs) btnSaveAs.disabled = !active;
+    if (btnSaveAll) btnSaveAll.hidden = all.filter(isTabDirty).length < 2;
 
     // Dải tab vừa được dựng lại từ đầu nên mất vị trí cuộn: kéo tab active vào khung nhìn.
     tabStrip.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     updateOverflow();
 
     seenIds = ids;
+    firstRender = false;
 }
 
 // ==== Kéo tab để đổi thứ tự ====
@@ -276,6 +325,30 @@ export function initTabs() {
     btnTabScrollLeft?.addEventListener('click', () => { tabStrip.scrollLeft -= SCROLL_STEP; });
     btnTabScrollRight?.addEventListener('click', () => { tabStrip.scrollLeft += SCROLL_STEP; });
     tabStrip.addEventListener('scroll', updateOverflow);
+
+    // Bàn phím tới được tab: tablist chuẩn dùng roving tabindex — chỉ tab đang mở có tabindex 0,
+    // các tab khác -1, và phím mũi tên di chuyển vị trí focus. Không có nó thì Tab bị nuốt vào
+    // textarea ở lần nhấn kế tiếp và :focus-visible trong tabs.css không bao giờ chạy.
+    tabStrip.addEventListener('keydown', (e) => {
+        const els = [...tabStrip.querySelectorAll('.tab')];
+        const current = els.indexOf(e.target.closest('.tab'));
+        if (current < 0) return;
+        const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 1, ArrowUp: -1 }[e.key];
+        let next = null;
+        if (step !== undefined) next = els[(current + step + els.length) % els.length];
+        else if (e.key === 'Home') next = els[0];
+        else if (e.key === 'End') next = els[els.length - 1];
+        if (!next) return;
+        e.preventDefault();
+        next.focus();
+        switchTab(Number(next.dataset.tabId));
+    });
+
+    // Danh sách toàn bộ tab: dải tab cuộn ngang không cho tìm nhanh một tab bị khuất giữa 30 tab.
+    btnTabScrollRight?.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openAllTabsMenu(btnTabScrollRight);
+    });
 
     // Bề rộng dải tab đổi theo số tab, theo maximize/restore và theo kéo cửa sổ; ResizeObserver
     // bắt hết ba trường hợp nên không cần nghe resize.

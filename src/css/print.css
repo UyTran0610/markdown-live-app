@@ -29,6 +29,8 @@
     .editor-pane,
     .dialog-overlay,
     #pane-resizer,
+    .popup-menu,
+    .status-bar,
     .toast {
         display: none !important;
     }

@@ -39,20 +39,12 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 
 ## Tính năng kỹ thuật
 
-- **Dual-Pane Bidirectional Sync:** Soạn thảo song song cùng màn hình render với độ trễ gần như bằng 0.
-- **Ba chế độ xem & chia màn hình linh hoạt:** Chuyển đổi tức thì giữa **Editor**, **Split** và **Preview** qua menu thả xuống trên thanh công cụ, hoặc kéo thanh chia giữa hai khung để tùy chỉnh độ rộng — kéo sát về một bên sẽ tự động chuyển chế độ xem.
-- **GFM Alert Specifications:** Tương thích chuẩn Markdown Alerts của GitHub (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`).
-- **LaTeX Math Rendering:** Tích hợp KaTeX parser cho công thức nội dòng (`$...$`) và dạng khối (`$$...$$`).
-- **Diagrams as Code:** Tích hợp Mermaid.js engine biên dịch biểu đồ luồng (Flowchart), biểu đồ tuần tự (Sequence), biểu đồ quan hệ (ERD).
-- **Code Syntax Highlighting:** Tự động phát hiện và định dạng mã nguồn đa ngôn ngữ thông qua Highlight.js.
-- **Dynamic Syntax Overlay:** Khung textarea được xử lý đồng bộ màu cú pháp Markdown trực tiếp.
-- **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ với Undo/Redo/Clear, Tiêu đề, Danh sách, In đậm, In nghiêng, Gạch ngang, Liên kết, Bảng, các thẻ HTML nội dòng (Superscript, Subscript, `<kbd>`, `<mark>`), code/công thức nội dòng và dạng khối, Blockquote, và mẫu sơ đồ Mermaid — không cần nhớ cú pháp.
-- **Chèn bảng & liên kết trực quan:** Dựng bảng bằng cách rê chuột trên lưới 5×5 (hoặc chọn kích thước tùy chỉnh cho bảng lớn hơn), và chèn liên kết qua hộp thoại riêng với ô nhập văn bản/URL.
-- **Đếm ký tự trực tiếp:** Cuối thanh định dạng hiển thị số ký tự theo thời gian thực khi bạn gõ.
-- **Multi-Format Export:** Xuất nội dung ra HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc PDF dạng vector (văn bản giữ nguyên khả năng highlight/copy, không bị rasterize thành ảnh).
-- **File Import:** Mở một hoặc nhiều file Markdown từ máy tính (`.md`, `.markdown`, `.txt`), mỗi file một tab riêng.
-- **Light/Dark Theme:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ lựa chọn giữa các lần mở ứng dụng.
-- **Tự động lưu phiên làm việc:** Bản nháp Markdown của từng tab cùng thứ tự tab, và chế độ xem gần nhất, đều được lưu cục bộ và tự động khôi phục ở lần mở ứng dụng tiếp theo.
+- **Đồng bộ hai chiều & ba chế độ xem:** Soạn thảo song song thời gian thực với độ trễ gần như bằng 0; chuyển đổi tức thì giữa **Editor**, **Split** và **Preview**, kéo thanh chia để tùy chỉnh độ rộng.
+- **Render phong phú, hoạt động hoàn toàn ngoại tuyến:** GitHub Markdown Alerts, công thức KaTeX (nội dòng và dạng khối), sơ đồ Mermaid, tô màu cú pháp Highlight.js — tất cả xử lý cục bộ.
+- **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ định dạng (tiêu đề, danh sách, in đậm/nghiêng, bảng, liên kết, code, công thức, Mermaid), tô màu cú pháp Markdown trực tiếp và đếm ký tự thời gian thực.
+- **Xuất đa định dạng:** HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid chuyển thành ảnh) hoặc PDF vector (giữ khả năng chọn/copy văn bản).
+- **Tab & an toàn dữ liệu:** Mở nhiều file thành nhiều tab; bản nháp, thứ tự tab và chế độ xem gần nhất tự động lưu và khôi phục ở lần mở tiếp theo.
+- **Chủ đề Sáng/Tối:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ giữa các phiên.
 
 ---
 

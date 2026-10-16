@@ -39,20 +39,12 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 
 ## Technical Features
 
-- **Dual-Pane Bidirectional Sync:** Side-by-side editing and preview with near-zero latency.
-- **Three View Modes & Resizable Panes:** Instantly switch between **Editor**, **Split**, and **Preview** from a toolbar dropdown, or drag the divider between the panes to any width — dragging it all the way to an edge switches modes automatically.
-- **GFM Alert Specifications:** Fully compatible with GitHub Markdown Alerts (`NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION`).
-- **LaTeX Math Rendering:** Integrated KaTeX parser for both inline (`$...$`) and block (`$$...$$`) math formulas.
-- **Diagrams as Code:** Integrated Mermaid.js engine supporting Flowcharts, Sequence Diagrams, and Entity Relationship Diagrams (ERDs).
-- **Code Syntax Highlighting:** Automatic detection and multi-language syntax formatting powered by Highlight.js.
-- **Dynamic Syntax Overlay:** Textarea synchronized with real-time Markdown syntax highlighting directly in the editor.
-- **Full Editing Toolkit:** A dedicated toolbar for Undo/Redo/Clear, Headings, Lists, Bold, Italic, Strikethrough, Links, Tables, inline HTML tags (Superscript, Subscript, `<kbd>`, `<mark>`), inline/block code, inline/block math, Blockquotes, and Mermaid diagram snippets — no need to memorize the syntax.
-- **Visual Table & Link Insertion:** Build tables by hovering a 5×5 grid (or pick a custom size for larger tables), and insert links through a dialog with separate text/URL fields.
-- **Live Character Counter:** The right end of the formatting toolbar shows a real-time character count as you type.
-- **Multi-Format Export:** Export content as standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (text remains selectable and copyable, not rasterized into images).
-- **File Import:** Open one or more local Markdown files (`.md`, `.markdown`, `.txt`), each in its own tab.
-- **Light/Dark Theme:** Automatic system theme detection, manual theme switching, and state persistence between sessions.
-- **Auto-Save Session:** Every open tab's Markdown draft and the tab order, plus your last-used view mode, are saved locally and restored automatically the next time you launch the app.
+- **Dual-Pane Bidirectional Sync & Three View Modes:** Real-time side-by-side editing with near-zero latency; switch instantly between **Editor**, **Split**, and **Preview**, or drag the divider to resize panes freely.
+- **Rich Rendering, Fully Offline:** GitHub Markdown Alerts, KaTeX math (inline and block), Mermaid diagrams, and Highlight.js syntax highlighting — all rendered locally.
+- **Full Editing Toolkit:** A formatting toolbar (headings, lists, bold/italic, tables, links, code, math, Mermaid snippets), live Markdown syntax highlighting, and a real-time character counter.
+- **Multi-Format Export:** Standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (selectable text).
+- **Tabs & Data Safety:** Open multiple files as tabs; drafts, tab order, and your last view mode are auto-saved and restored on the next launch.
+- **Light/Dark Theme:** Automatic system theme detection with manual override, persisted between sessions.
 
 ---
 

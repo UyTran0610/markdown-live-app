@@ -110,16 +110,36 @@ function isAclError(err) {
     return msg.includes('forbidden path') || msg.includes('not allowed') || msg.includes('scope') || msg.includes('outside');
 }
 
-const errorDetail = (err) => String((err && err.message) || err);
+// `code` (plugin fs trả kèm ở một số lỗi) giúp phân biệt nguyên nhân mà không phải đoán qua câu chữ.
+const errorDetail = (err) => {
+    const msg = String((err && err.message) || err);
+    return err && err.code ? `${msg} (${err.code})` : msg;
+};
+
+// Vân tay nội dung 32-bit (FNV-1a): đủ để biết "bản này có khác bản đã lưu không" mà không phải
+// giữ cả chuỗi đã lưu trong session. Hàm thuần, selfcheck gọi được.
+export function hashText(text) {
+    let h = 0x811c9dc5;
+    const s = String(text);
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(36);
+}
 
 // Đọc file đã biết đường dẫn (tab được mở từ hộp thoại Open). Cùng ranh giới ACL với writeTextFile:
 // đọc cũng chỉ được trong các thư mục trong scope, nên lỗi phải báo rõ chứ không im lặng trả về rỗng.
+//
+// Đọc BYTES rồi tự giải mã (thay vì fs.readTextFile) vì readTextFile giải mã bằng TextDecoder
+// không-fatal: byte không phải UTF-8 thành U+FFFD, tab hiện ký tự rác và lần lưu sau ghi hỏng file
+// vĩnh viễn. Ở đây file lạ bị TỪ CHỐI, đúng như thông báo trong UI từ trước tới nay vẫn hứa.
 export async function readTextFile(path) {
+    let bytes;
     try {
-        return await window.__TAURI__.fs.readTextFile(path);
+        bytes = await window.__TAURI__.fs.readFile(path);
     } catch (err) {
         console.error('Read failed:', err);
-        // Đọc "thành công" một file không phải UTF-8 sẽ ra ký tự thay thế và lần lưu sau ghi hỏng vĩnh viễn.
         if (isEncodingError(err)) {
             showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
         } else if (isAclError(err)) {
@@ -127,6 +147,24 @@ export async function readTextFile(path) {
         } else {
             showToast(`Could not read the file: ${errorDetail(err)}`);
         }
+        return null;
+    }
+
+    // Notepad "Unicode" (UTF-16) rất hay gặp với người dùng Windows; app còn đăng ký mở .txt. Đoán
+    // theo BOM rồi từ chối kèm hướng dẫn, không thử chuyển đổi sau lưng người dùng.
+    if (bytes.length >= 2
+        && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) {
+        showToast('That file is UTF-16, not UTF-8 - opening it here would corrupt it. Re-save it as UTF-8 first.');
+        return null;
+    }
+
+    try {
+        // ignoreBOM: true để U+FEFF ở đầu file sống sót vào chuỗi: detectBom/stripBom dựa vào nó, và
+        // mặc định của TextDecoder là NUỐT BOM, tức là lần lưu sau sẽ làm file mất BOM.
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    } catch (err) {
+        console.error('Decode failed:', err);
+        showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
         return null;
     }
 }
@@ -151,28 +189,55 @@ export function mtimeOf(stat) {
     return Number.isFinite(ms) ? Math.round(ms) : null;
 }
 
+// Xoá file tạm, không để lỗi xoá làm hỏng việc lưu: file tạm còn lại chỉ là rác trong thư mục
+// người dùng, còn ném lỗi ở đây thì thay đổi vừa ghi coi như thất bại.
+async function removeQuietly(path) {
+    try {
+        await window.__TAURI__.fs.remove(path);
+    } catch (err) {
+        console.warn('Could not remove temp file:', err);
+    }
+}
+
+// Chọn đường dẫn để lưu — CHỈ mở hộp thoại, không ghi gì. Tách khỏi việc ghi để nơi gọi kiểm tra
+// trùng tab TRƯỚC khi nội dung chạm đĩa (ghi trước rồi mới báo trùng là đã ghi đè file của tab kia).
+// Trả null nếu người dùng hủy, hoặc khi không có cầu dialog (bản chạy trong trình duyệt).
+export async function chooseSavePath(defaultPath, extensions) {
+    if (!hasTauriBridge()) return null;
+    const picked = await window.__TAURI__.dialog.save({
+        defaultPath,
+        filters: [{ name: 'Text file', extensions }]
+    });
+    return picked || null;
+}
+
 // Ghi đè một file đã biết đường dẫn (tab đang mở có path) — không mở hộp thoại.
 // Dùng chung đoạn bắt lỗi ACL với saveTextFile để thông báo nhất quán.
 export async function writeTextFile(path, contents, eol = '\n', bom = false) {
+    // File tạm cạnh file thật: cùng thư mục nên nằm trong fs:scope sẵn có.
+    const tmp = path + '.md-live.tmp';
     try {
         const body = applyEol(contents, eol);
         const payload = bom ? '\uFEFF' + body : body;
         // Ghi atomic: tạm cạnh file rồi rename đè lên file thật. writeTextFile thẳng sẽ truncate
         // file trước rồi mới ghi, app bị kill giữa chừng là còn một file rỗng/rút cụt.
         // std::fs::rename trên Windows dùng MoveFileEx(MOVEFILE_REPLACE_EXISTING) nên rename đè
-        // được file đã tồn tại; file tạm nằm cùng thư mục nên trong fs:scope sẵn có.
-        const tmp = path + '.md-live.tmp';
+        // được file đã tồn tại.
         await window.__TAURI__.fs.writeTextFile(tmp, payload);
         try {
             await window.__TAURI__.fs.rename(tmp, path);
         } catch (err) {
             // Đổi tên hỏng (file thật bị khoá bởi chương trình khác, ACL khác...) -> ghi thẳng để
-            // không mất thay đổi chỉ vì không atomic được.
+            // không mất thay đổi chỉ vì không atomic được. Ghi thẳng vẫn thành công thì file tạm đã
+            // hết việc: để lại là rác nằm mãi trong thư mục người dùng.
             await window.__TAURI__.fs.writeTextFile(path, payload);
+            await removeQuietly(tmp);
         }
         return true;
     } catch (err) {
         console.error('Write failed:', err);
+        // Ghi hỏng giữa chừng (đầy đĩa, mất quyền): file tạm có thể đã tồn tại, dọn luôn.
+        await removeQuietly(tmp);
         if (isAclError(err)) {
             showToast('Could not save there. This build can only save inside your home, Documents, Desktop or Downloads folder - pick another location.');
         } else {
@@ -185,14 +250,11 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
 // Lưu văn bản: trong Tauri dùng hộp thoại Save As (plugin dialog) + ghi file (plugin fs); ngoài Tauri
 // fallback <a download>. Trả về ĐƯỜNG DẪN đã ghi, hoặc null nếu người dùng hủy / ghi lỗi.
 // (Callers cũ chỉ kiểm tra if (saved) nên đổi false -> null không phá gì.)
-export async function saveTextFile(contents, baseName, ext, mimeType) {
+export async function saveTextFile(contents, baseName, ext, mimeType, eol = '\n', bom = false) {
     if (hasTauriBridge()) {
-        const path = await window.__TAURI__.dialog.save({
-            defaultPath: baseName + '.' + ext,
-            filters: [{ name: ext.toUpperCase() + ' file', extensions: [ext] }]
-        });
+        const path = await chooseSavePath(baseName + '.' + ext, [ext]);
         if (!path) return null;
-        return (await writeTextFile(path, contents)) ? path : null;
+        return (await writeTextFile(path, contents, eol, bom)) ? path : null;
     }
 
     // Fallback trình duyệt. Trong WebView Tauri mà thiếu dialog/fs thì <a download> không chạy:

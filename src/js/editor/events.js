@@ -43,6 +43,15 @@ function handleGlobalShortcut(e) {
         return;
     }
 
+    // Ctrl+Alt+S = Save All. Phải đứng TRƯỚC nhánh Ctrl+S thường, nếu không nó rơi vào Save và
+    // không bao giờ tới được Save All. (Bản cũ bắt Ctrl+Alt+A trong khi tooltip trên nút ghi
+    // Ctrl+Alt+S, nên tổ hợp được quảng cáo là tổ hợp chết.)
+    if (lowerKey === 's' && e.altKey) {
+        e.preventDefault();
+        saveAllTabs();
+        return;
+    }
+
     if (lowerKey === 's') {
         e.preventDefault();
         saveActiveDoc(e.shiftKey ? { as: true } : undefined);
@@ -67,12 +76,6 @@ function handleGlobalShortcut(e) {
         if (!active) return;
         e.preventDefault();
         closeTab(active.id);
-        return;
-    }
-
-    if (lowerKey === 'a' && e.altKey) {
-        e.preventDefault();
-        saveAllTabs();
         return;
     }
 
@@ -143,8 +146,8 @@ export function initEditorEvents() {
         const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
         const key = e.key;
 
-        // Phím đã xử lý ở tầng toàn cục thì không chạy lại ở đây. Ctrl+Alt+S (Save All) cũng bị chặn
-        // ở đây dù tầng toàn cục bắt nó.
+        // Phím đã xử lý ở tầng toàn cục thì không chạy lại ở đây: mọi tổ hợp có Ctrl/Cmd hoặc Alt
+        // đều thuộc tầng đó (Ctrl+Alt+S = Save All nằm trong số này).
         if (isCmdOrCtrl || e.altKey) return;
 
         if (key === 'Tab') {

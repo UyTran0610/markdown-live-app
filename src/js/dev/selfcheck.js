@@ -18,13 +18,14 @@ import { editorHistory, pruneAllHistories } from '../editor/history.js';
 import { syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
+import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, serializeSession, sessionKeepsContent } from '../io/documents.js';
+import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, serializeSession, sessionKeepsContent, suggestSavePath, untitledName } from '../io/documents.js';
+import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
 import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
@@ -147,7 +148,12 @@ export async function runSelfCheck() {
         assert('open gate allows md', isMarkdownPath('a.md') === true);
         assert('open gate allows mdown', isMarkdownPath('/x/y/a.mdown') === true);
         assert('open gate allows mkd', isMarkdownPath('C:\\docs\\a.mkd') === true);
-        assert('open gate rejects extensionless', isMarkdownPath('/x/README') === false);
+        // File không đuôi (README, LICENSE, CHANGELOG) là văn bản thật, không phải file lạ; file nhị
+        // phân vẫn bị chặn vì danh sách đuôi là ranh giới duy nhất.
+        assert('open gate allows extensionless', isMarkdownPath('/x/README') === true);
+        assert('open gate allows mdx', isMarkdownPath('notes.mdx') === true);
+        assert('open gate allows txt', isMarkdownPath('notes.txt') === true);
+        assert('open gate rejects png', isMarkdownPath('a.png') === false);
         assert('open gate rejects exe', isMarkdownPath('a.exe') === false);
         assert('open gate không nhận đuôi trùng trong tên', isMarkdownPath('a.md.exe') === false);
 
@@ -247,6 +253,53 @@ export async function runSelfCheck() {
             assert('mtime lệch -> hỏi', diskRevision({ mtime: 2000 }, 1000) === 'changed');
             assert('chưa có mốc -> im lặng, không hỏi', diskRevision({ mtime: 2000 }, null) === 'unknown');
             assert('mtime không đọc được -> im lặng', diskRevision({}, 1000) === 'unknown');
+
+            // Tab dirty có path sau khi khôi phục chỉ còn hash + độ dài của bản đã lưu: gõ lại đúng nội
+            // dung gốc là hết dấu chưa lưu. Không có nó thì tab đó vĩnh viễn dirty và không thể Revert.
+            assert('hashText ổn định', hashText('abc') === hashText('abc'));
+            assert('hashText phân biệt nội dung', hashText('abc') !== hashText('abd'));
+            const reverted = deserializeSession(JSON.stringify({
+                activeId: 1,
+                tabs: [{
+                    id: 1, path: '/a.md', name: 'a.md', content: '# A', dirty: true,
+                    savedHash: hashText('# A'), savedLen: '# A'.length, status: 'ok'
+                }]
+            }));
+            assert('khôi phục tab dirty: gõ lại đúng bản gốc -> sạch', isTabDirty(reverted.tabs[0]) === false);
+            assert('khôi phục tab dirty: sửa một ký tự -> vẫn chưa lưu', isTabDirty({ ...reverted.tabs[0], content: '# A ' }) === true);
+            assert('hash đúng nhưng độ dài lệch -> chưa lưu', isTabDirty({ content: 'x', savedContent: null, savedHash: hashText('x'), savedLen: 99 }) === true);
+            assert('khôi phục tab dirty: không có hash thì vẫn là chưa lưu', isTabDirty({ content: 'x', savedContent: null, savedHash: null, savedLen: null }) === true);
+
+            // Tab đang ở trạng thái lỗi phải được đọc lại đĩa ở lần chạy sau, kể cả khi bản nháp của nó
+            // nằm trong session: không có cờ này thì một lần đọc hỏng (ổ mạng chưa nối, hết quyền) biến
+            // tab thành tab rỗng vĩnh viễn, và Save As vào đúng đường dẫn cũ là xoá file thật.
+            const broken = deserializeSession(JSON.stringify({
+                activeId: 1,
+                tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: 'draft', dirty: true, status: 'unreadable', reload: true }]
+            }));
+            assert('tab lỗi được đọc lại đĩa ở lần chạy sau', broken.tabs[0].reload === true);
+            assert('tab lỗi vẫn giữ bản nháp', broken.tabs[0].content === 'draft');
+            assert('tab lỗi không tự nhận là đã lưu', isTabDirty(broken.tabs[0]) === true);
+            // serializeSession() chạy trên tab THẬT của app: mọi tab đang lỗi phải mang cờ reload.
+            const liveWire = serializeSession();
+            assert('serializeSession đánh cờ reload cho mọi tab lỗi', liveWire.tabs.every((t) => t.reload === (t.status !== 'ok')));
+            assert('serializeSession giữ mặc định EOL', liveWire.defaultEol === '\n' || liveWire.defaultEol === '\r\n');
+            // Vân tay chống ghi lại session: tab không đổi không được ghi, tab đổi bất kỳ thứ gì thì phải ghi.
+            // Bỏ sót một trường ở đây là ghi phiên cũ (mất dữ liệu im lặng), nên nó phải phủ MỌI key của record.
+            const fpTab = { id: 1, path: '/a.md', name: 'a.md', content: 'hello', dirty: true, scrollTop: 0 };
+            assert('vân tay session: record không đổi -> giống nhau', sessionFingerprint(fpTab) === sessionFingerprint({ ...fpTab }));
+            assert('vân tay session: nội dung cùng độ dài khác chữ -> khác nhau', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, content: 'world' }));
+            assert('vân tay session: đổi vị trí cuộn -> khác nhau', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, scrollTop: 9 }));
+            assert('vân tay session: content null (tab sạch) -> khác nhau', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, content: null }));
+            assert('vân tay session: trường mới thêm vào record cũng được tính', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, somethingNew: 1 }));
+
+            // Tab chưa lưu phải phân biệt được: cấp số nhỏ nhất còn trống.
+            assert('Untitled đánh số từ 1', untitledName([]) === 'Untitled 1');
+            assert('Untitled bỏ qua số đã dùng', untitledName([{ name: 'Untitled 1' }, { name: 'Untitled 2' }]) === 'Untitled 3');
+
+            // Save As giữ đuôi file và mở hộp thoại ở đúng thư mục của tab (file .txt không thành .md).
+            assert('Save As giữ đuôi .txt', suggestSavePath({ path: 'C:\\docs\\note.txt', name: 'note.txt' }, 'x') === 'C:\\docs\\note.txt');
+            assert('Save As tab chưa lưu lấy tên từ H1', suggestSavePath({ path: null, name: 'Untitled 1' }, '# My Doc').endsWith('my-doc.md'));
 
             // Trần ký tự lịch sử toàn app: mỗi mục giữ nguyên chuỗi nội dung nên vài tab tài liệu
             // lớn là hàng trăm MB. Cắt ở lúc chuyển tab, tab nền trước, tab đang mở sau cùng.

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability cho cửa sổ chính. fs:scope để mở/ghi .md chỉ trong các thư mục tài liệu thông thường; ngoài phạm vi ACL chặn, UI báo rõ nguyên nhân (writeTextFile trong js/export/file-save.js).",
+  "description": "Capability cho cửa sổ chính. fs:scope để mở/ghi .md chỉ trong các thư mục tài liệu thông thường; ngoài phạm vi ACL chặn, UI báo rõ nguyên nhân (writeTextFile trong js/export/file-save.js). fs:allow-read-file dùng để đọc bytes rồi tự giải mã UTF-8 (readTextFile bỏ qua file lạ thay vì ghi hỏng nó); fs:allow-remove dùng để dọn file .md-live.tmp khi ghi atomic phải thoái lui sang ghi thẳng.",
   "windows": [
     "main"
   ],
@@ -17,9 +17,10 @@
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
     "dialog:default",
-    "fs:allow-read-text-file",
+    "fs:allow-read-file",
     "fs:allow-write-text-file",
     "fs:allow-rename",
+    "fs:allow-remove",
     "fs:allow-stat",
     {
       "identifier": "fs:scope",

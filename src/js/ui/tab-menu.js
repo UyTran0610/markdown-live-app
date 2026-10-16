@@ -2,7 +2,9 @@
 // Copy path, Reveal in Explorer, Pin), cộng danh sách file vừa mở và danh sách toàn bộ tab khi tràn.
 
 import { btnRecent, tabStrip } from '../core/dom.js';
+import { showToast } from '../core/toast.js';
 import {
+    clearRecentPaths,
     closeTab,
     getRecentPaths,
     getTabs,
@@ -14,6 +16,7 @@ import {
     switchTab,
     updateTabPin
 } from '../io/documents.js';
+import { confirmAction } from './confirm-dialog.js';
 import { openPopupMenu } from './popup-menu.js';
 
 const canRevealInExplorer = () => !!(window.__TAURI__ && window.__TAURI__.opener?.revealItemInDir);
@@ -27,8 +30,37 @@ function copyPath(path) {
     navigator.clipboard.writeText(path).catch((err) => console.warn('[tab-menu] clipboard failed', err));
 }
 
-function closeClosable(filter) {
-    getTabs().filter((t) => !t.pinned && filter(t)).forEach((t) => closeTab(t.id));
+// Đóng nhiều tab: MỘT hộp thoại cho cả nhóm rồi xử lý tuần tự. Bản cũ forEach không await từng
+// closeTab, mà mỗi lần hỏi thì lần hỏi sau huỷ lần trước (confirmAction chỉ có một hộp thoại), nên
+// "Close Others" với vài tab dirty chỉ hỏi đúng một tab và bỏ qua im lặng phần còn lại.
+async function closeClosable(filter) {
+    const targets = getTabs().filter((t) => !t.pinned && filter(t));
+    if (!targets.length) return;
+    const dirty = targets.filter(isTabDirty);
+    let saveThem = false;
+    if (dirty.length) {
+        const choice = await confirmAction({
+            title: targets.length === 1 ? 'Close tab' : `Close ${targets.length} tabs`,
+            message: dirty.length === 1
+                ? `"${dirty[0].name}" has unsaved changes.`
+                : `${dirty.length} of them have unsaved changes.`,
+            actions: [{ id: 'save', label: 'Save all' }, { id: 'discard', label: "Don't save" }]
+        });
+        if (!choice) return;
+        saveThem = choice === 'save';
+    }
+
+    let closed = 0;
+    for (const tab of targets) {
+        // saveTab trả lý do: huỷ hộp thoại Save As hay ghi hỏng thì tab đó phải ở lại. 'discard' là
+        // người dùng đã chọn bỏ bản nháp (hộp thoại "File is gone") nên vẫn đóng được.
+        const result = saveThem && isTabDirty(tab) ? await saveTab(tab) : 'saved';
+        if (result !== 'saved' && result !== 'discard') continue;
+        // force: câu hỏi đã được trả lời ở trên, không hỏi lại từng tab.
+        await closeTab(tab.id, { force: true });
+        closed++;
+    }
+    if (closed < targets.length) showToast(`Closed ${closed} of ${targets.length} tabs.`);
 }
 
 export function openTabMenu(tab, x, y) {
@@ -52,15 +84,20 @@ export function openTabMenu(tab, x, y) {
 }
 
 // Danh sách file vừa mở. Mục đã xoá khỏi đĩa vẫn hiện: openPaths -> readTextFile sẽ báo lỗi, không
-// cần kiểm tra tồn tại trước (và kiểm tra thì tốn một stat cho mỗi mục mỗi lần mở menu).
+// cần kiểm tra tồn tại trước (và kiểm tra thì tốn một stat cho mỗi mục mỗi lần mở menu). Có mục xoá
+// cả danh sách cho người dùng không muốn giữ lại đường dẫn cũ.
 export function openRecentMenu(anchor) {
     const recent = getRecentPaths().filter(isMarkdownPath);
     if (!recent.length) return false;
     const rect = anchor.getBoundingClientRect();
-    openPopupMenu(recent.map((path) => ({
-        label: path,
-        onClick: () => openPaths([path])
-    })), rect.left, rect.bottom);
+    openPopupMenu([
+        ...recent.map((path) => ({
+            label: path,
+            onClick: () => openPaths([path])
+        })),
+        { separator: true },
+        { label: 'Clear Recent Files', onClick: () => clearRecentPaths() }
+    ], rect.left, rect.bottom);
     return true;
 }
 

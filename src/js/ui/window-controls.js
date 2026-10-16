@@ -2,6 +2,7 @@
 // "decorations": false) nên đây là cách duy nhất để thu nhỏ / phóng to / đóng cửa sổ.
 
 import { btnWinClose, btnWinMax, btnWinMin, titlebar } from '../core/dom.js';
+import { showToast } from '../core/toast.js';
 import { checkActiveTabDisk, flushSession } from '../io/documents.js';
 
 // Bản chạy trong trình duyệt (không có __TAURI__) không có cửa sổ để điều khiển:
@@ -40,10 +41,15 @@ export function initWindowControls() {
     // Chặn đóng để gửi nốt phiên trước. beforeunload không đáng tin trong Tauri: WebView bị
     // huỷ cùng cửa sổ nên handler ghi bộ nhớ tạm có thể không kịp chạy. onCloseRequested thì
     // chặn được, nhưng phải preventDefault() rồi tự destroy sau khi ghi xong.
+    //
+    // Không dùng try/finally { destroy() }: phiên ghi hỏng mà vẫn destroy là mất bản nháp của mọi
+    // tab. Cửa sổ ở lại kèm toast, bấm × lần nữa là thử lại (không kẹt, vì lần này vẫn
+    // preventDefault() rồi ghi lại từ đầu).
     run(() => win.onCloseRequested(async (event) => {
         event.preventDefault();
-        await flushSession();
-        await win.destroy();
+        const ok = await flushSession();
+        if (ok) await win.destroy();
+        else showToast('Could not save this session, so the window stays open. Close again to retry.');
     }));
 
     syncMaximizedState(win);

@@ -7,7 +7,7 @@ import { btnImport, btnSave, btnSaveAll, btnSaveAs, editorHighlight, markdownInp
 import { showToast } from '../core/toast.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
 import { editorHistory, pruneAllHistories } from '../editor/history.js';
-import { deriveExportBaseName, detectBom, detectEol, mtimeOf, readTextFile, sameFilePath, saveTextFile, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
+import { chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { currentPreviewHtml, onPreviewChanged, renderCachedHtml, renderMarkdown } from '../preview/render.js';
 import { confirmAction } from '../ui/confirm-dialog.js';
 import { loadSession, migrateLegacySession, whenSessionWritten, writeSession } from './session-store.js';
@@ -17,7 +17,9 @@ const SESSION_KEY = 'markdown-live-session';
 // Key của bản single-document cũ. Đọc một lần để migrate sang 1 tab Untitled rồi xoá, không giữ song song.
 const LEGACY_KEY = 'markdown-live-content';
 
-const MARKDOWN_EXTS = ['md', 'markdown', 'mdown', 'mkd', 'txt'];
+// Đuôi được coi là văn bản: app còn đăng ký làm trình mở .txt, và các file .mdx/.qmd/.rmd cũng là
+// Markdown. Đây là ranh giới DUY NHẤT chặn file nhị phân, nên đừng nới thêm những gì không phải text.
+const MARKDOWN_EXTS = ['md', 'markdown', 'mdown', 'mkd', 'mdx', 'rmd', 'qmd', 'txt', 'text'];
 
 const MAX_FILE_CHARS = 5 * 1024 * 1024;
 
@@ -31,6 +33,10 @@ const UNTITLED = 'Untitled';
 //   status !== 'ok' là cấm tuyệt đối ghi đè đường dẫn cũ: saveActiveDoc phải rơi về Save As.
 // diskMtime: mtime (ms) của file lúc đọc/ghi thành công; null = chưa từng chạm đĩa được. So với
 //   fs.stat() lúc lưu để phát hiện file bên ngoài đã sửa.
+// diskIgnoredMtime: mtime của bản đĩa mà người dùng đã từ chối xử lý; không hỏi lại đúng bản đó nữa.
+// savedHash/savedLen: vân tay của bản đã lưu, chỉ dùng khi savedContent === null (tab khôi phục từ
+//   session); xem isTabDirty().
+// reload: chỉ có ở tab khôi phục từ session — tab lỗi cần đọc lại từ đĩa ở lần chạy sau.
 const tabs = [];
 let activeId = null;
 const listeners = [];
@@ -39,16 +45,30 @@ let nextId = 1;
 // Đang khôi phục session: textarea còn rỗng, gán nó vào tab active sẽ xoá bản nháp đã đọc từ đĩa.
 let restoring = false;
 
+// Kiểu xuống dòng mặc định cho tab MỚI (chưa có file). Người dùng Windows thường muốn CRLF: đổi ở
+// thanh trạng thái của một tab Untitled là đổi luôn cho các tab Untitled sau, và nhớ qua session.
+let defaultEol = '\n';
+
 let quotaWarnedAt = 0;
 
 export function isMarkdownPath(path) {
     const name = String(path || '').split(/[\\/]/).pop().toLowerCase();
     const dot = name.lastIndexOf('.');
-    return dot > 0 && MARKDOWN_EXTS.includes(name.slice(dot + 1));
+    // Không có đuôi (README, LICENSE, CHANGELOG) là file văn bản thật, không phải file lạ.
+    if (dot <= 0) return !!name;
+    return MARKDOWN_EXTS.includes(name.slice(dot + 1));
 }
 
+// savedContent === null có hai nghĩa, và chúng phải phân biệt được:
+//  - tab chưa từng ghi xuống đĩa (savedHash rỗng) -> luôn chưa lưu;
+//  - tab khôi phục từ session (chỉ có hash + độ dài của bản đã lưu) -> sạch nếu người dùng không
+//    sửa gì, hoặc gõ đi gõ lại đúng nội dung gốc. Không có nhánh này thì mọi tab dirty sau khi
+//    khởi động lại vĩnh viễn hiện dấu chưa lưu, kể cả khi nội dung đã khớp đĩa.
 export function isTabDirty(tab) {
-    return tab.savedContent === null || tab.content !== tab.savedContent;
+    if (tab.content === tab.savedContent) return false;
+    if (tab.savedContent !== null) return true;
+    const len = typeof tab.content === 'string' ? tab.content.length : -1;
+    return !(tab.savedHash && tab.savedLen === len && tab.savedHash === hashText(tab.content));
 }
 
 export function getTabs() {
@@ -68,12 +88,21 @@ function emit() {
     listeners.forEach((fn) => fn());
 }
 
+// Tên cho tab chưa lưu: tên cố định 'Untitled' làm mọi tab mới trông giống nhau. Cấp số nhỏ nhất còn
+// trống (kể cả khi session đã có sẵn "Untitled 1"). Hàm thuần trên danh sách tab truyền vào.
+export function untitledName(existing) {
+    const names = new Set((existing || tabs).map((tab) => tab.name));
+    let n = 1;
+    while (names.has(`${UNTITLED} ${n}`)) n++;
+    return `${UNTITLED} ${n}`;
+}
+
 // `= {}` bắt buộc: restoreSession dựng tab Untitled cho lần chạy đầu bằng createTab() không tham số.
-function createTab({ path = null, name = UNTITLED, content = '', savedContent = content, eol = '\n', bom = false, status = 'ok', diskMtime = null, pinned = false } = {}) {
+function createTab({ path = null, name = null, content = '', savedContent = content, eol = defaultEol, bom = false, status = 'ok', diskMtime = null, pinned = false } = {}) {
     const tab = {
         id: nextId++,
         path,
-        name,
+        name: name || untitledName(),
         content,
         savedContent,
         eol,
@@ -107,6 +136,9 @@ export function setActiveEol(eol) {
     const tab = getActiveTab();
     if (!tab || (eol !== '\n' && eol !== '\r\n')) return;
     tab.eol = eol;
+    // Tab chưa có file: lựa chọn này cũng là mặc định cho mọi tab Untitled sau, người dùng Windows
+    // không phải bấm CRLF lại từ đầu ở mỗi tab mới.
+    if (!tab.path) defaultEol = eol;
     showToast(`New lines will be saved as ${eol === '\r\n' ? 'CRLF' : 'LF'}.`);
     emit();
     saveSession();
@@ -123,6 +155,9 @@ export function activateTab(tab) {
     pruneHistories();
     emit();
     saveSession();
+    // Chuyển tab là lúc thứ hai (sau Alt+Tab) dễ có file bị chương trình khác sửa: kiểm luôn tab vừa
+    // mở thay vì chỉ kiểm khi cửa sổ lấy lại focus.
+    if (!restoring) checkActiveTabDisk();
     return tab;
 }
 
@@ -150,6 +185,9 @@ function captureActive() {
     tab.selStart = markdownInput.selectionStart;
     tab.selEnd = markdownInput.selectionEnd;
     tab.scrollTop = markdownInput.scrollTop;
+    // Vị trí cuộn của preview thuộc về tab: không nhớ ở đây thì cuộn xem một đoạn dài, đổi tab rồi
+    // quay lại là mất chỗ đang đọc.
+    if (tab.preview && tab.preview.content === tab.content) tab.preview.scroll = previewOutput.scrollTop;
     tab.history = { stack: editorHistory.stack, index: editorHistory.index };
 }
 
@@ -244,7 +282,14 @@ const CLOSED_TAB_LIMIT = 10;
 const closedTabs = [];
 
 function rememberClosedTab(tab) {
-    closedTabs.push({ path: tab.path, name: tab.name, content: tab.content, savedContent: tab.savedContent, eol: tab.eol, bom: tab.bom, status: tab.status, diskMtime: tab.diskMtime, pinned: tab.pinned });
+    // Tab Untitled sạch RỖNG: Ctrl+Shift+T mở lại nó chỉ tạo ra một tab trống, không phải thứ người
+    // dùng đang tìm. Tab có nội dung hoặc có file thì vẫn giữ.
+    if (!tab.path && !isTabDirty(tab) && !tab.content) return;
+    closedTabs.push({
+        path: tab.path, name: tab.name, content: tab.content, savedContent: tab.savedContent,
+        savedHash: tab.savedHash, savedLen: tab.savedLen,
+        eol: tab.eol, bom: tab.bom, status: tab.status, diskMtime: tab.diskMtime, pinned: tab.pinned
+    });
     if (closedTabs.length > CLOSED_TAB_LIMIT) closedTabs.shift();
 }
 
@@ -254,14 +299,17 @@ export function reopenClosedTab() {
         showToast('No recently closed tab.');
         return;
     }
-    const tab = createTab(closed);
-    activateTab(tab);
+    // File đó đã được mở lại trong lúc nằm trong ngăn xếp: chuyển tới tab đang có thay vì tạo tab
+    // thứ hai trỏ cùng file (hai tab cùng file là hai lần ghi đè lẫn nhau).
+    const open = closed.path && tabs.find((tab) => sameFilePath(tab.path, closed.path));
+    activateTab(open || createTab(closed));
 }
 
-export async function closeTab(id) {
+export async function closeTab(id, { force = false } = {}) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
-    if (isTabDirty(tab)) {
+    // force: true dùng cho đóng hàng loạt — người dùng đã trả lời MỘT hộp thoại cho cả nhóm tab.
+    if (!force && isTabDirty(tab)) {
         // 3 lựa chọn thay cho confirm(): confirm() không có "Save", buộc người dùng phải hủy,
         // lưu rồi đóng lại — và bấm nhầm Cancel thì mất luôn.
         const choice = await confirmAction({
@@ -270,7 +318,14 @@ export async function closeTab(id) {
             actions: [{ id: 'save', label: 'Save' }, { id: 'discard', label: "Don't save" }]
         });
         if (!choice) return;
-        if (choice === 'save') await saveTab(tab);
+        if (choice === 'save') {
+            // saveTab trả LÝ DO, không phải true/false: chỉ 'saved' (đã ghi xong) và 'discard'
+            // (người dùng chọn bỏ bản nháp ở hộp thoại "File is gone") mới được đóng. Bản cũ bỏ qua
+            // kết quả nên hủy hộp thoại Save As hoặc ghi hỏng vẫn đóng tab — nội dung chưa xuống đĩa
+            // chỉ còn trong ngăn xếp reopen trên RAM và mất khi thoát app.
+            const result = await saveTab(tab);
+            if (result !== 'saved' && result !== 'discard') return;
+        }
         if (tabs.indexOf(tab) < 0) return;
     }
 
@@ -303,7 +358,9 @@ const dialog = () => (window.__TAURI__ ? window.__TAURI__.dialog : undefined);
 const fs = () => (window.__TAURI__ ? window.__TAURI__.fs : undefined);
 
 export async function openFiles() {
-    if (!dialog()?.open || !fs()?.readTextFile) {
+    // fs.readFile (đọc bytes) chứ không phải readTextFile: file không phải UTF-8 phải bị từ chối,
+    // không thì nó thành ký tự thay thế và lần lưu sau ghi hỏng file.
+    if (!dialog()?.open || !fs()?.readFile) {
         showToast("Opening files needs the desktop app - this browser build can't reach your files.");
         return;
     }
@@ -325,6 +382,8 @@ export async function openFiles() {
 // Mở danh sách đường dẫn thành tab. Tách khỏi openFiles vì còn nguồn khác gọi tới: kéo-thả file
 // vào cửa sổ, file association, danh sách recent.
 export async function openPaths(paths) {
+    // Danh sách rỗng (thả nhầm file, argv chỉ có cờ) không được thành toast "Opened 0 files".
+    if (!paths || !paths.length) return;
     let opened = 0;
     let failed = 0;
     const created = [];
@@ -377,11 +436,29 @@ export async function openPaths(paths) {
         : `Opened ${opened} file${opened === 1 ? '' : 's'}${failed ? `, ${failed} failed` : ''}.`);
 }
 
-// Tên gợi ý cho hộp thoại Save As: tab mở từ file thì theo tên file (đổi tên theo H1 sẽ gợi ý sai
-// file), tab chưa có đường dẫn thì mới lấy H1.
-function defaultSaveName(tab, content) {
-    if (!tab.path) return deriveExportBaseName(content);
-    return tab.name.replace(/\.[^./\\]+$/, '') || deriveExportBaseName(content);
+const baseName = (path) => String(path || '').split(/[\\/]/).pop();
+
+// Thư mục của lần lưu gần nhất: gợi ý cho hộp thoại Save As của tab chưa có file. Chỉ trong RAM —
+// một gợi ý của hộp thoại không đáng để thêm hẳn một field vào session.
+let lastSaveDir = null;
+
+// Đường dẫn gợi ý cho hộp thoại Save As. Giữ ĐUÔI của tab (file .txt/.markdown không bị đổi thành
+// .md chỉ vì Save As) và dùng thư mục của chính tab nên hộp thoại mở đúng chỗ đang làm việc.
+// Hàm thuần, selfcheck gọi được.
+export function suggestSavePath(tab, content) {
+    const sep = tab.path && String(tab.path).includes('\\') ? '\\' : '/';
+    const dir = tab.path ? String(tab.path).slice(0, String(tab.path).lastIndexOf(sep)) : (lastSaveDir || '');
+    const dot = tab.path ? tab.name.lastIndexOf('.') : -1;
+    const base = dot > 0 ? tab.name.slice(0, dot) : (tab.path ? tab.name : '');
+    const ext = dot > 0 ? tab.name.slice(dot + 1) : 'md';
+    return `${dir ? dir + sep : ''}${base || deriveExportBaseName(content)}.${ext}`;
+}
+
+function noteSaveDir(path) {
+    const p = String(path);
+    const sep = p.includes('\\') ? '\\' : '/';
+    const cut = p.lastIndexOf(sep);
+    if (cut > 0) lastSaveDir = p.slice(0, cut);
 }
 
 // Ctrl+S liên tiếp (hoặc bấm nút Save nhiều lần) không được mở hai hộp thoại / ghi chồng lên nhau.
@@ -392,12 +469,18 @@ export async function saveActiveDoc(options = {}) {
 }
 
 // Lưu một tab bất kỳ (không nhất thiết tab đang mở): Save All và "Save rồi đóng" của tab nền cần
-// vậy. Trả true nếu thực sự ghi xong, false nếu người dùng hủy hoặc ghi hỏng.
+// vậy. Trả về LÝ DO, không phải true/false:
+//  'saved'     - nội dung tab đã khớp đĩa (hoặc không có gì để ghi): an toàn để đóng tab.
+//  'discard'   - người dùng chọn bỏ bản nháp (nút "Close tab" ở hộp thoại "File is gone").
+//  'cancelled' - hủy hộp thoại chọn đường dẫn / file bên ngoài đã đổi và người dùng dừng lại.
+//  'failed'    - đường dẫn trùng tab khác, hoặc ghi hỏng.
+//  'busy'      - đang có một lần lưu chạy (Ctrl+S liên tiếp).
+// Chỉ 'saved' và 'discard' được phép dẫn tới việc đóng tab; xem closeTab().
 export async function saveTab(tab, options = {}) {
-    if (!tab || saving) return false;
+    if (!tab || saving) return 'busy';
     // Lưu tab sạch chỉ đổi mtime của file, người dùng không được gì từ đó. Ngoại lệ: tab lỗi
     // (status !== 'ok') thì "sạch" chỉ có nghĩa là chưa sửa gì so với bản rỗng, vẫn phải cho lưu.
-    if (!isTabDirty(tab) && tab.status === 'ok' && !options.as) return true;
+    if (!isTabDirty(tab) && tab.status === 'ok' && !options.as) return 'saved';
     saving = true;
     try {
         // Chụp nội dung TRƯỚC mọi await: nếu người dùng gõ thêm trong lúc hộp thoại Save As đang mở
@@ -407,57 +490,92 @@ export async function saveTab(tab, options = {}) {
         let path = tab.path;
 
         // File đích đang nằm trong tab khác: hai tab cùng trỏ một file là hai lần ghi đè lên nhau,
-        // đúng cái logic dedupe của openFiles cố tránh. Chặn TRƯỚC khi ghi, không phải sau.
+        // đúng cái logic dedupe của openFiles cố tránh.
         const clashOf = (p) => tabs.find((other) => other !== tab && sameFilePath(other.path, p));
+
+        // Chọn đường dẫn + kiểm tra trùng TRƯỚC khi ghi, rồi mới ghi. Thứ tự cũ (ghi xong mới kiểm
+        // trùng) đã ghi đè file của tab kia lên đĩa rồi mới báo lỗi, còn comment trong mã lại nói
+        // ngược lại.
+        // Trả { path } khi sẵn sàng ghi, { error: true } khi trùng tab, {} khi người dùng hủy.
+        const pickTarget = async () => {
+            const picked = await chooseSavePath(suggestSavePath(tab, snapshot), MARKDOWN_EXTS);
+            if (!picked) return {};
+            const clash = clashOf(picked);
+            if (clash) {
+                showToast(`"${baseName(picked)}" is already open in the "${clash.name}" tab - nothing was written.`);
+                return { error: true };
+            }
+            // Ghi đè CHÍNH đường dẫn cũ vốn không đọc được (hết quyền sau khi khởi động lại, ổ mạng
+            // chưa nối lại): đây là đường vòng khiến file thật bị ghi bằng bản rỗng, phải hỏi trước.
+            if (tab.status !== 'ok' && sameFilePath(tab.path, picked)) {
+                const ok = await confirmAction({
+                    title: 'Overwrite unreadable file',
+                    message: `"${baseName(picked)}"\ncould not be read, so this tab does not know what is in that file. Write this tab's content over it?`,
+                    actions: [{ id: 'overwrite', label: 'Overwrite anyway' }]
+                });
+                return ok === 'overwrite' ? { path: picked } : {};
+            }
+            return { path: picked };
+        };
 
         // File còn nguyên trên đĩa không. Chạy TRƯỚC nhánh ghi để khi người dùng chọn "Save as..."
         // ở hộp thoại file biến mất, ta chuyển status sang 'unreadable' và đi đúng nhánh Save As
         // thay vì ghi vào một đường dẫn không còn tồn tại.
         if (!options.as && path && tab.status === 'ok') {
             const decision = await diskOkToWrite(tab);
-            if (decision === 'stop') return false;
+            // 'discard': người dùng chọn bỏ bản nháp ở hộp thoại "File is gone". Quyết định đóng tab
+            // đi LÊN theo giá trị trả về, không gọi ngược closeTab() từ trong đây — lúc đó `saving`
+            // vẫn đang bật nên lần lưu trong hộp thoại thứ hai luôn thất bại.
+            if (decision === 'discard') return 'discard';
+            if (decision === 'stop') return 'cancelled';
             if (decision === 'saveas') tab.status = 'unreadable';
         }
 
         // status !== 'ok' (đọc lỗi / file bị xoá) tuyệt đối không ghi vào đường dẫn cũ: nội dung lúc
         // đó có thể là bản rỗng, ghi là xoá sạch file thật. Bắt buộc rơi về Save As.
         if (!path || tab.status !== 'ok' || options.as) {
-            const picked = await saveTextFile(snapshot, defaultSaveName(tab, snapshot), 'md', 'text/markdown;charset=utf-8');
-            if (!picked) return false;
-            const clash = clashOf(picked);
-            if (clash) {
-                showToast(`"${picked.split(/[\\/]/).pop()}" is already open in the "${clash.name}" tab.`);
-                return false;
-            }
-            path = picked;
+            const target = await pickTarget();
+            if (target.error) return 'failed';
+            if (!target.path) return 'cancelled';
+            if (!await writeTextFile(target.path, snapshot, tab.eol, tab.bom)) return 'failed';
+            path = target.path;
         } else if (clashOf(path)) {
             showToast('This file is also open in another tab. Close that tab before saving here.');
-            return false;
+            return 'failed';
         } else if (!await writeTextFile(path, snapshot, tab.eol, tab.bom)) {
             // Ghi đè thất bại (đường dẫn ngoài scope sau khởi động lại, file bị khoá, chỉ đọc...):
             // đường dẫn cũ không còn dùng được nên cho chọn chỗ mới ngay, không để tab kẹt không lưu được.
-            const saved = await saveTextFile(snapshot, defaultSaveName(tab, snapshot), 'md', 'text/markdown;charset=utf-8');
-            if (!saved) return false;
-            path = saved;
+            const target = await pickTarget();
+            if (target.error) return 'failed';
+            if (!target.path) return 'cancelled';
+            if (!await writeTextFile(target.path, snapshot, tab.eol, tab.bom)) return 'failed';
+            path = target.path;
         }
 
         if (!sameFilePath(tab.path, path)) {
             tab.path = path;
-            tab.name = path.split(/[\\/]/).pop();
-            // saveTextFile không biết eol/bom của file đích: nó luôn ghi LF không BOM, nên đích mới là file LF không BOM.
-            tab.eol = '\n';
-            tab.bom = false;
+            tab.name = baseName(path);
         }
+        // eol/bom của tab KHÔNG bị reset khi Save As: người dùng vừa chọn CRLF ở thanh trạng thái thì
+        // lựa chọn đó phải đi theo file mới, và khi Save As trùng lại đúng file cũ của tab CRLF thì
+        // đĩa không bị âm thầm đổi thành LF. writeTextFile ghi theo đúng tab.eol/tab.bom nên hai bên
+        // luôn khớp.
+        noteSaveDir(path);
+        noteRecentPath(path);
 
         // Ghi xong thì file trên đĩa đúng bằng nội dung tab, kể cả khi Save As chọn lại chính
         // đường dẫn cũ của tab lỗi (sameFilePath -> khối trên không chạy, status phải tự bỏ).
         tab.status = 'ok';
         tab.diskMtime = mtimeOf(await statFile(path));
         tab.savedContent = snapshot;
+        // savedContent đã là chuỗi: hash + độ dài của bản khôi phục từ session không còn cần nữa.
+        tab.savedHash = null;
+        tab.savedLen = null;
+        tab.diskIgnoredMtime = null;
         emit();
         saveSession();
         showToast(`Saved "${tab.name}".`);
-        return true;
+        return 'saved';
     } finally {
         saving = false;
     }
@@ -473,7 +591,11 @@ export async function saveAllTabs() {
     }
     let done = 0;
     for (const tab of dirty) {
-        if (await saveTab(tab)) done++;
+        const result = await saveTab(tab);
+        if (result === 'saved') done++;
+        // 'discard': người dùng chọn "Close tab" ở hộp thoại "File is gone" — họ đã quyết định rồi,
+        // đóng luôn thay vì bỏ qua tab đó một cách im lặng.
+        else if (result === 'discard') await closeTab(tab.id, { force: true });
     }
     if (done < dirty.length) showToast(`Saved ${done} of ${dirty.length} tabs.`);
 }
@@ -506,7 +628,13 @@ async function reloadTabFromDisk(tab) {
     tab.savedContent = tab.content;
     tab.status = 'ok';
     tab.diskMtime = mtimeOf(await statFile(tab.path));
+    tab.diskIgnoredMtime = null;
+    // Lịch sử Undo cũ trỏ vào nội dung không còn trong tab: Ctrl+Z sẽ lùi vào một tài liệu chưa từng
+    // tổn tại ở đây. Xoá để restoreTabIntoEditor dựng stack mới từ nội dung vừa đọc.
+    tab.history = null;
     if (tab.id === activeId) restoreTabIntoEditor(tab);
+    // Tải lại âm thầm (không hộp thoại) mà không nói gì thì tài liệu tự đổi trước mắt người dùng.
+    showToast(`Reloaded "${tab.name}" from disk.`);
     emit();
     return true;
 }
@@ -514,6 +642,7 @@ async function reloadTabFromDisk(tab) {
 // Cổng chặn trước khi ghi đè: hỏi người dùng khi file trên đĩa đã khác với lúc mở tab.
 // 'proceed' -> ghi tiếp. 'stop' -> dừng, không ghi gì. 'saveas' -> buộc rơi về Save As
 // (saveTab chuyển status sang 'unreadable' để đi đúng nhánh đó).
+// 'discard' -> người dùng chọn đóng tab này; hàm này KHÔNG tự đóng, chỉ trả quyết định lên.
 async function diskOkToWrite(tab) {
     const revision = diskRevision(await statFile(tab.path), tab.diskMtime);
     if (revision === 'same' || revision === 'unknown') return 'proceed';
@@ -527,7 +656,10 @@ async function diskOkToWrite(tab) {
             message: `"${tab.path}"\nno longer exists on disk, and this tab has unsaved changes.`,
             actions: [{ id: 'saveas', label: 'Save as...' }, { id: 'close', label: 'Close tab' }]
         });
-        if (choice === 'close') await closeTab(tab.id);
+        // KHÔNG gọi closeTab() ở đây: lúc này saveTab đang giữ cờ `saving`, nên hộp thoại thứ hai
+        // ("has unsaved changes") có nút Save chắc chắn thất bại, mà người dùng thì bị hỏi hai lần
+        // cho cùng một quyết định. Trả quyết định lên cho saveTab/closeTab xử lý sau khi đã nhả cờ.
+        if (choice === 'close') return 'discard';
         return choice === 'saveas' ? 'saveas' : 'stop';
     }
 
@@ -546,9 +678,15 @@ async function diskOkToWrite(tab) {
         await reloadTabFromDisk(tab);
         return 'stop';
     }
-    if (choice !== 'keep') return 'stop';
+    if (choice !== 'keep') {
+        // Người dùng đã từ chối quyết định cho bản này của file: nhớ mtime đã bỏ qua, nếu không mỗi
+        // lần cửa sổ lấy lại focus (Alt+Tab) lại bật đúng hộp thoại này lên.
+        tab.diskIgnoredMtime = mtimeOf(await statFile(tab.path));
+        return 'stop';
+    }
     // Ghi đè bản của mình: lấy mốc đĩa HIỆN TẠI làm mốc mới, nếu không lần lưu sau sẽ hỏi lại y hệt.
     tab.diskMtime = mtimeOf(await statFile(tab.path));
+    tab.diskIgnoredMtime = null;
     return 'proceed';
 }
 
@@ -557,9 +695,17 @@ async function diskOkToWrite(tab) {
 export async function checkActiveTabDisk() {
     const tab = getActiveTab();
     if (!tab || !tab.path || tab.status !== 'ok' || restoring) return;
-    if (diskRevision(await statFile(tab.path), tab.diskMtime) === 'changed') {
-        await diskOkToWrite(tab);
-    }
+    const stat = await statFile(tab.path);
+    const revision = diskRevision(stat, tab.diskMtime);
+    // 'unknown' phải im lặng: không có mốc để so thì hỏi chỉ để hỏi.
+    if (revision === 'same' || revision === 'unknown') return;
+    // Người dùng đã quyết định giữ bản của mình cho ĐÚNG bản đang nằm trên đĩa: đừng dựng lại câu hỏi
+    // cũ mỗi lần đổi tab / lấy lại focus.
+    if (revision === 'changed' && tab.diskIgnoredMtime !== null && tab.diskIgnoredMtime === mtimeOf(stat)) return;
+    // 'gone' cũng đi qua đây, không chỉ lúc bấm lưu: file bị xoá thì tab phải hiện dấu lỗi ngay.
+    // 'discard' = người dùng chọn "Close tab" ở hộp thoại "File is gone": đóng thật, nếu không thì
+    // lựa chọn của họ bị nuốt im lặng (bản cũ đóng tab từ trong diskOkToWrite).
+    if (await diskOkToWrite(tab) === 'discard') await closeTab(tab.id, { force: true });
 }
 
 // ---- Session ----------------------------------------------------------------
@@ -579,6 +725,13 @@ export function getRecentPaths() {
     return recentPaths;
 }
 
+export function clearRecentPaths() {
+    if (!recentPaths.length) return;
+    recentPaths = [];
+    emit();
+    saveSession();
+}
+
 function noteRecentPath(path) {
     recentPaths = [path, ...recentPaths.filter((p) => !sameFilePath(p, path))].slice(0, RECENT_LIMIT);
 }
@@ -588,6 +741,8 @@ export function serializeSession() {
     return {
         activeId,
         recent: recentPaths,
+        // Mặc định EOL cho tab mới cũng sống cùng session.
+        defaultEol,
         tabs: tabs.map((tab) => ({
             id: tab.id,
             path: tab.path,
@@ -605,9 +760,18 @@ export function serializeSession() {
             status: tab.status,
             diskMtime: tab.diskMtime,
             pinned: tab.pinned === true,
+            // Tab đang ở trạng thái lỗi phải được ĐỌC LẠI ở lần chạy sau: không có cờ này thì một lần
+            // đọc hỏng (ổ mạng chưa nối, hết quyền) biến tab thành tab rỗng vĩnh viễn, không bao giờ
+            // tự khỏi dù file đã đọc được trở lại.
+            reload: tab.status !== 'ok',
             // Không lưu savedContent (nhân đôi dung lượng). dirty === false nghĩa là lúc đóng nội dung
             // khớp đĩa; dirty === true nghĩa là đã sửa sau lần lưu cuối -> vẫn phải hiện chưa lưu.
             dirty: isTabDirty(tab),
+            // Hash + độ dài của bản đã lưu: chỉ tab savedContent === null mới cần, vì sau khi khôi
+            // phục không còn chuỗi để so nên đây là thứ duy nhất biết người dùng đã gõ lại đúng nội
+            // dung gốc hay chưa.
+            savedHash: tab.savedContent === null ? (tab.savedHash || null) : hashText(tab.savedContent),
+            savedLen: tab.savedContent === null ? (Number.isFinite(tab.savedLen) ? tab.savedLen : null) : tab.savedContent.length,
             scrollTop: tab.scrollTop,
             selStart: tab.selStart,
             selEnd: tab.selEnd
@@ -630,7 +794,9 @@ export function deserializeSession(raw, fallbackId = 1) {
         // content lẫn savedContent, không thì hai bên lệch nhau khiến tab sạch hoá dirty.
         const stored = typeof t.content === 'string' ? stripBom(t.content) : null;
         // content === null + có path = session không lưu nội dung tab này, đọc lại từ đĩa.
-        const reload = stored === null && !!path;
+        // t.reload = tab lúc đóng đang ở trạng thái lỗi: đọc lại KỂ CẢ khi bản nháp được lưu trong
+        // session, để nó có cơ hội trở về trạng thái bình thường.
+        const reload = t.reload === true || (stored === null && !!path);
         const content = stored === null ? '' : stored;
         let id = Number.isSafeInteger(t.id) && t.id > 0 ? t.id : null;
         if (id === null || usedIds.has(id)) id = fallbackId++;
@@ -648,6 +814,10 @@ export function deserializeSession(raw, fallbackId = 1) {
             // Session không lưu nội dung tab này -> restoreSession phải đọc lại từ đĩa, và
             // chỉ được nạp vào editor sau khi đọc xong (xem vòng lặp trong restoreSession).
             reload,
+            // Hash của bản đã lưu: isTabDirty dùng khi savedContent === null (tab dirty có path sau
+            // khi khôi phục), nhờ vậy gõ lại đúng nội dung gốc là hết dấu chưa lưu.
+            savedHash: typeof t.savedHash === 'string' ? t.savedHash : null,
+            savedLen: Number.isFinite(t.savedLen) ? t.savedLen : null,
             eol: t.eol === '\r\n' ? '\r\n' : '\n',
             bom: t.bom === true,
             status: t.status === 'unreadable' || t.status === 'missing' ? t.status : 'ok',
@@ -662,24 +832,30 @@ export function deserializeSession(raw, fallbackId = 1) {
     return { activeId: data.activeId, tabs: restored };
 }
 
-export function saveSession() {
-    if (restoring) return;
+// Trả Promise<boolean>: true = đã ghi xong. Bên gọi lúc đóng cửa sổ phải phân biệt được, vì ghi
+// session hỏng mà vẫn destroy() cửa sổ là mất bản nháp của mọi tab.
+export function saveSession(options) {
+    if (restoring) return Promise.resolve(true);
     captureActive();
-    return writeSession(serializeSession()).catch((err) => {
-        // Không xoá gì cả: bản ghi cũ trong IndexedDB vẫn nguyên vẹn, và lần ghi sau thử lại được.
-        // Xoá phiên là cách nhanh nhất để mất bản nháp của mọi tab.
-        const now = Date.now();
-        if (now - quotaWarnedAt > 10000) {
-            quotaWarnedAt = now;
-            showToast(`Could not save this session: ${err && err.message ? err.message : err}`);
-        }
-    });
+    return writeSession(serializeSession(), options)
+        .then(() => true)
+        .catch((err) => {
+            // Không xoá gì cả: bản ghi cũ trong IndexedDB vẫn nguyên vẹn, và lần ghi sau thử lại được.
+            // Xoá phiên là cách nhanh nhất để mất bản nháp của mọi tab.
+            const now = Date.now();
+            if (now - quotaWarnedAt > 10000) {
+                quotaWarnedAt = now;
+                showToast(`Could not save this session: ${err && err.message ? err.message : err}`);
+            }
+            return false;
+        });
 }
 
 async function loadRestoredSession() {
     const stored = await loadSession();
     if (stored) {
         recentPaths = stored.recent.filter((p) => typeof p === 'string' && p).slice(0, RECENT_LIMIT);
+        defaultEol = stored.defaultEol === '\r\n' ? '\r\n' : '\n';
         return deserializeSession(JSON.stringify(stored));
     }
 
@@ -702,46 +878,60 @@ async function loadRestoredSession() {
 
 export async function restoreSession() {
     restoring = true;
+    // Editor bị khoá cho tới khi tab đang mở nạp xong: gõ trong khoảng này thì restoreTabIntoEditor()
+    // ghi đè nội dung vừa gõ, người dùng mất chữ mà không thấy lỗi nào.
+    markdownInput.readOnly = true;
     tabs.length = 0;
     activeId = null;
     nextId = 1;
     recentPaths = [];
 
-    let restored = null;
     try {
-        restored = await loadRestoredSession();
-    } catch (e) {
-        console.error('Không đọc được phiên làm việc:', e);
-        restored = null;
+        let restored = null;
+        try {
+            restored = await loadRestoredSession();
+        } catch (e) {
+            console.error('Không đọc được phiên làm việc:', e);
+            restored = null;
+        }
+
+        if (restored) {
+            restored.tabs.forEach((tab) => { tabs.push(tab); nextId = Math.max(nextId, tab.id + 1); });
+            activeId = tabs.some((tab) => tab.id === restored.activeId) ? restored.activeId : tabs[0].id;
+        } else if (migrateLegacy()) {
+            activeId = getActiveTab().id;
+        } else {
+            // Chưa từng dùng app: mở sẵn một tab Untitled rỗng (savedContent = content -> không dirty).
+            activeId = createTab().id;
+        }
+
+        // Đọc tab ĐANG MỞ trước, dựng editor ngay, rồi mới đọc nốt các tab còn lại. Cũ (dựng hết tab
+        // trước rồi mới await) để textarea rỗng suốt lúc chờ đĩa: bấm "+", mở file hay đóng cửa sổ
+        // trong khoảng đó làm captureActive() gán chuỗi rỗng đè lên bản nháp vừa đọc.
+        const active = getActiveTab();
+        await loadTabFromDisk(active);
+
+        restoring = false;
+        restoreTabIntoEditor(active);
+        markdownInput.readOnly = false;
+        emit();
+        saveSession();
+
+        // Tab nền: đọc sau, lúc này editor đã có nội dung thật nên mọi tương tác của người dùng chạy
+        // đúng; emit() cuối để tab vừa nạp cập nhật dấu chưa-lưu / tên.
+        for (const tab of tabs) {
+            if (tab !== active) await loadTabFromDisk(tab);
+        }
+        emit();
+    } finally {
+        restoring = false;
+        markdownInput.readOnly = false;
     }
 
-    if (restored) {
-        restored.tabs.forEach((tab) => { tabs.push(tab); nextId = Math.max(nextId, tab.id + 1); });
-        activeId = tabs.some((tab) => tab.id === restored.activeId) ? restored.activeId : tabs[0].id;
-    } else if (migrateLegacy()) {
-        activeId = getActiveTab().id;
-    } else {
-        // Chưa từng dùng app: mở sẵn một tab Untitled rỗng (savedContent = content -> không dirty).
-        activeId = createTab().id;
-    }
-
-    // Đọc tab ĐANG MỞ trước, dựng editor ngay, rồi mới đọc nốt các tab còn lại. Cũ (dựng hết tab
-    // trước rồi mới await) để textarea rỗng suốt lúc chờ đĩa: bấm "+", mở file hay đóng cửa sổ
-    // trong khoảng đó làm captureActive() gán chuỗi rỗng đè lên bản nháp vừa đọc.
-    const active = getActiveTab();
-    await loadTabFromDisk(active);
-
-    restoring = false;
-    restoreTabIntoEditor(active);
-    emit();
-    saveSession();
-
-    // Tab nền: đọc sau, lúc này editor đã có nội dung thật nên mọi tương tác của người dùng chạy
-    // đúng; emit() cuối để tab vừa nạp cập nhật dấu chưa-lưu / tên.
-    for (const tab of tabs) {
-        if (tab !== active) await loadTabFromDisk(tab);
-    }
-    emit();
+    // Double-click file .md khi app CHƯA chạy: đường dẫn nằm trong argv của tiến trình đầu, do Rust
+    // giữ hộ. Phải hỏi SAU khi editor đã dựng xong, nếu không openPaths() bị chính restoreSession
+    // ghi đè ngay sau đó.
+    await openInitialPaths();
 }
 
 // Nạp nội dung tab từ đĩa khi session không lưu nó (tab sạch có path). Đọc lỗi (file bị xoá/di
@@ -758,11 +948,25 @@ async function loadTabFromDisk(tab) {
         tab.diskMtime = null;
         return;
     }
+    const wasBroken = tab.status !== 'ok';
+    const diskText = toLf(stripBom(raw));
+    // Tab đang ở trạng thái lỗi mà lần này đọc được (ổ mạng đã nối lại, quyền đã cấp lại): bản nháp
+    // trong tab là thứ duy nhất người dùng còn, không được ghi đè nó bằng nội dung đĩa. Lấy nội dung
+    // đĩa làm mốc "đã lưu" -> tab hiện chưa lưu và Ctrl+S ghi bản nháp lên file thật.
+    if (wasBroken && tab.content) {
+        tab.savedContent = diskText;
+    } else {
+        tab.content = diskText;
+        tab.savedContent = diskText;
+    }
     tab.eol = detectEol(raw);
     tab.bom = detectBom(raw);
-    tab.content = toLf(stripBom(raw));
-    tab.savedContent = tab.content;
+    tab.status = 'ok';
     tab.diskMtime = mtimeOf(await statFile(tab.path));
+    tab.diskIgnoredMtime = null;
+    tab.savedHash = null;
+    tab.savedLen = null;
+    if (wasBroken) showToast(`Recovered "${tab.name}" from disk.`);
 }
 
 // Một lần duy nhất: dựng tab Untitled từ nháp single-document cũ rồi xoá key cũ.
@@ -780,12 +984,14 @@ function migrateLegacy() {
     return true;
 }
 
-// Ghi session ra kho rồi resolve khi đã ghi xong. onCloseRequested chặn cửa sổ và chỉ destroy
-// sau khi hàm này xong — nếu chỉ gọi saveSession() (không await) thì lần ghi bị huỷ giữa đường
-// cùng lúc cửa sổ đang đóng.
+// Ghi session ra kho rồi resolve khi transaction đã commit. onCloseRequested chặn cửa sổ và chỉ
+// destroy khi hàm này trả true — nếu chỉ gọi saveSession() (không await) thì lần ghi bị huỷ giữa
+// đường cùng lúc cửa sổ đang đóng. Trả false nghĩa là chưa có gì chắc chắn nằm trên đĩa.
 export async function flushSession() {
-    await saveSession();
+    // durability 'strict': mặc định của Chromium ghi qua OS buffer, destroy() ngay sau đó vẫn mất.
+    const ok = await saveSession({ durability: 'strict' });
     await whenSessionWritten();
+    return ok;
 }
 
 export function initDocuments() {
@@ -797,6 +1003,25 @@ export function initDocuments() {
     initOpenFromOs();
 }
 
+// Đường dẫn file mà OS đưa cho lần khởi động ĐẦU TIÊN (double-click .md khi app chưa chạy). Rust giữ
+// argv trong state của nó; lấy xong là state rỗng nên không bao giờ mở trùng.
+async function openInitialPaths() {
+    const invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+    if (!invoke) return;
+    try {
+        const paths = await invoke('take_initial_paths');
+        const files = (Array.isArray(paths) ? paths : []).filter(isMarkdownPath);
+        if (files.length) await openPaths(files);
+    } catch (err) {
+        console.warn('[documents] take_initial_paths failed', err);
+    }
+}
+
+// Overlay "Drop Markdown files here": class trên body, phần tử dựng sẵn trong index.html.
+function setDropOverlay(on) {
+    document.body.classList.toggle('drop-target', on);
+}
+
 // Nguồn mở file ngoài hộp thoại: kéo-thả vào cửa sổ, và sự kiện 'open-paths' do tiến trình thứ hai
 // bắn sang (single-instance + file association).
 function initOpenFromOs() {
@@ -805,7 +1030,17 @@ function initOpenFromOs() {
         webview.getCurrentWebview()
             .onDragDropEvent((event) => {
                 const payload = event.payload;
-                if (payload.type === 'drop' && payload.paths?.length) openPaths(payload.paths.filter(isMarkdownPath));
+                // 'enter'/'over' -> hiện overlay; 'leave'/'drop' -> tắt. Kéo file qua cửa sổ mà không có
+                // gì đổi thì người dùng không biết app có nhận file hay không.
+                if (payload.type === 'enter' || payload.type === 'over') setDropOverlay(true);
+                else if (payload.type === 'leave' || payload.type === 'drop') setDropOverlay(false);
+                if (payload.type !== 'drop' || !payload.paths?.length) return;
+                const files = payload.paths.filter(isMarkdownPath);
+                if (!files.length) {
+                    showToast('Only Markdown and text files can be opened.');
+                    return;
+                }
+                openPaths(files);
             })
             .catch((err) => console.warn('[documents] drag-drop listen failed', err));
     }

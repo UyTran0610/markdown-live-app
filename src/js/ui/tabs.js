@@ -57,8 +57,8 @@ function buildTab(tab, isActive, displayName, dupeCount) {
     return el;
 }
 
-// Tên hiển thị: hai tab cùng tên thì phân biệt bằng thư mục cha (kiểu VS Code). `Untitled` đánh số
-// thứ tự tạo nên vốn đã phân biệt được, chỉ tên file từ đĩa mới cần viết rõ hơn.
+// Tên hiển thị: hai tab cùng tên thì phân biệt bằng thư mục cha (kiểu VS Code). Tab chưa lưu đã
+// được đánh số ngay từ lúc tạo (Untitled 1, 2, ...) nên chỉ còn tên file từ đĩa cần viết rõ hơn.
 export function disambiguateTabName(tab, tabs) {
     if (!tab.path) return tab.name;
     const sameName = tabs.filter((other) => other.name === tab.name).length;
@@ -75,6 +75,9 @@ let seenIds = new Set();
 // đang hiện ra lần đầu. Không gắn .tab-enter cho chúng, nếu không lúc mở app thấy cả dải trượt
 // vào cùng lúc.
 let firstRender = true;
+
+// Id tab đang mở ở lần render trước: chỉ cuộn tab active vào khung nhìn khi nó thực sự đổi.
+let lastRenderedActiveId = null;
 
 // Trạng thái cuộn dải tab, tách khỏi DOM để self-check kiểm được:
 // canScroll = dải tab tràn, left/right = còn tab bị khuất ở mép tương ứng.
@@ -154,8 +157,12 @@ function render() {
     if (btnSaveAs) btnSaveAs.disabled = !active;
     if (btnSaveAll) btnSaveAll.hidden = all.filter(isTabDirty).length < 2;
 
-    // Dải tab vừa được dựng lại từ đầu nên mất vị trí cuộn: kéo tab active vào khung nhìn.
-    tabStrip.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // Dải tab vừa được dựng lại từ đầu nên mất vị trí cuộn: kéo tab active vào khung nhìn — nhưng
+    // CHỈ khi tab active vừa đổi. render() chạy cho mọi thay đổi của store, nên cuộn mỗi lần sẽ
+    // giật dải tab về tab đang mở trong lúc người dùng đang cuộn xem tab khác.
+    const activeChanged = !active || active.id !== lastRenderedActiveId;
+    lastRenderedActiveId = active ? active.id : null;
+    if (activeChanged) tabStrip.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     updateOverflow();
 
     seenIds = ids;
@@ -330,9 +337,25 @@ export function initTabs() {
     // các tab khác -1, và phím mũi tên di chuyển vị trí focus. Không có nó thì Tab bị nuốt vào
     // textarea ở lần nhấn kế tiếp và :focus-visible trong tabs.css không bao giờ chạy.
     tabStrip.addEventListener('keydown', (e) => {
+        const el = e.target.closest('.tab');
         const els = [...tabStrip.querySelectorAll('.tab')];
-        const current = els.indexOf(e.target.closest('.tab'));
+        const current = els.indexOf(el);
         if (current < 0) return;
+
+        // Enter/Space kích hoạt tab đang focus như một tablist thật: bản cũ chỉ nghe mũi tên.
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            switchTab(Number(el.dataset.tabId));
+            return;
+        }
+        // Đóng bằng bàn phím: nút × là <span> (lucide chỉ vẽ icon một lần lúc tải, và tabs.css style
+        // span — đổi sang <button> là kéo theo cả bộ reset CSS), nên đường bàn phím là phím Delete.
+        if (e.key === 'Delete') {
+            e.preventDefault();
+            closeTab(Number(el.dataset.tabId));
+            return;
+        }
+
         const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 1, ArrowUp: -1 }[e.key];
         let next = null;
         if (step !== undefined) next = els[(current + step + els.length) % els.length];
@@ -340,8 +363,11 @@ export function initTabs() {
         else if (e.key === 'End') next = els[els.length - 1];
         if (!next) return;
         e.preventDefault();
-        next.focus();
         switchTab(Number(next.dataset.tabId));
+        // switchTab -> activateTab -> restoreTabIntoEditor gọi markdownInput.focus(), và render() vừa
+        // thay sạch dải tab nên phần tử cũ đã rời DOM. Focus lại tab active SAU đó, nếu không mũi tên
+        // vừa bấm là mũi tên cuối cùng dùng được: con trỏ đã nhảy xuống editor.
+        tabStrip.querySelector('.tab.active')?.focus();
     });
 
     // Danh sách toàn bộ tab: dải tab cuộn ngang không cho tìm nhanh một tab bị khuất giữa 30 tab.

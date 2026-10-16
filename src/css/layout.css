@@ -261,6 +261,30 @@ button.status-item:hover {
     color: #ffffff;
 }
 
+/* ==========================================================================
+   Overlay khi kéo file vào cửa sổ
+   Kéo file qua cửa sổ mà không có gì đổi thì người dùng không biết app có nhận file hay không.
+   `body.drop-target` do js/io/documents.js gắn theo sự kiện enter/over/leave của Tauri.
+   pointer-events: none — overlay chỉ để nhìn, cú thả vẫn phải tới webview.
+   ========================================================================== */
+.drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+    border: 2px dashed var(--btn-active-border);
+    background: rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+    font-size: 1rem;
+    pointer-events: none;
+}
+
+body.drop-target .drop-overlay {
+    display: flex;
+}
+
 /* Nút giữa đổi glyph theo trạng thái cửa sổ. .is-maximized do js/ui/window-controls.js gắn
    lên .titlebar (cùng pattern ẩn/hiện icon của #btn-theme, vì lucide chỉ vẽ icon một lần). */
 .window-controls .icon-restore {

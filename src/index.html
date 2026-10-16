@@ -394,6 +394,10 @@
         </div>
     </div>
 
+    <!-- Overlay khi kéo file vào cửa sổ: chỉ hiện nhờ class .drop-target do js/io/documents.js gắn
+         lên <body> theo sự kiện drag-drop của Tauri. pointer-events: none nên không nuốt cú thả. -->
+    <div class="drop-overlay" aria-hidden="true">Drop Markdown files here</div>
+
     <!-- Toast Notification -->
     <div id="toast" class="toast hidden">Notification appears here</div>
 

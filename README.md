@@ -114,13 +114,17 @@ After launching the application, type or paste your Markdown content into the **
 
 | Action | Description |
 | :--- | :--- |
+| **Open** | Open one or more Markdown files from your device; each opens as its own tab — a file that is already open is focused instead (`Ctrl`/`Cmd` + `O`) |
+| **Recent** | Menu of recently opened files with **Clear Recent Files** at the bottom (appears only after you have opened a file) |
+| **Save** | Write the current tab back to its file on disk, or prompt for a location if the tab has no file yet (disabled until that tab has unsaved edits) (`Ctrl`/`Cmd` + `S`) |
+| **Save As** | Save the current tab under a new name or location (`Ctrl`/`Cmd` + `Shift` + `S`) |
+| **Save All** | Save every tab that has unsaved edits, one after another (`Ctrl`/`Cmd` + `Alt` + `S`); appears only when two or more tabs are changed |
+| **Copy** | Copy the full raw Markdown content of the current tab to the clipboard |
+| **Export** | Open a menu to export content as **HTML** (`.html`), **Word** (`.doc`, Mermaid diagrams are converted to images), or **Print** (`.pdf` via the system print dialog, selectable text) |
 | **View** | Switch between **Editor**, **Split**, and **Preview** modes |
-| **Sync Scroll** | Toggle synchronized scrolling between Editor and Preview |
-| **Copy** | Copy the full raw Markdown content to the clipboard |
-| **Import** | Open one or more Markdown files from your device; each opens as its own tab |
-| **Save** | Write the current tab back to its file on disk, or prompt for a location if the tab has no file yet (disabled until that tab has unsaved edits) |
-| **Export** | Open a menu to export content as **HTML** (`.html`), **DOC** (`.doc`, Mermaid diagrams are converted to images), or **PDF** (via the system print dialog, selectable text) |
+| **Scroll** | Toggle synchronized scrolling between Editor and Preview (on by default) |
 | **Theme** | Toggle between Light and Dark themes |
+| **About** | Open the About dialog — app version, License and Third-party Notices (the round `?` button at the far right) |
 
 ### View Modes & Resizing Panes
 
@@ -170,12 +174,30 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 | `Ctrl`/`Cmd` + `E` or `Ctrl` + backtick key | Wrap selection in inline code |
 | `Ctrl`/`Cmd` + `K` | Insert link, automatically highlighting the `url` for quick pasting |
 | `Ctrl`/`Cmd` + `D` | Duplicate current line (or selection) |
-| `Ctrl`/`Cmd` + `S` | Save the current tab to disk (prompts for a location if it has no file yet) |
 | `Ctrl`/`Cmd` + `Z` | Undo |
 | `Ctrl`/`Cmd` + `Y` or `Ctrl`/`Cmd` + `Shift` + `Z` | Redo |
 | `Tab` / `Shift` + `Tab` | Indent / Unindent — supports multi-line selections |
 | `Enter` | Preserves indentation, continues lists (`-`, `1.`, `>`, task lists), or exits the list if the line is empty |
 | Typing `(`, `[`, `{`, quotes, backtick, `*`, `_`, `~`, or `$` over selected text | Automatically encloses selection with the typed character pair |
+| Typing `(`, `[`, `{`, quotes or backtick with nothing selected | Inserts the closing character automatically; typing that character again or pressing `Backspace` on an empty pair skips over / removes it |
+
+### Tab & File Shortcuts
+
+These work anywhere in the app, including **Preview** mode:
+
+| Shortcut | Action |
+| :--- | :--- |
+| `Ctrl`/`Cmd` + `O` | Open files |
+| `Ctrl`/`Cmd` + `S` | Save the current tab to disk (prompts for a location if it has no file yet) |
+| `Ctrl`/`Cmd` + `Shift` + `S` | Save As — save the current tab under a new name or location |
+| `Ctrl`/`Cmd` + `Alt` + `S` | Save All — save every tab with unsaved edits |
+| `Ctrl`/`Cmd` + `T` | New tab |
+| `Ctrl`/`Cmd` + `Shift` + `T` | Reopen the last closed tab |
+| `Ctrl`/`Cmd` + `W` | Close the current tab |
+| `Ctrl`/`Cmd` + `Tab` / `Ctrl`/`Cmd` + `Shift` + `Tab` | Switch to the next / previous tab |
+| `Ctrl`/`Cmd` + `PageDown` / `Ctrl`/`Cmd` + `PageUp` | Switch to the next / previous tab |
+| `Ctrl`/`Cmd` + `1`...`9` | Jump to the tab at that position |
+| `←` / `→`, `Home` / `End` (tab strip focused) | Move focus between tabs; `Enter` / `Space` opens the focused tab, `Delete` closes it |
 
 ---
 

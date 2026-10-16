@@ -114,13 +114,17 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 
 | Nút | Chức năng |
 | :--- | :--- |
+| **Open** | Mở một hoặc nhiều file Markdown từ máy; mỗi file mở thành một tab riêng — file đã mở sẽ được chuyển tới thay vì mở trùng (`Ctrl`/`Cmd` + `O`) |
+| **Recent** | Menu các file vừa mở, cuối danh sách có **Clear Recent Files** (chỉ hiện sau khi bạn đã mở ít nhất một file) |
+| **Save** | Ghi nội dung tab hiện tại về lại file trên ổ đĩa, hoặc hỏi vị trí lưu nếu tab chưa có file (nút bị vô hiệu cho tới khi tab có thay đổi chưa lưu) (`Ctrl`/`Cmd` + `S`) |
+| **Save As** | Lưu tab hiện tại thành file mới hoặc ở vị trí mới (`Ctrl`/`Cmd` + `Shift` + `S`) |
+| **Save All** | Lưu toàn bộ tab đang có thay đổi chưa lưu, lần lượt từng tab (`Ctrl`/`Cmd` + `Alt` + `S`); chỉ hiện khi có từ hai tab đang thay đổi trở lên |
+| **Copy** | Sao chép toàn bộ nội dung Markdown của tab hiện tại vào clipboard |
+| **Export** | Mở menu xuất nội dung ra **HTML** (`.html`), **Word** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **Print** (`.pdf`, qua hộp thoại in của hệ thống, chọn được văn bản) |
 | **View** | Chuyển đổi giữa chế độ **Editor**, **Split** và **Preview** |
-| **Sync Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview |
-| **Copy** | Sao chép toàn bộ nội dung Markdown vào clipboard |
-| **Import** | Mở một hoặc nhiều file Markdown từ máy; mỗi file mở thành một tab riêng |
-| **Save** | Ghi nội dung tab hiện tại về lại file trên ổ đĩa, hoặc hỏi vị trí lưu nếu tab chưa có file (nút bị vô hiệu cho tới khi tab có thay đổi chưa lưu) |
-| **Export** | Mở menu xuất nội dung ra **HTML** (`.html`), **DOC** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **PDF** (qua hộp thoại in của hệ thống, chọn được văn bản) |
+| **Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview (mặc định bật) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
+| **About** | Mở hộp thoại giới thiệu — phiên bản ứng dụng, License và Third-party Notices (nút tròn `?` ở cuối thanh công cụ) |
 
 ### Chế độ xem & chia màn hình
 
@@ -170,12 +174,30 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 | `Ctrl`/`Cmd` + `E` hoặc `Ctrl` + phím backtick | Bọc đoạn chọn thành code inline |
 | `Ctrl`/`Cmd` + `K` | Chèn liên kết, tự động bôi đen phần `url` để dán nhanh |
 | `Ctrl`/`Cmd` + `D` | Nhân bản dòng hiện tại (hoặc vùng đang chọn) |
-| `Ctrl`/`Cmd` + `S` | Lưu tab hiện tại xuống đĩa (hỏi vị trí lưu nếu tab chưa có file) |
 | `Ctrl`/`Cmd` + `Z` | Hoàn tác (Undo) |
 | `Ctrl`/`Cmd` + `Y` hoặc `Ctrl`/`Cmd` + `Shift` + `Z` | Làm lại (Redo) |
 | `Tab` / `Shift` + `Tab` | Thụt lề / hủy thụt lề — dùng được cả khi bôi đen nhiều dòng |
 | `Enter` | Tự động giữ thụt lề, tiếp tục danh sách (`-`, `1.`, `>`, task list) hoặc thoát danh sách nếu dòng đang trống |
 | Gõ `(`, `[`, `{`, nháy đơn/kép, backtick, `*`, `_`, `~` hoặc `$` khi đang bôi đen | Tự động bao đoạn đang chọn bằng đúng ký hiệu vừa gõ |
+| Gõ `(`, `[`, `{`, nháy đơn/kép hoặc backtick khi không bôi đen | Tự động chèn luôn ký tự đóng; gõ lại ký tự đóng đó hoặc nhấn `Backspace` khi cặp đang rỗng sẽ nhảy qua / xoá cả cặp |
+
+### Phím tắt Tab & File
+
+Các phím tắt sau hoạt động ở mọi chế độ, kể cả **Preview**:
+
+| Phím tắt | Chức năng |
+| :--- | :--- |
+| `Ctrl`/`Cmd` + `O` | Mở file |
+| `Ctrl`/`Cmd` + `S` | Lưu tab hiện tại xuống đĩa (hỏi vị trí lưu nếu tab chưa có file) |
+| `Ctrl`/`Cmd` + `Shift` + `S` | Lưu thành file mới (Save As) — lưu tab hiện tại thành tên hoặc vị trí khác |
+| `Ctrl`/`Cmd` + `Alt` + `S` | Lưu tất cả (Save All) — lưu mọi tab đang có thay đổi chưa lưu |
+| `Ctrl`/`Cmd` + `T` | Tab mới |
+| `Ctrl`/`Cmd` + `Shift` + `T` | Mở lại tab vừa đóng |
+| `Ctrl`/`Cmd` + `W` | Đóng tab hiện tại |
+| `Ctrl`/`Cmd` + `Tab` / `Ctrl`/`Cmd` + `Shift` + `Tab` | Chuyển sang tab kế tiếp / tab trước |
+| `Ctrl`/`Cmd` + `PageDown` / `Ctrl`/`Cmd` + `PageUp` | Chuyển sang tab kế tiếp / tab trước |
+| `Ctrl`/`Cmd` + `1`...`9` | Nhảy tới tab theo vị trí |
+| `←` / `→`, `Home` / `End` (khi dải tab đang được focus) | Di chuyển focus giữa các tab; `Enter` / `Space` mở tab đang focus, `Delete` đóng tab đó |
 
 ---
 

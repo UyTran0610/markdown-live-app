@@ -105,7 +105,7 @@ body.view-editor .editor-pane {
     height: 22px;
     padding: 0 10px;
     border-top: 1px solid var(--border-color);
-    background: var(--bg-body);
+    background: var(--pane-header-bg);
     font-size: 0.6875rem;
     font-weight: 500;
     color: var(--text-secondary);

@@ -7,9 +7,11 @@
     position: fixed;
     inset: 0;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding-top: 18vh;
+    /* Canh giữa cả hai trục. Lề dọc 24px để hộp cao (Confirm với tên file dài) không dán sát mép;
+       `.dialog` tự giới hạn max-height nên không tràn ra ngoài viewport. */
+    padding: 24px 0;
     background: rgba(0, 0, 0, 0.35);
     z-index: 1000;
     /* Animation mở/đóng hộp thoại. Ẩn bằng `visibility` chứ không phải `display: none`
@@ -42,6 +44,10 @@
     border-radius: 10px;
     background: var(--menu-bg);
     box-shadow: var(--menu-shadow);
+    /* Khi overlay canh giữa, hộp cao hơn viewport sẽ tràn cả hai phía và phần trên không cuộn tới
+       được. Chặn chiều cao bằng đúng phần còn lại sau padding 24px của overlay rồi cho cuộn. */
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
     /* Hộp trượt + thu nhẹ khi mở/đóng (chạy được cả hai chiều vì trạng thái ẩn ở trên),
        và bề rộng co giãn khi modal About đổi giữa view About (400px) và view tài liệu
        (.dialog-wide 760px) thay vì nhảy. */
@@ -228,12 +234,6 @@
    một khối tối lạc trong hộp. Cho trong suốt: light không đổi gì vì #ffffff trùng --menu-bg. */
 #info-body {
     background: transparent;
-}
-
-/* Modal "?" canh giữa cửa sổ; link / table vẫn dồn 18vh theo .dialog-overlay mặc định. */
-#info-dialog {
-    align-items: center;
-    padding-top: 0;
 }
 
 #info-about {

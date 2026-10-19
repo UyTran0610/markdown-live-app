@@ -2,6 +2,8 @@
 
 Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no bundler, no tests/lint/typecheck.
 
+- Comments: only for non-obvious parts, max 2 lines — no narrating the code.
+
 ## Layout
 
 `src/index.html` is the only HTML file (Tauri `frontendDist` is `../src`). Its load order is a hard constraint:
@@ -36,57 +38,48 @@ Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no b
 
 ## Tabs gotcha
 
-- Still one textarea. Switching tabs is `markdownInput.value = tab.content`; every module that reads the editor keeps working unchanged. Don't add per-tab DOM.
-- `activateTab(tab)` (`src/js/io/documents.js`) is the **only** way to change `activeId`: capture the old tab → clear `typingTimer` → load → render → `pruneHistories()` → `emit()` → `saveSession()`. `switchTab` / `newTab` / `closeTab` / `openPaths` / `reopenClosedTab` all funnel through it; don't re-inline those steps.
-- `syncEditorAfterChange()` (`src/js/editor/sync.js`) is the only hook that needs to know a tab exists — it covers `input`, format actions, undo and redo. Add editor behaviour there, not at each call site.
-- `tab.status` is the data-safety gate. `'ok'` | `'unreadable'` (read failed) | `'missing'` (file deleted from disk). `saveTab()` must never `writeTextFile(tab.path, …)` while `status !== 'ok'`; it falls back to Save As. This is what stops a failed session restore from wiping the real file.
-- A failed tab is **not** abandoned: the session stores `reload: true` for it, so `restoreSession()` retries the read on the next launch. If the retry succeeds and the tab holds a draft, the draft stays in `content` and the disk text becomes `savedContent` (tab shows unsaved, Ctrl+S still gated on `status`); only an empty tab adopts the disk content. Choosing Save As onto the **same** path a failed tab could not read always goes through the "Overwrite unreadable file" confirm — that round trip is otherwise how an empty tab erases a real file.
-- `tab.diskMtime` is the last mtime we read or wrote. `diskRevision(stat, diskMtime)` → `'gone' | 'unknown' | 'same' | 'changed'`; only `'changed'` prompts, `'unknown'` must stay silent or every Ctrl+S opens a dialog. `checkActiveTabDisk()` runs on window focus **and** on every `activateTab()`, handles `'gone'` as well as `'changed'`, and remembers `tab.diskIgnoredMtime` so a dismissed decision is not re-asked on every Alt+Tab.
-- `saveTab()` returns a **reason**, not a boolean: `'saved' | 'discard' | 'cancelled' | 'failed' | 'busy'`. Only `'saved'` and `'discard'` may lead to closing a tab — `closeTab(id, { force })` enforces that. An ignored return value is exactly how a cancelled Save As dialog used to close a tab and keep the text in RAM only (`closedTabs`).
-- `diskOkToWrite()` (`'proceed' | 'stop' | 'saveas' | 'discard'`) must **never** call `closeTab()`: it runs while `saveTab` still holds `saving = true`, so the second prompt's Save always fails. The decision travels back up as a value.
-- Save As picks the path **before** writing (`chooseSavePath()`), so the "already open in another tab" check runs before anything touches the disk, and `tab.eol` / `tab.bom` are never reset: the user's CRLF choice travels with the file. `suggestSavePath()` keeps the tab's extension (a `.txt` tab does not become `.md`) and its directory.
-- Keyboard shortcuts live on `window`, not on the textarea (`handleGlobalShortcut` in `src/js/editor/events.js`): in Preview mode `.editor-pane` is `display: none`, so a textarea-bound handler never fires. The editor-only branches (Enter, Tab, auto-close, Backspace) are gated on `e.target === markdownInput`.
-- `savedContent === null` means "never written to disk" and is therefore always dirty. On restore a tab **without** `path` gets `savedContent = ''` instead, so an emptied draft isn't permanently dirty. The session stores only a `dirty` boolean plus `savedHash`/`savedLen` (FNV-1a of the saved text), because `savedContent` itself is not persisted: without the hash every dirty tab with a path would stay dirty forever after a restart, even with the exact original text typed back.
-- Session content is per-tab, and only for tabs that still have something to protect (`sessionKeepsContent`: dirty, or no `path`). Clean tabs serialise `content: null` and `restoreSession()` reads them back from disk — it is `async`, so `main.js` awaits it and self-check waits on the same `ready` promise. Storage is IndexedDB (`io/session-store.js`), one record per tab plus a `meta` record (which also carries `defaultEol`): localStorage's ~5M-char origin quota is smaller than a single allowed file, so it could never hold a real session. Writes are queued, diffed against the last write by `sessionFingerprint()` — a fingerprint of the record's own keys with `content` replaced by `length:hash` (measured: 4 x 5 MB tabs cost ~39 ms per snapshot and ~1 KB retained, against ~22 ms and 41 MB of retained JSON before) — and **never** delete on failure: a stale session loses changes silently. Any new field on a serialized tab is covered automatically, so nothing can be skipped by accident.
-- `writeSession()` resolves only on `tx.oncomplete` and rejects on `error`/`abort`, clearing `lastWritten` for the tabs it was about to write. The queue must swallow errors for chaining but the returned promise must **not** (`enqueue`): swallowing it there makes every caller's `.catch` dead code and marks uncommitted tabs as written, so they are never retried.
-- `beforeunload` is gone on purpose: the WebView is torn down with the window, so it is not a reliable flush. `onCloseRequested` → `preventDefault()` → `await flushSession()` (which writes with `durability: 'strict'`) → `win.destroy()` **only if it reports success**; on failure the window stays open with a toast. Destroying on a failed flush loses every draft.
-- `restoreSession()` reads the **active** tab first and builds the editor before reading background tabs, with `restoring` making `captureActive()` / `saveSession()` no-ops, and `markdownInput.readOnly = true` until the active tab is in the editor — otherwise typing during the restore is silently overwritten.
-- File-association launches: argv of the **first** process is kept in Rust state (`take_initial_paths`, read at the end of `restoreSession()`); only a second launch arrives as the `open-paths` event.
-- `eol` and `bom` must round-trip through the session too: BOM is stripped on read (`U+FEFF` before `#` would otherwise kill the first heading and the export title) and written back on save, exactly like EOL.
-- Order *is* the array: `tabs` order is the visual order and the persisted one, so reordering is `moveTab()` + `emit()` — no order field. `render()` calls `tabStrip.replaceChildren()`, so the drag must edit the DOM directly while dragging and only touch the store on drop.
-- Undo stacks are per tab: `switchTab` must `clearTimeout(editorHistory.typingTimer)` before restoring a stack, or the pending timer pushes the new tab's text into the old tab's history. `pruneAllHistories()` caps **total** history chars across all tabs (entries hold whole documents); it runs on tab switch, never per keystroke, and the active tab goes last in the list.
-- Preview HTML is cached per tab (`tab.preview`, keyed on `tab.content`) so switching tabs doesn't re-run marked + DOMPurify + KaTeX + Mermaid. Invalidate on theme change and when Mermaid finishes late (`onPreviewChanged`) — a cache captured before the SVG exists would render the diagram as raw code. `tab.preview.scroll` is captured in `captureActive()`, so each tab keeps its own preview scroll position.
-- Session saves are debounced by **size** (`scheduleSessionSave()` in `editor/sync.js`, 400 ms → 1.5 s): a 5 MB document is stringified and written as a whole, so a fixed 400 ms debounce kept rewriting the same block while typing.
-- `readTextFile()` reads **bytes** (`fs.readFile`, hence `fs:allow-read-file`) and decodes with `TextDecoder('utf-8', { fatal: true, ignoreBOM: true })`: non-UTF-8 is rejected instead of becoming U+FFFD and being written back corrupted, UTF-16 BOM is detected explicitly, and `ignoreBOM: true` is required or the round-tripped BOM is silently dropped. `writeTextFile()` cleans up its `*.md-live.tmp` (`fs:allow-remove`) when the atomic rename falls back to a direct write.
-- The tab strip keeps focus on the active tab after arrow navigation (`switchTab` → `restoreTabIntoEditor` calls `markdownInput.focus()`), activates on Enter/Space and closes on Delete. Ctrl+Alt+S is Save All and is matched **before** plain Ctrl+S.
-- `src/index.html` is the only HTML file (Tauri `frontendDist` is `../src`). Its load order is a hard constraint:
-- CSS load order gained nothing but the status bar, which lives in `layout.css` next to `.workspace`.
+- One shared textarea: switching tabs is `markdownInput.value = tab.content`. Don't add per-tab DOM.
+- `activateTab(tab)` (`src/js/io/documents.js`) is the **only** way to change `activeId`: capture old tab → clear `typingTimer` → load → render → `pruneHistories()` → `emit()` → `saveSession()`. Everything else (`switchTab`, `newTab`, `closeTab`, `openPaths`, `reopenClosedTab`) funnels through it; don't re-inline those steps.
+- `syncEditorAfterChange()` (`src/js/editor/sync.js`) is the only hook that knows a tab exists (input, format actions, undo/redo). Add editor behaviour there.
+- Shortcuts live on `window` (`handleGlobalShortcut`), not the textarea: in Preview `.editor-pane` is `display: none`. Editor-only branches are gated on `e.target === markdownInput`. Ctrl+Alt+S (Save All) must be matched **before** Ctrl+S.
+- Order *is* the array: `tabs` order is visual and persisted order, so reorder with `moveTab()` + `emit()`. `render()` does `replaceChildren()`, so a drag edits the DOM directly and touches the store only on drop.
+
+### Data safety
+
+- `tab.status` (`'ok' | 'unreadable' | 'missing'`) is the gate: `saveTab()` must never write `tab.path` while `status !== 'ok'`, it falls back to Save As. This stops a failed restore from wiping the real file. Save As onto the **same** path a failed tab couldn't read must go through the "Overwrite unreadable file" confirm.
+- Failed tabs persist `reload: true` and are retried next launch. If the retry succeeds and the tab holds a draft, the draft stays in `content` and disk text becomes `savedContent` (tab shows unsaved); only an empty tab adopts disk content.
+- `diskRevision(stat, diskMtime)` → `'gone' | 'unknown' | 'same' | 'changed'`. `'unknown'` must stay silent or every Ctrl+S opens a dialog. `checkActiveTabDisk()` runs on window focus and every `activateTab()`; `tab.diskIgnoredMtime` stops a dismissed prompt from reappearing on each Alt+Tab.
+- `saveTab()` returns a **reason** (`'saved' | 'discard' | 'cancelled' | 'failed' | 'busy'`), not a boolean. Only `'saved'` and `'discard'` may close a tab; ignoring it once let a cancelled Save As close a tab and lose the text.
+- `diskOkToWrite()` must **never** call `closeTab()`: `saveTab` still holds `saving = true`, so a second prompt's Save always fails. Return the decision as a value.
+- Save As picks the path **before** writing (`chooseSavePath()`) so the "already open in another tab" check runs first. `eol` / `bom` are never reset and round-trip through the session; BOM is stripped on read (U+FEFF before `#` kills the first heading and export title) and written back on save.
+- `readTextFile()` reads **bytes** and decodes with `TextDecoder('utf-8', { fatal: true, ignoreBOM: true })`: non-UTF-8 is rejected (not turned into U+FFFD and written back), UTF-16 is detected by BOM, and `ignoreBOM: true` is required or the BOM is silently dropped.
+- `savedContent === null` means "never written" → always dirty. A restored tab without `path` gets `''` instead. Only a `dirty` boolean plus `savedHash`/`savedLen` (FNV-1a) are persisted, so retyping the original text clears dirty after a restart.
+
+### Session & lifecycle
+
+- Session = IndexedDB (`io/session-store.js`), one record per tab plus `meta`. Never localStorage: its ~5M-char quota is below one allowed file. Only tabs with something to protect keep `content` (`sessionKeepsContent`: dirty or no `path`); clean tabs store `null` and are re-read from disk.
+- Writes are queued and diffed by `sessionFingerprint()` (covers every key of the record, `content` as `length:hash`). **Never** delete on failure: a stale session loses changes silently.
+- `writeSession()` must resolve only on `tx.oncomplete` and reject on error/abort, clearing `lastWritten` for pending tabs. `enqueue` swallows errors for chaining but must **not** swallow them for the caller, or `.catch` is dead code and uncommitted tabs are never retried.
+- No `beforeunload` (the WebView is torn down with the window). Quit path: `onCloseRequested` → `preventDefault()` → `await flushSession()` (`durability: 'strict'`) → `win.destroy()` **only on success**; on failure keep the window open with a toast, or every draft is lost.
+- `restoreSession()` reads the **active** tab first, with `restoring` making `captureActive()` / `saveSession()` no-ops and `markdownInput.readOnly = true` until the editor is built, otherwise typing during restore is overwritten. First-launch argv is read at the end via `take_initial_paths`; only a second launch arrives as `open-paths`.
+- Undo stacks are per tab: clear `editorHistory.typingTimer` before restoring a stack, or the old tab's timer pushes the new tab's text into it. `pruneAllHistories()` caps **total** chars across tabs (entries are whole documents); it runs on tab switch, never per keystroke, with the active tab last.
+- Preview HTML is cached per tab (`tab.preview`, keyed on `tab.content`). Invalidate on theme change and when Mermaid finishes late (`onPreviewChanged`), or a diagram renders as raw code. Preview scroll is captured in `captureActive()`.
 
 ## Commands
 
-- `npm install` — deps are `@tauri-apps/cli` (dev) and `@tauri-apps/plugin-clipboard-manager` (Node 20+, Rust stable).
-- `npm run vendor` — `scripts/vendor-update.js`, refreshes `src/vendor/`.
-- `npm run tauri build` — NSIS/MSI; CI publishes `Markdown-Live-Portable.exe`, `Markdown-Live-Setup.exe`, `Markdown-Live-Setup.msi`.
-- Testing = `?selfcheck` only (`src/js/dev/selfcheck.js`); there are no other test/lint/format commands.
-- Do NOT launch the app yourself. `npm run tauri dev` opens a desktop window — leave running the real app to the user and say so in your report.
+- `npm run vendor` refreshes `src/vendor/` (`scripts/vendor-update.js`); `npm run tauri build` makes NSIS/MSI, CI publishes Portable `.exe`, Setup `.exe`, `.msi`.
+- Testing = `?selfcheck` only; there are no other test/lint/format commands.
+- Do NOT launch the app yourself. `npm run tauri dev` opens a desktop window; leave running it to the user and say so in your report.
 
 ## Versioning
 
-- Source of truth is `src-tauri/tauri.conf.json` `"version"`; root `package.json` is stale — ignore it.
-- Bump only via `node scripts/sync-version.js --set X.Y.Z`. It auto-runs on dev/build, copying the version into `Cargo.toml`, cache-busting `?v=` in `src/index.html`, and rewriting `<meta name="app-version">` (the version the About dialog displays, read by `src/js/ui/about.js`). Never hand-edit `?v=`, `app-version` or `Cargo.toml`.
-- Cache-busting reaches `src/index.html` and `js/main.js?v=`; the modules `main.js` imports carry no query string. Release: push tag `v*` -> `.github/workflows/release.yml`.
+- Source of truth: `src-tauri/tauri.conf.json` `"version"`. Root `package.json` is stale, ignore it.
+- Bump only with `node scripts/sync-version.js --set X.Y.Z` (also runs on dev/build). It syncs `Cargo.toml`, `?v=` in `src/index.html` and `<meta name="app-version">`; never hand-edit those. Modules imported by `main.js` carry no `?v=`. Release: push tag `v*`.
 
 ## Tauri config notes
 
-- New plugin permissions go in `src-tauri/capabilities/default.json`, never in Rust code. `frontendDist` is `../src`, targets `nsis`/`msi`. Custom commands (`take_initial_paths`) need no capability entry; plugin permissions do (`fs:allow-read-file`, `fs:allow-remove` were added alongside the existing read/write/rename/stat ones).
-- File association when the app is **not** running: `single_instance`'s callback only fires for a *second* launch, so `.setup()` stores `std::env::args()` in `InitialPaths` and the frontend asks for them with `take_initial_paths` after `restoreSession()`. The second-launch callback also calls `unminimize()` + `show()` before `set_focus()`, or a minimized window never comes up.
-- Accepted limitations: without `tauri-plugin-persisted-scope` a dialog-picked path outside the four `fs:scope` roots can fall out of scope after a restart (the tab then retries the read on each launch instead of being silently emptied); and the atomic write is rename-over, which replaces the file identity (hard links, ACLs, OneDrive's delete-then-create heuristic) — fixing that needs a Rust read/write command, not more JS.
-- The main window is `"decorations": false`, so Windows draws no titlebar (no icon, no title, no buttons). The app draws that row itself: `.titlebar` in `src/css/layout.css`, markup in `src/index.html` — app icon (icon only, no title text), tab strip, drag region, window buttons.
-- `data-tauri-drag-region` goes on `.titlebar-drag` ONLY. Tauri walks `e.composedPath()` from the pressed element upwards and stops at the first ancestor carrying the attribute, so:
-  - on `#tab-strip`, a press on a tab starts an OS window drag — the window slides while the tab drag runs and the dragged tab (viewport-fixed) drifts off the cursor.
-  - on `.titlebar`, the tabs and buttons become drag handles.
-- Drag / minimize / maximize / close run through `core:window:allow-start-dragging`, `allow-minimize`, `allow-toggle-maximize`, `allow-close`. Double-click on the drag region is Tauri's own `internal-toggle-maximize`, already covered by `core:default`.
-- `fs:allow-stat` (mtime check), `fs:allow-rename` (atomic write), `core:window:allow-destroy` (close hook) were added for the tab/store work; `opener:default` already carries `reveal-item-in-dir`, and `core:default` already grants `core:event:allow-listen`, which is what `onCloseRequested` / `onDragDropEvent` / `onFocusChanged` need.
-- `tauri-plugin-single-instance` is registered first in `lib.rs` and emits `open-paths` to the main window. It has no JS API, so no capability entry exists for it. `bundle.fileAssociations` claims `.md/.markdown/.mdown/.mkd/.txt`; drop a `.md` file on the running window twice and both launches must end up in ONE window, or the two processes fight over the IndexedDB session.
-- Price of dropping the native frame: Windows 11 Snap Layouts on hovering Maximize are gone (they need a native `WM_NCHITTEST`/`HTMAXBUTTON` hit test, i.e. a Rust plugin). `Win` + arrow snapping is expected to keep working but is unverified here.
+- New plugin permissions go in `src-tauri/capabilities/default.json`, never in Rust. Custom commands (`take_initial_paths`) need no entry.
+- Launch with a file while the app is **not** running: `single_instance` fires only for a *second* launch, so `.setup()` stores `std::env::args()` in `InitialPaths`. The second-launch callback must `unminimize()` + `show()` before `set_focus()`. Two launches must end in ONE window, or two processes fight over the IndexedDB session.
+- The window is `"decorations": false`; the app draws its own titlebar (`.titlebar` in `layout.css`). `data-tauri-drag-region` goes on `.titlebar-drag` **only**: Tauri stops at the first ancestor with the attribute, so on `#tab-strip` a tab press drags the OS window, and on `.titlebar` tabs/buttons become drag handles.
+- Accepted limitations: without `tauri-plugin-persisted-scope` a dialog-picked path outside the four `fs:scope` roots can fall out of scope after restart (the tab retries the read each launch instead of being emptied); atomic write is rename-over, which replaces file identity (hard links, ACLs, OneDrive); Windows 11 Snap Layouts on Maximize are gone (needs a native hit test, i.e. a Rust plugin).
 - CSP stays `null`, so XSS defence is JS's job: fail-closed DOMPurify, Mermaid re-sanitize, external-URL allowlist.

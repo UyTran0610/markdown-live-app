@@ -1,4 +1,4 @@
-// js/dev/selfcheck.js — Bộ tự kiểm tra nhanh (mở app với ?selfcheck để chạy).
+// js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
 import { infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
@@ -43,12 +43,10 @@ export async function runSelfCheck() {
     const results = [];
     const assert = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} - ${name}`);
 
-    // Guard nào không chạy được (vendor lib chưa tải, element không có) đều phải ghi SKIP. Nếu im lặng,
-    // một script vendor hỏng vẫn ra toast "PASS" và giấu mất hàng chục assert chưa từng chạy.
+    // Guard không chạy được phải ghi SKIP, nếu không vendor hỏng vẫn ra PASS và giấu assert chưa chạy.
     const skip = (name, why) => results.push(`SKIP - ${name} (${why})`);
 
-    // Mỗi khối chạy trong section(): một khối ném lỗi chỉ thành 1 dòng FAIL thay vì làm mất cả báo cáo
-    // (trước đây một phần tử thiếu là runSelfCheck reject, không có toast và mất hết kết quả).
+    // Mỗi khối trong section(): một khối ném lỗi thành 1 dòng FAIL thay vì mất cả báo cáo.
     const section = async (name, fn) => {
         try {
             await fn();
@@ -58,9 +56,7 @@ export async function runSelfCheck() {
         }
     };
 
-    // Self-check chạy trên app thật nên phải trả lại đúng trạng thái người dùng: nội dung, vùng chọn, vị trí
-    // cuộn và lịch sử Undo. Mọi thay đổi của các khối bên dưới đi vào một lịch sử tạm; không có bước này mỗi
-    // lần chạy để lại hàng chục mục rác trong editorHistory và Ctrl+Z sẽ lùi vào các nội dung thử.
+    // Chạy trên app thật nên phải trả lại nội dung, vùng chọn, scroll và lịch sử Undo sau khi xong.
     const snap = {
         value: markdownInput.value,
         selStart: markdownInput.selectionStart,
@@ -83,22 +79,21 @@ export async function runSelfCheck() {
         assert('filename loại ký tự cấm trong tên file', deriveExportBaseName('# a/b:c*d?e"f<g>h|i') === 'abcdefghi');
         assert('filename bỏ heading trong code fence', deriveExportBaseName('```md\n# comment\n```\n\n# Real Title') === 'real-title');
 
-        // Xuống dòng: file Windows là CRLF còn textarea chỉ có LF, nên phải nhớ kiểu của file để lần lưu
-        // sau không đổi mọi dòng, và so sánh "đã sửa chưa" phải chạy trên bản LF.
+        // EOL: file Windows là CRLF, textarea là LF; nhớ kiểu file để lần lưu không đổi mọi dòng.
         assert('eol nhận file CRLF', detectEol('a\r\nb') === '\r\n');
         assert('eol nhận file LF', detectEol('a\nb') === '\n');
         assert('eol nhận file một dòng', detectEol('abc') === '\n');
         assert('eol chuẩn hoá CRLF và CR cũ về LF', toLf('a\r\nb\rc') === 'a\nb\nc');
         assert('eol ghi lại đúng CRLF của file', applyEol('a\nb', '\r\n') === 'a\r\nb');
         assert('eol giữ nguyên LF', applyEol('a\nb', '\n') === 'a\nb');
-        // BOM đứng trước "#" làm dòng đầu mất heading trong preview và mất tiêu đề export.
+        // BOM trước # làm mất heading đầu và tiêu đề export.
         assert('bom nhận file có BOM', detectBom('\uFEFF# A') === true);
         assert('bom file thường', detectBom('# A') === false);
         assert('bom file rỗng', detectBom('') === false);
         assert('bom bỏ sạch ký tự đầu', stripBom('\uFEFF# A') === '# A');
         assert('bom file không BOM thì giữ nguyên', stripBom('# A') === '# A');
         assert('bom bỏ đi thì dòng đầu lại là heading', deriveDocumentTitle(stripBom('\uFEFF# A\nx')) === 'A');
-        // Cùng một file trên Windows không được mở thành hai tab (hai tab ghi đè nhau).
+        // Cùng một file không được mở thành hai tab (hai tab ghi đè nhau).
         assert('path Windows không phân biệt hoa thường và dấu gạch', sameFilePath('C:\\Docs\\A.md', 'c:/docs/a.md') === true);
         assert('path khác thư mục vẫn khác file', sameFilePath('/x/a.md', '/y/a.md') === false);
         assert('path thiếu đường dẫn không khớp', sameFilePath(null, '/x/a.md') === false);
@@ -148,8 +143,7 @@ export async function runSelfCheck() {
         assert('open gate allows md', isMarkdownPath('a.md') === true);
         assert('open gate allows mdown', isMarkdownPath('/x/y/a.mdown') === true);
         assert('open gate allows mkd', isMarkdownPath('C:\\docs\\a.mkd') === true);
-        // File không đuôi (README, LICENSE, CHANGELOG) là văn bản thật, không phải file lạ; file nhị
-        // phân vẫn bị chặn vì danh sách đuôi là ranh giới duy nhất.
+        // File không đuôi vẫn là văn bản; danh sách đuôi là ranh giới duy nhất chặn file nhị phân.
         assert('open gate allows extensionless', isMarkdownPath('/x/README') === true);
         assert('open gate allows mdx', isMarkdownPath('notes.mdx') === true);
         assert('open gate allows txt', isMarkdownPath('notes.txt') === true);
@@ -157,9 +151,9 @@ export async function runSelfCheck() {
         assert('open gate rejects exe', isMarkdownPath('a.exe') === false);
         assert('open gate không nhận đuôi trùng trong tên', isMarkdownPath('a.md.exe') === false);
 
-        // Session: round-trip giữ nguyên tab + tab đang mở, và quy tắc "chưa lưu".
+        // Session round-trip: giữ tab + tab đang mở + quy tắc chưa lưu.
         await section('khối #3', async () => {
-            // Đúng shape serializeSession() xuất ra: history không lưu, dirty là boolean.
+            // Đúng shape serializeSession(): history không lưu, dirty là boolean.
             const wire = (id, path, name, content, savedContent, eol = '\n', bom = false) => ({
                 id, path, name, content, eol, bom, dirty: isTabDirty({ content, savedContent }), scrollTop: 0, selStart: 0, selEnd: 0
             });
@@ -179,25 +173,22 @@ export async function runSelfCheck() {
             assert('tab sửa lúc đóng vẫn dirty sau khi mở lại', isTabDirty(back.tabs[1]) === true);
             assert('tab chưa lưu vẫn dirty sau khi mở lại', isTabDirty(back.tabs[2]) === true);
 
-            // Tab lưu được nội dung (dirty / chưa có path) không được đọc lại đĩa: mất eol là lần Ctrl+S
-            // sau ghi đè file CRLF bằng LF.
+            // Tab có content không đọc lại đĩa; mất eol là Ctrl+S ghi đè CRLF bằng LF.
             const crlf = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, 'C:\\a.md', 'a.md', '# A', '# A', '\r\n')] }));
             assert('session giữ kiểu xuống dòng CRLF', crlf.tabs[0].eol === '\r\n');
             assert('session thiếu eol -> mặc định LF', back.tabs[0].eol === '\n');
 
-            // BOM phải sống cùng session: tab lưu được nội dung không đọc lại đĩa, mất bom là file
-            // gốc bị mất BOM ở lần lưu kế tiếp.
+            // BOM cũng phải sống cùng session, nếu không file gốc mất BOM ở lần lưu sau.
             const bomBack = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, 'C:\\a.md', 'a.md', '# A', '# A', '\n', true)] }));
             assert('session giữ cờ BOM', bomBack.tabs[0].bom === true);
             assert('session thiếu bom -> mặc định không BOM', back.tabs[0].bom === false);
 
-            // Session của build cũ còn BOM trong content: bỏ BOM và tab vẫn phải sạch (bỏ lệch với
-            // savedContent thì tab sạch hoá dirty).
+            // Session cũ còn BOM trong content: bỏ BOM ở cả content và savedContent để tab vẫn sạch.
             const legacyBom = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, '/a.md', 'a.md', '\uFEFF# A', '\uFEFF# A')] }));
             assert('session cũ có BOM -> bỏ khi khôi phục', legacyBom.tabs[0].content === '# A');
             assert('bỏ BOM xong tab vẫn sạch', isTabDirty(legacyBom.tabs[0]) === false);
 
-            // Nội dung tab sạch có path không lưu (content = null) -> lúc khôi phục phải đọc lại đĩa.
+            // content = null + path -> khôi phục đọc lại từ đĩa.
             assert('tab sạch có path không lưu nội dung', sessionKeepsContent({ path: '/a.md', content: 'x', savedContent: 'x' }) === false);
             assert('tab dirty có path vẫn lưu nội dung', sessionKeepsContent({ path: '/a.md', content: 'y', savedContent: 'x' }) === true);
             assert('tab chưa có path luôn lưu nội dung', sessionKeepsContent({ path: null, content: '', savedContent: '' }) === true);
@@ -218,8 +209,7 @@ export async function runSelfCheck() {
                 return r.activeId === 99 && r.tabs[0].name === 'Untitled' && r.tabs[0].path === null;
             })());
 
-            // Id hỏng (session cũ, sửa tay) làm nextId = NaN, kéo theo activeId và getActiveTab() hỏng
-            // theo; id trùng làm hai tab cùng nhận mọi lệnh của nhau.
+            // Id hỏng làm nextId = NaN; id trùng làm hai tab nhận lệnh của nhau.
             const badIds = deserializeSession(JSON.stringify({
                 tabs: [{ id: 'abc', content: 'a' }, { id: 5, content: 'b' }, { id: 5, content: 'c' }, { id: -3, content: 'd' }, { id: 2.5, content: 'e' }]
             }));
@@ -228,16 +218,14 @@ export async function runSelfCheck() {
                 && new Set(badIds.tabs.map((t) => t.id)).size === badIds.tabs.length);
             assert('id hợp lệ giữ nguyên', deserializeSession(JSON.stringify({ tabs: [{ id: 9, content: 'a' }] })).tabs[0].id === 9);
 
-            // Tab CHƯA có path: mốc "đã lưu" là chuỗi rỗng, không phải null. null nghĩa là "chưa bao
-            // giờ xuống đĩa" nên tab vĩnh viễn dirty và cứ hỏi khi đóng dù đã xoá hết nội dung.
+            // Tab chưa có path: mốc đã lưu là '', không phải null (null = luôn dirty).
             const draft = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: null, name: 'Untitled', content: '', dirty: true }] }));
             assert('tab chưa có path + dirty -> mốc rỗng, không phải null', draft.tabs[0].savedContent === '');
             assert('tab chưa có path đã xoá hết nội dung thì không hỏi khi đóng', isTabDirty(draft.tabs[0]) === false);
             const dirtyPath = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: 'x', dirty: true }] }));
             assert('tab có path + dirty -> savedContent null (chặn ghi đè bản rỗng)', dirtyPath.tabs[0].savedContent === null);
 
-            // status + diskMtime phải sống cùng session: status là chốt chặn duy nhất khiến Ctrl+S
-            // không ghi đè file thật bằng nội dung rỗng sau khi khởi động lại.
+            // status phải sống cùng session: chốt duy nhất chặn Ctrl+S ghi đè file thật bằng bản rỗng.
             const st = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: '', dirty: true, status: 'unreadable', diskMtime: 1712345678901 }] }));
             assert('session giữ status lỗi', st.tabs[0].status === 'unreadable');
             assert('session giữ mốc đĩa', st.tabs[0].diskMtime === 1712345678901);
@@ -246,16 +234,14 @@ export async function runSelfCheck() {
             assert('mtimeOf nhận Date và số', mtimeOf({ mtime: new Date(1712345678901) }) === 1712345678901 && mtimeOf({ mtime: 1712345678901 }) === 1712345678901);
             assert('mtimeOf thiếu mtime -> null', mtimeOf(null) === null && mtimeOf({}) === null);
 
-            // Quyết định ghi đè: chỉ hỏi khi mốc đĩa THẬT sự lệch. 'unknown' (chưa có mốc) phải
-            // im lặng, nếu không mỗi lần Ctrl+S là một hộp thoại vô nghĩa.
+            // 'unknown' phải im lặng, nếu không mỗi Ctrl+S là một hộp thoại vô nghĩa.
             assert('stat hỏng -> file đã mất', diskRevision(null, 1000) === 'gone');
             assert('mtime khớp -> không hỏi', diskRevision({ mtime: 1000 }, 1000) === 'same');
             assert('mtime lệch -> hỏi', diskRevision({ mtime: 2000 }, 1000) === 'changed');
             assert('chưa có mốc -> im lặng, không hỏi', diskRevision({ mtime: 2000 }, null) === 'unknown');
             assert('mtime không đọc được -> im lặng', diskRevision({}, 1000) === 'unknown');
 
-            // Tab dirty có path sau khi khôi phục chỉ còn hash + độ dài của bản đã lưu: gõ lại đúng nội
-            // dung gốc là hết dấu chưa lưu. Không có nó thì tab đó vĩnh viễn dirty và không thể Revert.
+            // Chỉ còn hash+len: gõ lại đúng nội dung gốc thì tab hết dirty.
             assert('hashText ổn định', hashText('abc') === hashText('abc'));
             assert('hashText phân biệt nội dung', hashText('abc') !== hashText('abd'));
             const reverted = deserializeSession(JSON.stringify({
@@ -270,9 +256,7 @@ export async function runSelfCheck() {
             assert('hash đúng nhưng độ dài lệch -> chưa lưu', isTabDirty({ content: 'x', savedContent: null, savedHash: hashText('x'), savedLen: 99 }) === true);
             assert('khôi phục tab dirty: không có hash thì vẫn là chưa lưu', isTabDirty({ content: 'x', savedContent: null, savedHash: null, savedLen: null }) === true);
 
-            // Tab đang ở trạng thái lỗi phải được đọc lại đĩa ở lần chạy sau, kể cả khi bản nháp của nó
-            // nằm trong session: không có cờ này thì một lần đọc hỏng (ổ mạng chưa nối, hết quyền) biến
-            // tab thành tab rỗng vĩnh viễn, và Save As vào đúng đường dẫn cũ là xoá file thật.
+            // Tab lỗi phải đọc lại ở lần sau, kể cả khi có bản nháp: đọc hỏng không được thành tab rỗng vĩnh viễn.
             const broken = deserializeSession(JSON.stringify({
                 activeId: 1,
                 tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: 'draft', dirty: true, status: 'unreadable', reload: true }]
@@ -280,12 +264,11 @@ export async function runSelfCheck() {
             assert('tab lỗi được đọc lại đĩa ở lần chạy sau', broken.tabs[0].reload === true);
             assert('tab lỗi vẫn giữ bản nháp', broken.tabs[0].content === 'draft');
             assert('tab lỗi không tự nhận là đã lưu', isTabDirty(broken.tabs[0]) === true);
-            // serializeSession() chạy trên tab THẬT của app: mọi tab đang lỗi phải mang cờ reload.
+            // serializeSession() chạy trên tab thật: mọi tab lỗi phải mang cờ reload.
             const liveWire = serializeSession();
             assert('serializeSession đánh cờ reload cho mọi tab lỗi', liveWire.tabs.every((t) => t.reload === (t.status !== 'ok')));
             assert('serializeSession giữ mặc định EOL', liveWire.defaultEol === '\n' || liveWire.defaultEol === '\r\n');
-            // Vân tay chống ghi lại session: tab không đổi không được ghi, tab đổi bất kỳ thứ gì thì phải ghi.
-            // Bỏ sót một trường ở đây là ghi phiên cũ (mất dữ liệu im lặng), nên nó phải phủ MỌI key của record.
+            // Fingerprint phải phủ MỌI key của record, bỏ sót là ghi phiên cũ và mất dữ liệu im lặng.
             const fpTab = { id: 1, path: '/a.md', name: 'a.md', content: 'hello', dirty: true, scrollTop: 0 };
             assert('vân tay session: record không đổi -> giống nhau', sessionFingerprint(fpTab) === sessionFingerprint({ ...fpTab }));
             assert('vân tay session: nội dung cùng độ dài khác chữ -> khác nhau', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, content: 'world' }));
@@ -293,16 +276,15 @@ export async function runSelfCheck() {
             assert('vân tay session: content null (tab sạch) -> khác nhau', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, content: null }));
             assert('vân tay session: trường mới thêm vào record cũng được tính', sessionFingerprint(fpTab) !== sessionFingerprint({ ...fpTab, somethingNew: 1 }));
 
-            // Tab chưa lưu phải phân biệt được: cấp số nhỏ nhất còn trống.
+            // Tab chưa lưu: cấp số Untitled nhỏ nhất còn trống.
             assert('Untitled đánh số từ 1', untitledName([]) === 'Untitled 1');
             assert('Untitled bỏ qua số đã dùng', untitledName([{ name: 'Untitled 1' }, { name: 'Untitled 2' }]) === 'Untitled 3');
 
-            // Save As giữ đuôi file và mở hộp thoại ở đúng thư mục của tab (file .txt không thành .md).
+            // Save As giữ đuôi và đúng thư mục của tab (.txt không thành .md).
             assert('Save As giữ đuôi .txt', suggestSavePath({ path: 'C:\\docs\\note.txt', name: 'note.txt' }, 'x') === 'C:\\docs\\note.txt');
             assert('Save As tab chưa lưu lấy tên từ H1', suggestSavePath({ path: null, name: 'Untitled 1' }, '# My Doc').endsWith('my-doc.md'));
 
-            // Trần ký tự lịch sử toàn app: mỗi mục giữ nguyên chuỗi nội dung nên vài tab tài liệu
-            // lớn là hàng trăm MB. Cắt ở lúc chuyển tab, tab nền trước, tab đang mở sau cùng.
+            // Trần ký tự lịch sử toàn app; cắt lúc chuyển tab, tab nền trước, tab đang mở sau cùng.
             const bigEntry = () => ({ val: 'x'.repeat(1000), start: 0, end: 0 });
             const hA = { stack: [bigEntry(), bigEntry(), bigEntry()], index: 2 };
             const hB = { stack: [bigEntry()], index: 0 };
@@ -325,7 +307,7 @@ export async function runSelfCheck() {
             pruneAllHistories([hBack], 500);
             assert('cắt hết stack -> index về -1, không âm', hBack.stack.length === 0 && hBack.index === -1);
 
-            // Tên tab trùng nhau phải phân biệt được, và không phân biệt thừa khi không trùng.
+            // Tên trùng phải phân biệt, không trùng thì giữ nguyên.
             const dupes = [
                 { name: 'README.md', path: 'C:\\a\\README.md' },
                 { name: 'README.md', path: 'C:\\b\\README.md' },
@@ -335,22 +317,19 @@ export async function runSelfCheck() {
             assert('tên không trùng -> giữ nguyên', disambiguateTabName(dupes[2], dupes) === 'notes.md');
             assert('tab chưa lưu -> tên gốc', disambiguateTabName({ name: 'Untitled', path: null }, dupes) === 'Untitled');
 
-            // confirmAction chèn câu hỏi bằng innerHTML: tên file do người dùng đặt là dữ liệu
-            // không tin được, phải escape trước khi vào DOM.
+            // confirmAction chèn câu hỏi bằng innerHTML: tên file phải escape trước khi vào DOM.
             assert('escapeHtml chặn thẻ trong tên file', escapeHtml('<img src=x onerror=alert(1)>') === '&lt;img src=x onerror=alert(1)&gt;');
             assert('escapeHtml chặn dấu nháy', escapeHtml('a"b\'c&d') === 'a&quot;b&#39;c&amp;d');
 
-            // serializeSession() đọc store thật; chỉ kiểm tra nó không nổ và có đủ 2 trường.
+            // serializeSession() đọc store thật: chỉ kiểm không nổ và đủ trường.
             const live = serializeSession();
             assert('serialize session trả về shape đúng',
                 typeof live.activeId === 'number' && Array.isArray(live.tabs)
                 && live.tabs.every((t) => 'dirty' in t && (t.eol === '\n' || t.eol === '\r\n')));
         });
 
-        // Auto-close / bỏ qua ký tự đóng. Handler gắn thẳng vào textarea nên gõ giả bằng
-        // KeyboardEvent là đủ: các nhánh tự gán markdownInput.value + selection đồng bộ.
-        // Event giả KHÔNG tự chèn ký tự như trình duyệt thật, nên nhánh "để trình duyệt tự
-        // chèn" phải assert qua prevented === false chứ không assert nội dung có thêm ký tự.
+        // Handler auto-close gắn thẳng vào textarea nên KeyboardEvent giả là đủ.
+        // Event giả không tự chèn ký tự: nhánh để trình duyệt chèn phải assert prevented === false.
         await section('auto-close', async () => {
             const press = (key, value, caret) => {
                 markdownInput.value = value;
@@ -362,15 +341,14 @@ export async function runSelfCheck() {
 
             const quoteOpen = press('"', '', 0);
             assert('gõ " trên nội dung rỗng -> mở cặp', quoteOpen.value === '""' && quoteOpen.caret === 1);
-            // Đây là assert bắt bug: trước đây gõ lại " chèn thêm một cặp -> '"abc"|""'.
+            // Assert bắt bug: gõ lại " từng chèn thêm một cặp.
             const quoteSkip = press('"', '"abc"', 4);
             assert('gõ lại " nhảy qua dấu đóng, không nhân đôi', quoteSkip.value === '"abc"' && quoteSkip.caret === 5);
             const backtickSkip = press('`', '`a`', 2);
             assert('gõ lại ` nhảy qua, không nhân đôi', backtickSkip.value === '`a`' && backtickSkip.caret === 3);
             const singleSkip = press("'", "'a'", 2);
             assert("gõ lại ' nhảy qua dấu đóng", singleSkip.value === "'a'" && singleSkip.caret === 3);
-            // Caret ở CUỐI "don't": đặt giữa "don" và "'t" thì ký tự kế tiếp là ' nên nhánh nhảy qua bắt
-// trước, không kiểm được guard nháy đơn nữa.
+            // Caret ở CUỐI don't, nếu không nhánh nhảy qua bắt trước và không kiểm được guard nháy đơn.
             const apostrophe = press("'", "don't", 5);
             assert("' sau chữ là dấu nháy đơn, không tự đóng", !apostrophe.prevented);
 
@@ -496,7 +474,7 @@ export async function runSelfCheck() {
             markdownInput.setSelectionRange(0, 3);
             insertTableBlock(2, 2);
             assert('chèn bảng giữ nguyên vùng chọn', markdownInput.value.startsWith('abc') && markdownInput.value.includes('| Head |'));
-            // Số dòng người chọn tính cả dòng tiêu đề: 3x2 = tiêu đề + 1 dòng thân, không phải 3 dòng.
+            // Số dòng tính cả tiêu đề: 3x2 = tiêu đề + 1 dòng thân.
             markdownInput.value = '';
             markdownInput.setSelectionRange(0, 0);
             insertTableBlock(3, 2);
@@ -511,14 +489,14 @@ export async function runSelfCheck() {
         });
 
         await section('khối #7', async () => {
-            // textarea RỜI: undo/redo gọi syncEditorAfterChange() đọc markdownInput thật nên không đụng nội dung người dùng.
+            // textarea rời: syncEditorAfterChange() đọc markdownInput thật nên không đụng nội dung người dùng.
             const probe = document.createElement('textarea');
             const savedStack = editorHistory.stack;
             const savedIndex = editorHistory.index;
             editorHistory.stack = [];
             editorHistory.index = -1;
-            editorHistory.saveCurrentState(probe);   // giống applyContent() lúc mới load
-            probe.value = 'hi';                       // gõ xong nhưng chưa kịp lưu vào lịch sử
+            editorHistory.saveCurrentState(probe);
+            probe.value = 'hi';
             editorHistory.undo(probe);
             assert('undo đầu tiên sau khi load có tác dụng', probe.value === '');
             editorHistory.redo(probe);
@@ -528,7 +506,7 @@ export async function runSelfCheck() {
         });
 
         await section('khối #8', async () => {
-            // Dấu cách phải tạo mốc lịch sử riêng, nếu không cả "hello world" gộp một mục và Undo lùi hết cụm.
+            // Dấu cách phải tạo mốc lịch sử riêng, nếu không Undo lùi hết cả cụm.
             const saved = markdownInput.value;
             const sel = [markdownInput.selectionStart, markdownInput.selectionEnd];
             const savedStack = editorHistory.stack;
@@ -550,14 +528,12 @@ export async function runSelfCheck() {
         });
 
         await section('khối #9', async () => {
-            // marked.parse ném lỗi (lib chưa tải xong, extension hỏng): preview phải rơi về văn bản thô, không đụng innerHTML.
+            // marked.parse ném lỗi: preview phải rơi về văn bản thô, không đụng innerHTML.
             const savedValue = markdownInput.value;
             const savedMarked = window.marked;
             markdownInput.value = '# probe render';
             if (savedMarked) {
-                // marked v18 khai báo `parse` bằng getter không configurable, nên gán
-                // window.marked.parse ném TypeError và làm hỏng cả selfcheck. Thay cả object
-                // `marked` (window.marked writable) rồi trả lại đúng reference cũ, kể cả khi render ném lỗi.
+                // marked.parse là getter không configurable: thay cả object marked rồi trả lại reference cũ.
                 window.marked = { ...savedMarked, parse: () => { throw new Error('probe'); } };
                 try {
                     renderMarkdown();
@@ -568,8 +544,7 @@ export async function runSelfCheck() {
             } else {
                 skip('render lỗi -> preview hiện văn bản thô', 'marked chưa tải');
             }
-            // Trả editor về nội dung thật TRƯỚC rồi render lại: self-check chạy SAU restoreSession() nên
-            // không còn listener nào render sau, còn không thì preview kẹt ở đoạn probe.
+            // Trả editor về nội dung thật TRƯỚC rồi render lại, không thì preview kẹt ở đoạn probe.
             markdownInput.value = savedValue;
             renderMarkdown();
         });
@@ -586,18 +561,18 @@ export async function runSelfCheck() {
         });
 
         await section('khối #11', async () => {
-            // Đi qua listener mouseenter thật (không export hàm ra) để kiểm cả cách ánh xạ chỉ số -> cols/rows.
+            // Đi qua listener mouseenter thật để kiểm cả ánh xạ chỉ số -> cols/rows.
             const grid = tableMenu.querySelector('.table-grid');
             const hover = (index) => grid.children[index].dispatchEvent(new MouseEvent('mouseenter'));
             const onCount = () => grid.querySelectorAll('.table-cell.on').length;
 
-            hover(7);   // 3 cột x 2 dòng
+            hover(7);
             assert('lưới bảng sáng đúng hình chữ nhật khi hover', onCount() === 6
                 && grid.children[0].classList.contains('on')
                 && grid.children[7].classList.contains('on')
-                && !grid.children[3].classList.contains('on')     // cột 4 dòng 1
-                && !grid.children[10].classList.contains('on'));  // dòng 3
-            hover(24);  // 5 cột x 5 dòng
+                && !grid.children[3].classList.contains('on')
+                && !grid.children[10].classList.contains('on'));
+            hover(24);
             assert('lưới bảng sáng trọn 5x5', onCount() === 25);
             tableMenu.dispatchEvent(new MouseEvent('mouseleave'));
             assert('lưới bảng tắt sáng khi rời menu', onCount() === 0);
@@ -682,7 +657,7 @@ export async function runSelfCheck() {
             assert('modal mở ra view About', !infoAbout.classList.contains('hidden') && infoDoc.classList.contains('hidden'));
             assert('about hiện số phiên bản', /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(document.getElementById('app-version').textContent.trim()));
 
-            // Mở tài liệu rồi đợi fetch xong: showDoc là async nên check phải bất đồng bộ.
+            // showDoc là async nên phải đợi fetch xong.
             aboutItems[0].click();
             await new Promise((resolve) => {
                 const finish = () => { observer.disconnect(); clearTimeout(timer); resolve(); };
@@ -695,16 +670,14 @@ export async function runSelfCheck() {
             assert('bấm mục đổi sang view tài liệu', infoAbout.classList.contains('hidden') && !infoDoc.classList.contains('hidden'));
             assert('modal license đọc được file', infoBody.textContent.includes('MIT License'));
             assert('mở tài liệu thì focus nút Back', document.activeElement === document.getElementById('info-back'));
-            // Chuỗi flex .dialog-wide > #info-doc > #info-body mới làm tài liệu dài (third-party
-            // notices) cuộn trong hộp thay vì tràn ra ngoài. Bỏ display:flex ở #info-doc là hỏng.
+            // Chuỗi flex .dialog-wide > #info-doc > #info-body làm tài liệu dài cuộn trong hộp.
             assert('nội dung tài liệu cuộn trong hộp', getComputedStyle(infoDoc).display === 'flex'
                 && infoBody.getBoundingClientRect().bottom <= infoDialog.querySelector('.dialog').getBoundingClientRect().bottom);
 
             document.getElementById('info-back').click();
             assert('nút Back quay lại view About', !infoAbout.classList.contains('hidden') && infoDoc.classList.contains('hidden'));
 
-            // Esc là nút Back bằng bàn phím: modal 2 view nên phải lùi từ tài liệu về About, chưa đóng.
-            // showDoc đổi view đồng bộ (chỉ fetch là async) nên không cần đợi tải lần này.
+            // Esc = Back: lùi từ tài liệu về About, chưa đóng; showDoc đổi view đồng bộ.
             aboutItems[0].click();
             infoDialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
             assert('Esc từ view tài liệu lùi về About, hộp chưa đóng',
@@ -731,13 +704,11 @@ export async function runSelfCheck() {
         markdownInput.setSelectionRange(snap.selStart, snap.selEnd);
         markdownInput.scrollTop = snap.scrollTop;
         previewOutput.scrollTop = snap.previewScrollTop;
-        // Dựng lại đếm ký tự, lớp tô màu, preview, nội dung tab và nháp phiên từ nội dung thật: các khối
-        // trên đã gán thẳng markdownInput.value / gọi renderMarkdown() với nội dung thử.
+        // Dựng lại char counter, highlight, preview, tab và nháp phiên từ nội dung thật.
         syncEditorAfterChange();
     }
 
-    // Đếm theo tiền tố dòng: assert() ghi 'PASS '/'FAIL ', skip() ghi 'SKIP '. Tổng = results.length nên
-    // số trên toast luôn khớp số dòng trong console, kể cả khi có guard bị bỏ qua.
+    // Đếm theo tiền tố dòng; tổng = results.length nên toast luôn khớp console.
     const failed = results.filter(r => r.startsWith('FAIL'));
     const skipped = results.filter(r => r.startsWith('SKIP'));
     const passed = results.length - failed.length - skipped.length;

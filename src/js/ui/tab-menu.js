@@ -1,5 +1,4 @@
-// js/ui/tab-menu.js — Menu ngữ cảnh của dải tab: mọi thao tác lên MỘT tab (Save As, Close Others,
-// Copy path, Reveal in Explorer, Pin), cộng danh sách file vừa mở và danh sách toàn bộ tab khi tràn.
+// js/ui/tab-menu.js — Menu chuột phải của tab + Recent + danh sách toàn bộ tab.
 
 import { btnRecent, tabStrip } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
@@ -22,7 +21,7 @@ import { openPopupMenu } from './popup-menu.js';
 const canRevealInExplorer = () => !!(window.__TAURI__ && window.__TAURI__.opener?.revealItemInDir);
 
 function revealInExplorer(path) {
-    // opener:default đã kèm allow-reveal-item-in-dir nên không cần thêm quyền cho mục này.
+    // opener:default đã kèm allow-reveal-item-in-dir nên không cần thêm quyền.
     window.__TAURI__.opener.revealItemInDir(path).catch((err) => console.warn('[tab-menu] reveal failed', err));
 }
 
@@ -30,9 +29,8 @@ function copyPath(path) {
     navigator.clipboard.writeText(path).catch((err) => console.warn('[tab-menu] clipboard failed', err));
 }
 
-// Đóng nhiều tab: MỘT hộp thoại cho cả nhóm rồi xử lý tuần tự. Bản cũ forEach không await từng
-// closeTab, mà mỗi lần hỏi thì lần hỏi sau huỷ lần trước (confirmAction chỉ có một hộp thoại), nên
-// "Close Others" với vài tab dirty chỉ hỏi đúng một tab và bỏ qua im lặng phần còn lại.
+// Đóng nhiều tab: một hộp thoại cho cả nhóm rồi xử lý tuần tự; confirmAction chỉ có một hộp thoại nên
+// forEach không await sẽ huỷ lần hỏi trước và bỏ sót tab dirty.
 async function closeClosable(filter) {
     const targets = getTabs().filter((t) => !t.pinned && filter(t));
     if (!targets.length) return;
@@ -52,8 +50,7 @@ async function closeClosable(filter) {
 
     let closed = 0;
     for (const tab of targets) {
-        // saveTab trả lý do: huỷ hộp thoại Save As hay ghi hỏng thì tab đó phải ở lại. 'discard' là
-        // người dùng đã chọn bỏ bản nháp (hộp thoại "File is gone") nên vẫn đóng được.
+        // Chỉ 'saved' và 'discard' mới đóng tab; huỷ Save As hoặc ghi hỏng thì tab ở lại.
         const result = saveThem && isTabDirty(tab) ? await saveTab(tab) : 'saved';
         if (result !== 'saved' && result !== 'discard') continue;
         // force: câu hỏi đã được trả lời ở trên, không hỏi lại từng tab.
@@ -83,9 +80,8 @@ export function openTabMenu(tab, x, y) {
     ], x, y);
 }
 
-// Danh sách file vừa mở. Mục đã xoá khỏi đĩa vẫn hiện: openPaths -> readTextFile sẽ báo lỗi, không
-// cần kiểm tra tồn tại trước (và kiểm tra thì tốn một stat cho mỗi mục mỗi lần mở menu). Có mục xoá
-// cả danh sách cho người dùng không muốn giữ lại đường dẫn cũ.
+// Mục đã xoá khỏi đĩa vẫn hiện: openPaths sẽ báo lỗi, kiểm tồn tại tốn một stat cho mỗi mục.
+// Có mục xoá cả danh sách.
 export function openRecentMenu(anchor) {
     const recent = getRecentPaths().filter(isMarkdownPath);
     if (!recent.length) return false;
@@ -101,8 +97,7 @@ export function openRecentMenu(anchor) {
     return true;
 }
 
-// Dải tab tràn quá nhiều thì tab bị khuất rất khó tìm: menu này liệt kê tất cả, kèm dấu chưa-lưu và
-// cảnh báo lỗi để không mở nhầm.
+// Dải tab tràn thì menu liệt kê tất cả, kèm dấu chưa-lưu và cảnh báo lỗi.
 export function openAllTabsMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
     openPopupMenu(getTabs().map((tab) => ({
@@ -118,12 +113,11 @@ function tabFromEvent(e) {
 }
 
 export function initTabMenu() {
-    // Recent ẩn khi chưa mở file nào: một nút luôn bấm được nhưng không có gì để bấm là rác.
+    // Recent ẩn khi chưa mở file nào: nút không có gì để bấm là rác.
     subscribe(() => { btnRecent.hidden = getRecentPaths().length === 0; });
     btnRecent.addEventListener('click', () => { openRecentMenu(btnRecent); });
 
-    // Chặn menu mặc định của WebView CHỈ trên dải tab. Editor giữ menu gốc (Cut/Copy/Paste/Undo)
-    // vì đó là thứ người dùng cần ở textarea; chặn ở đó là mất quyền dán bằng chuột phải.
+    // Chặn menu mặc định của WebView CHỈ trên dải tab; editor giữ menu gốc để còn dán chuột phải.
     tabStrip.addEventListener('contextmenu', (e) => {
         const tab = tabFromEvent(e);
         if (!tab) return;
@@ -131,7 +125,7 @@ export function initTabMenu() {
         openTabMenu(tab, e.clientX, e.clientY);
     });
 
-    // ContextMenu key / Shift+F10 mở menu tại vị trí tab đang focus, để bàn phím cũng tới được.
+    // ContextMenu key / Shift+F10 mở menu tại tab đang focus để bàn phím cũng tới được.
     tabStrip.addEventListener('keydown', (e) => {
         if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return;
         const tab = tabFromEvent(e);

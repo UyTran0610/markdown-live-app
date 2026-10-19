@@ -40,9 +40,8 @@ initAbout();
 initTabs();
 initDocuments();
 
-// restoreSession() là async (đọc lại nội dung tab mà session không lưu). Gán `ready` TRƯỚC await
-// để listener selfcheck đăng ký sau nhìn thấy đúng promise này: không có nó thì selfcheck chạy
-// ngay khi listener dưới đây nhường quyền, tức là trên editor chưa khôi phục xong.
+// restoreSession() là async; gán `ready` TRƯỚC await để selfcheck đăng ký sau thấy đúng promise,
+// nếu không nó chạy trên editor chưa khôi phục xong.
 let ready = Promise.resolve();
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -58,22 +57,19 @@ window.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // Guard: lucide không tải được thì bỏ qua vẽ icon, không để exception làm hỏng toàn bộ khởi tạo.
+        // lucide lỗi thì bỏ qua vẽ icon, không để exception làm hỏng khởi tạo.
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     } finally {
-        // Nạp nội dung CUỐI: renderMarkdown() đầu tiên phải chạy sau khi mermaid initialize và marked gắn
-        // KaTeX extension, nếu không công thức ($...$ / $$...$$) lần mở đầu chỉ hiện chữ thô. Đặt trong finally
-        // để editor vẫn có nội dung dù khối init bên trên ném lỗi.
+        // Nạp nội dung CUỐI: mermaid.initialize() và marked.use(katex) phải xong trước lần render đầu.
+        // Đặt trong finally để editor vẫn có nội dung dù khối init trên ném lỗi.
         ready = restoreSession();
         await ready;
     }
 });
 
-// Đăng ký SAU listener trên: self-check phải chạy trên app đã nạp xong (nội dung thật trong editor,
-// mermaid/KaTeX đã gắn vào marked) thì mới kiểm được đúng thứ cần kiểm. Đặt trước sẽ chạy trên
-// textarea rỗng và render ra preview rác mà không ai dọn sau.
+// Đăng ký SAU listener trên: self-check phải chạy trên app đã nạp xong, không phải textarea rỗng.
 if (location.search.includes('selfcheck')) {
     window.addEventListener('DOMContentLoaded', async () => {
         await ready;

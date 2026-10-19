@@ -4,20 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <!-- Số phiên bản hiển thị trong hộp thoại About. scripts/sync-version.js ghi đè content=
-         mỗi lần dev/build, nên không bao giờ sửa tay (giống hệt ?v= bên dưới). -->
+    <!-- Phiên bản About; scripts/sync-version.js ghi đè mỗi lần dev/build, không sửa tay. -->
     <meta name="app-version" content="2.0.3">
     <title>Markdown Live</title>
-    <!-- Bốn file CSS theme của Preview đều nạp sẵn; theme chỉ quyết định link nào được áp dụng
-         (media="not all" = tải nhưng không áp dụng). Nhờ vậy lúc đổi theme chỉ là gán media —
-         đồng bộ, không có fetch nào trong luồng chính, nên Preview và Editor đổi màu cùng lúc. -->
+    <!-- 4 CSS theme Preview nạp sẵn, media="not all" = tải nhưng không áp dụng; đổi theme chỉ gán media,
+         không fetch nên Editor và Preview đổi màu cùng lúc. -->
     <link rel="stylesheet" href="vendor/github-markdown-light.css?v=2.0.3" data-theme-css="light">
     <link rel="stylesheet" href="vendor/hljs-github.min.css?v=2.0.3" data-theme-css="light">
     <link rel="stylesheet" href="vendor/github-markdown-dark.css?v=2.0.3" data-theme-css="dark" media="not all">
     <link rel="stylesheet" href="vendor/hljs-github-dark.min.css?v=2.0.3" data-theme-css="dark" media="not all">
     <script>
-        // Xác định theme (sáng/tối) sớm nhất có thể để tránh hiệu ứng nháy sai giao diện.
-        // Ưu tiên lựa chọn đã lưu của người dùng, nếu không có thì theo theme của thiết bị.
+        // Áp theme sớm để tránh nháy sai giao diện: dùng lựa chọn đã lưu, không có thì theo hệ thống.
         (function () {
             var theme = 'light';
             try {
@@ -49,8 +46,7 @@
     <link rel="stylesheet" href="css/editor.css?v=2.0.3">
     <link rel="stylesheet" href="css/preview.css?v=2.0.3">
     <link rel="stylesheet" href="css/print.css?v=2.0.3">
-    <!-- defer: cho phép trình duyệt parse/paint xong phần HTML bên dưới trước,
-         các thư viện vẫn thực thi đúng theo thứ tự khai báo, trước sự kiện DOMContentLoaded -->
+    <!-- defer: parse/paint xong HTML rồi mới chạy, vẫn đúng thứ tự khai báo, trước DOMContentLoaded. -->
     <script src="vendor/lucide.min.js?v=2.0.3" defer></script>
     <script src="vendor/marked.umd.js?v=2.0.3" defer></script>
     <script src="vendor/purify.min.js?v=2.0.3" defer></script>
@@ -61,25 +57,16 @@
 </head>
 <body>
 
-    <!-- Header / Toolbar -->
     <header class="app-header">
-        <!-- Thanh tab thay chỗ icon + tên app của titlebar native (khung native đã tắt:
-             tauri.conf.json "decorations": false). Một hàng: dải tab, vùng kéo cửa sổ, 3 nút cửa sổ.
-             Không có tên app / logo ở đây. -->
+        <!-- Titlebar tự vẽ: dải tab, vùng kéo, 3 nút cửa sổ. -->
         <div class="titlebar">
-            <!-- KHÔNG đặt data-tauri-drag-region lên #tab-strip. Tauri dò ngược
-                 e.composedPath() từ điểm bấm lên trên: nó dừng ở phần tử cha đầu tiên
-                 mang thuộc tính, nên attribute trên dải tab khiến cú bấm vào tab cũng mở
-                 vùng kéo cửa sổ. OS kéo cửa sổ đi, JS drag tab chạy song song, tab đang
-                 kéo (position: fixed) bị đóng băng theo viewport nên lệch dần khỏi chuột.
-                 Vùng kéo cửa sổ là .titlebar-drag ngay bên phải, nó chiếm hết khoảng
-                 trống còn lại nên không mất gì. -->
-            <!-- Icon app quay lại trên cùng như titlebar native cũ, nhưng chỉ icon, không tên app.
-                 draggable="false": .titlebar đã user-select: none nhưng ảnh vẫn bị kéo thả kiểu HTML5. -->
+            <!-- KHÔNG đặt data-tauri-drag-region lên #tab-strip: Tauri dừng ở ancestor đầu tiên có
+                 attribute, nên bấm tab sẽ kéo cả cửa sổ và tab fixed lệch khỏi chuột.
+                 Vùng kéo là .titlebar-drag bên phải. -->
+            <!-- Icon app, không tên app; draggable="false" vì user-select: none không chặn kéo ảnh HTML5. -->
             <img class="titlebar-icon" src="assets/icon-128.png" alt="" draggable="false">
             <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files"></div>
-            <!-- Vùng kéo cửa sổ: dải tab không mang data-tauri-drag-region nên phần trống
-                 bên phải dải tab (nút cuộn ‹ ›, cửa sổ) do .titlebar-drag này đảm nhiệm. -->
+            <!-- Vùng kéo cửa sổ: phần trống bên phải dải tab (nút cuộn, nút cửa sổ). -->
             <div class="titlebar-drag" data-tauri-drag-region></div>
             <!-- 2 nút cuộn dải tab, chỉ hiện khi tab tràn (tabs.js bật/tắt [hidden]). -->
             <div class="tabs-nav">
@@ -104,7 +91,6 @@
             </div>
         </div>
         <div class="toolbar" role="toolbar" aria-label="Document toolbar">
-            <!-- Nhóm trái: hành động với tài liệu. Nhóm phải: chế độ xem, sync, theme, help. -->
             <div class="toolbar-group">
                 <button id="btn-import" class="btn" title="Open one or more Markdown files (Ctrl+O)" aria-label="Open files">
                     <span class="btn-label">Open</span>
@@ -192,9 +178,7 @@
         </div>
     </header>
 
-    <!-- Main Workspace -->
     <main class="workspace">
-        <!-- Editor Column -->
         <section class="pane editor-pane">
             <div class="format-bar" role="toolbar" aria-label="Formatting toolbar">
                 <button id="btn-undo" class="btn-icon" title="Undo (Ctrl+Z)" aria-label="Undo">
@@ -295,18 +279,14 @@
             </div>
         </section>
 
-        <!-- Thanh ngăn cách kéo được giữa Editor và Preview -->
         <div id="pane-resizer" role="separator" aria-orientation="vertical" title="Drag to resize panes"></div>
 
-        <!-- Preview Column -->
         <section class="pane preview-pane">
             <div id="preview-output" class="markdown-body"></div>
         </section>
     </main>
 
-    <!-- Thanh trạng thái: kiểu xuống dòng đang dùng (bấm để đổi), vị trí con trỏ, mã hoá, số ký tự.
-         Encoding cố định UTF-8 vì readTextFile từ chối file không phải UTF-8 ngay từ đầu.
-         Số ký tự nằm ở đây (không phải thanh định dạng) để vẫn hiện ở chế độ Preview. -->
+    <!-- Thanh trạng thái: EOL (bấm để đổi), vị trí con trỏ, mã hoá UTF-8, số ký tự (hiện cả ở Preview). -->
     <footer class="status-bar" role="status" aria-label="Document status">
         <button id="status-eol" class="status-item" type="button" title="Line ending - click to switch (LF / CRLF)"></button>
         <span id="status-pos" class="status-item"></span>
@@ -314,7 +294,6 @@
         <span id="char-counter" class="status-item">0 characters</span>
     </footer>
 
-    <!-- Link Dialog -->
     <div id="link-dialog" class="dialog-overlay hidden">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="link-dialog-title">
             <h2 id="link-dialog-title">Link</h2>
@@ -329,7 +308,6 @@
         </div>
     </div>
 
-    <!-- Table Size Dialog -->
     <div id="table-dialog" class="dialog-overlay hidden">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="table-dialog-title">
             <h2 id="table-dialog-title">Insert table</h2>
@@ -344,8 +322,7 @@
         </div>
     </div>
 
-    <!-- About: logo + tên + phiên bản, bên dưới là 2 mục bấm để đọc tài liệu.
-         data-doc chỉ nhận đúng 2 tên hardcode ở đây (không ghép từ input người dùng). -->
+    <!-- About: logo, tên, phiên bản và 2 mục đọc tài liệu; data-doc chỉ nhận 2 tên hardcode. -->
     <div id="info-dialog" class="dialog-overlay hidden">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="info-about-title">
             <div id="info-about">
@@ -376,11 +353,7 @@
         </div>
     </div>
 
-    <!-- Confirm Dialog: hộp thoại hỏi chung cho các quyết định KHÔNG THỂ ĐẢO NGƯỢC (đóng tab
-         chưa lưu, file bên ngoài đã sửa, file bị xoá khỏi đĩa, ghi đè file của tab khác).
-         confirm() của WebView là hộp thoại kiểu trình duyệt và không có nút "Lưu", nên không dùng.
-         Nội dung đổi bằng innerHTML của app, không phải dữ liệu người dùng — nguồn trong confirmAction
-         chỉ là chuỗi ta tự ghép từ tên file, có escapeHtml. -->
+    <!-- Hộp thoại hỏi cho quyết định không thể đảo ngược; confirm() của WebView không có nút Lưu. -->
     <div id="confirm-dialog" class="dialog-overlay hidden">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
             <h2 id="confirm-title">Confirm</h2>
@@ -393,14 +366,12 @@
         </div>
     </div>
 
-    <!-- Overlay khi kéo file vào cửa sổ: chỉ hiện nhờ class .drop-target do js/io/documents.js gắn
-         lên <body> theo sự kiện drag-drop của Tauri. pointer-events: none nên không nuốt cú thả. -->
+    <!-- Overlay khi kéo file vào cửa sổ (class .drop-target trên body); pointer-events: none. -->
     <div class="drop-overlay" aria-hidden="true">Drop Markdown files here</div>
 
-    <!-- Toast Notification -->
     <div id="toast" class="toast hidden">Notification appears here</div>
 
-    <!-- App entry: ES module (tự động defer, nên chạy sau các thư viện vendor ở trên) -->
+    <!-- App entry: ES module tự defer, chạy sau các thư viện vendor ở trên. -->
     <script type="module" src="js/main.js?v=2.0.3"></script>
 </body>
 </html>

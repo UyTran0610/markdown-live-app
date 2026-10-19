@@ -15,9 +15,8 @@ import {
 import { convertKatexToImagesForDoc } from './math-image.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
-// CSS tối giản nhúng trong file DOC: Word không đọc được stylesheet của app nên phải tự mang theo định dạng cốt lõi.
-// Chỉ dùng selector thẻ đơn giản (Word đọc được); viền bảng và khung quote/alert phải để inline trong
-// styleDataTablesForDoc() / convertQuotesForDoc() vì Word không áp selector hậu duệ cho ô con.
+// CSS tối giản nhúng trong DOC: Word không đọc stylesheet của app, và không áp selector hậu duệ
+// xuống ô con nên viền bảng/quote phải inline.
 const DOC_STYLES = `
     body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; }
     h1 { font-size: 20pt; } h2 { font-size: 16pt; } h3 { font-size: 14pt; }
@@ -45,7 +44,7 @@ export function buildWordHtml(bodyHtml) {
         + '<style>' + DOC_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
 }
 
-// Ảnh với URL remote giữ nguyên <img src> (Word tự tải).
+// Ảnh URL remote giữ nguyên <img src>, Word tự tải.
 export async function exportDoc() {
     const text = markdownInput.value;
     if (!text.trim()) {
@@ -92,9 +91,7 @@ export async function exportDoc() {
         img.style.height = fit.height + 'px';
     }
 
-    // Ánh xạ theo CHÍNH node pre (pre[i] -> svg con) chứ không theo chỉ số trong danh sách svg: nếu có biểu đồ
-    // không có <svg> (mermaid lỗi, DOMPurify dọn rỗng, whenMermaidIdle timeout) thì chỉ số lệch và biểu đồ
-    // sau đó xuất nhầm ảnh của biểu đồ khác.
+    // Ánh xạ theo chính node pre (không theo chỉ số svg): mermaid lỗi làm lệch chỉ số và xuất nhầm ảnh.
     const cloneMers = clone.querySelectorAll('pre.mermaid');
     const origPres = previewOutput.querySelectorAll('pre.mermaid');
     for (let i = 0; i < cloneMers.length; i++) {
@@ -122,13 +119,11 @@ export async function exportDoc() {
         }
     }
 
-    // Công thức -> PNG như Mermaid; công thức nào vẽ lỗi sẽ tự rơi về MathML bên trong hàm này.
+    // Công thức -> PNG như Mermaid; công thức lỗi tự rơi về MathML trong hàm này.
     await convertKatexToImagesForDoc(previewOutput, clone);
 
-    // Chạy cuối: các bước trên ghép ảnh/biểu đồ/công thức theo chỉ số trong clone, mà việc đổi blockquote
-    // thành bảng chỉ dời node chứ không đổi thứ tự tài liệu, nên để sau cùng cho chắc.
-    // Viền bảng dữ liệu phải gắn TRƯỚC khi convertQuotesForDoc() tạo thêm bảng khung quote: ô của bảng
-    // khung đó phải giữ "chỉ có viền trái", không dính lưới ô.
+    // Chạy cuối: convertQuotesForDoc() chỉ dời node nên thứ tự tài liệu không đổi.
+    // Viền bảng phải gắn TRƯỚC khung quote, để ô của bảng khung chỉ còn viền trái.
     styleDataTablesForDoc(clone);
     convertQuotesForDoc(clone);
 

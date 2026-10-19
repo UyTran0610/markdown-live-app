@@ -49,7 +49,7 @@ function openLinkDialog() {
 }
 
 export function openTableDialog() {
-    // Luôn mở với 3x3 (khớp openLinkDialog): giữ số cũ sang lần sau là dễ dùng nhầm kích thước đã chọn trước đó.
+    // Luôn mở với 3x3, không giữ số của lần trước (dễ chèn nhầm kích thước cũ).
     tableColsInput.value = '3';
     tableRowsInput.value = '3';
     openDialog(tableDialog, tableColsInput);
@@ -63,7 +63,7 @@ function insertLinkFromDialog() {
     const selStart = markdownInput.selectionStart;
     const selEnd = markdownInput.selectionEnd;
     const label = text || (selStart !== selEnd ? val.substring(selStart, selEnd) : url);
-    // URL chứa khoảng trắng phải bọc trong < > theo cú pháp GFM
+    // URL chứa khoảng trắng phải bọc trong < > theo cú pháp GFM.
     const urlPart = /\s/.test(url) ? '<' + url + '>' : url;
     const insert = '[' + escapeLinkText(label) + '](' + urlPart + ')';
     applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), selStart + insert.length, selStart + insert.length);
@@ -100,7 +100,7 @@ export function initDialogs() {
         });
     });
 
-    // Enter = nút chính, Esc = đóng, Tab giữ vòng focus; chặn mọi phím khác lọt xuống editor bên dưới.
+    // Enter = nút chính, Esc = đóng, Tab giữ vòng focus; chặn phím khác lọt xuống editor.
     [linkDialog, tableDialog].forEach((overlay) => {
         overlay.addEventListener('keydown', (e) => {
             e.stopPropagation();

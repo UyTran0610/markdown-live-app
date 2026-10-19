@@ -1,9 +1,8 @@
-// js/export/math-fonts.js — Font + CSS KaTeX cho việc vẽ công thức thành ảnh: parse @font-face, tải CSS một lần,
-// đổi font woff2 sang data URI, và liệt kê font thực sự dùng trong một công thức.
+// js/export/math-fonts.js — @font-face KaTeX: tải CSS một lần, đổi woff2 sang data URI, liệt kê font dùng.
 
 let katexAssetsPromise = null;
 
-// Khoá font: family|style|weight đã chuẩn hoá, để khớp @font-face trong CSS với computed style của từng phần tử.
+// Khoá font family|style|weight đã chuẩn hoá, khớp @font-face với computed style của từng phần tử.
 export function katexFontKey(family, style, weight) {
     const w = weight === 'bold' ? 700 : (weight === 'normal' ? 400 : parseInt(weight, 10));
     return String(family).replace(/["']/g, '').trim()
@@ -11,7 +10,7 @@ export function katexFontKey(family, style, weight) {
         + '|' + (w >= 600 ? '700' : '400');
 }
 
-// Trả về Map(khoá font -> url woff2 tương đối). Chỉ lấy woff2 để SVG không phải mang cả woff/ttf.
+// Map(khoá font -> url woff2 tương đối); chỉ woff2 để SVG không mang cả woff/ttf.
 export function parseKatexFontFaces(css) {
     const faces = new Map();
     const re = /@font-face\s*\{([^}]*)\}/gi;
@@ -28,7 +27,7 @@ export function parseKatexFontFaces(css) {
     return faces;
 }
 
-// Tải CSS KaTeX một lần (cache). Lỗi thì xoá cache để lần xuất sau thử lại.
+// Tải CSS KaTeX một lần (cache); lỗi thì xoá cache để lần xuất sau thử lại.
 export function getKatexAssets() {
     if (!katexAssetsPromise) {
         katexAssetsPromise = (async () => {
@@ -67,7 +66,7 @@ export async function getKatexFontDataUri(assets, key) {
     return dataUri;
 }
 
-// Các font KaTeX_* thật sự dùng trong công thức (theo computed style), để chỉ nhúng đúng những font cần.
+// Font KaTeX_* thật sự dùng trong công thức, để chỉ nhúng đúng font cần.
 export function collectKatexFontKeys(root) {
     const keys = new Set();
     const nodes = [root, ...root.querySelectorAll('*')];

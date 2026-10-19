@@ -1,14 +1,6 @@
-// js/io/session-store.js — Tầng lưu phiên làm việc: IndexedDB thay cho localStorage.
-//
-// Vì sao không localStorage: quota ~5M ký tự cho CẢ origin trong khi một file được phép tới 5M,
-// nên chỉ một file lớn đang sửa dở là hết chỗ. setItem lỗi thì mất trắng cả danh sách tab. Ở đây
-// mỗi tab một record riêng nên chỉ ghi lại tab vừa đổi, và quota thực tế là hàng trăm MB.
-//
-// Hình dạng record (schema v1):
-//   key 'meta'      -> { v, activeId, order: [id], recent: [path] }
-//   key 'tab:<id>'  -> { id, path, name, content, eol, bom, status, diskMtime, dirty, scroll... }
-// loadSession() trả về đúng shape của serializeSession(), documents.js vẫn chạy
-// deserializeSession() trên đó — nơi duy nhất biết dữ liệu lưu hỏng thì phải sửa thế nào.
+// js/io/session-store.js — Session trong IndexedDB: mỗi tab một record, meta riêng.
+// localStorage chỉ ~5M ký tự cho cả origin nên một file lớn là hết chỗ; IDB cho hàng trăm MB
+// và chỉ ghi lại tab vừa đổi.
 
 import { hashText } from '../export/file-save.js';
 
@@ -46,32 +38,27 @@ function request(req) {
     });
 }
 
-// Các lần ghi nối tiếp nhau trên cùng một store: xếp hàng để lần sau không đè lên lần trước giữa
-// chừng (đặc biệt khi onCloseRequested đang chờ một lần ghi cụ thể).
+// Xếp hàng các lần ghi: lần sau không đè lên lần trước, nhất là khi onCloseRequested đang chờ.
 let queue = Promise.resolve();
 
 function enqueue(job) {
-    // Lỗi phải đi tới NƠI GỌI (saveSession cần biết để báo người dùng và để không đóng cửa sổ), nên
-    // promise trả về không được nuốt lỗi; hàng đợi thì vẫn phải chạy tiếp nên nó dùng bản đã nuốt.
-    // Bản cũ `queue.then(job).catch(...)` làm promise trả về luôn resolve -> mọi .catch() của nơi gọi
-    // là code chết, không lỗi nào từng được báo.
+    // Lỗi phải tới NƠI GỌI để saveSession báo được và giữ cửa sổ; hàng đợi dùng bản đã nuốt
+    // để vẫn chạy tiếp.
     const result = queue.then(job);
     queue = result.catch(() => {});
     return result;
 }
 
-// Chờ mọi lần ghi đang xếp hàng hoàn tất. onCloseRequested gọi hàm này rồi mới destroy() cửa sổ.
+// Chờ mọi lần ghi đang xếp hàng; onCloseRequested gọi trước khi destroy().
 export function whenSessionWritten() {
     return queue;
 }
 
-// Vân tay bản ghi tab đã ghi lần trước, dùng để chỉ ghi lại tab thật sự đổi. Xoá khỏi đây là xoá khỏi đĩa.
+// Vân tay bản ghi đã ghi lần trước; xoá khỏi đây là xoá khỏi đĩa.
 const lastWritten = new Map();
 
-// Vân tay rút từ CHÍNH record sắp ghi: mọi trường đều góp mặt (thêm trường mới là tự động được tính),
-// riêng `content` — chuỗi có thể tới 5 MB — thay bằng độ dài + hash. Không dùng JSON.stringify ở đây:
-// đo trên 4 tab 5 MB thì stringify + hash tốn ~57 ms mỗi snapshot, cách này ~37 ms, còn bản cũ giữ
-// nguyên chuỗi JSON của mọi tab trong RAM (41 MB cho 4 tab). Hàm thuần, selfcheck gọi được.
+// Vân tay rút từ chính record: mọi trường đều góp mặt, riêng content thay bằng độ dài + hash
+// (stringify 4 tab 5 MB tốn ~57 ms/snapshot và giữ 41 MB trong RAM). Hàm thuần.
 export function sessionFingerprint(tab) {
     return Object.keys(tab).sort().map((key) => {
         const value = tab[key];
@@ -80,12 +67,11 @@ export function sessionFingerprint(tab) {
     }).join('\u0000');
 }
 
-// Trả về null khi chưa có phiên nào trong IDB (cần migrate từ localStorage).
+// null = chưa có phiên trong IDB (cần migrate từ localStorage).
 export async function loadSession() {
     const db = await openDb();
     const store = db.transaction(STORE, 'readonly').objectStore(STORE);
-    // Hai request bắn cùng lúc trong cùng transaction: transaction của IndexedDB tự đóng khi
-    // hàng đợi microtask rỗng, nên await giữa chúng sẽ giết transaction.
+    // Hai request trong cùng transaction: await giữa chúng sẽ đóng transaction.
     const keysPromise = request(store.getAllKeys());
     const valuesPromise = request(store.getAll());
     const [keys, values] = await Promise.all([keysPromise, valuesPromise]);
@@ -102,7 +88,7 @@ export async function loadSession() {
     const tabs = order.filter((id) => byId.has(id)).map((id) => byId.get(id));
     if (!tabs.length) return null;
 
-    // lastWritten lúc này vẫn rỗng nên lần ghi kế tiếp sẽ ghi lại hết: đúng, cần đồng bộ với IDB.
+    // lastWritten còn rỗng nên lần ghi kế tiếp ghi lại hết: đúng, cần đồng bộ với IDB.
     return {
         activeId: meta.activeId,
         tabs,
@@ -111,14 +97,9 @@ export async function loadSession() {
     };
 }
 
-// Ghi phiên. `snapshot` là output của serializeSession(). Chỉ ghi lại record tab đã đổi so với
-// lần ghi trước, và xoá record của tab không còn trong danh sách.
-//
-// Promise này chỉ resolve khi TRANSACTION đã commit (oncomplete). Trước đây hàm đưa put() vào hàng
-// đợi rồi return ngay: lỗi quota/abort không bao giờ tới .catch của nơi gọi, và lastWritten đã được
-// cập nhật nên tab hỏng ghi đó vĩnh viễn không được ghi lại.
-// `durability: 'strict'` dùng cho lần ghi lúc đóng cửa sổ — mặc định của Chromium ghi qua OS buffer,
-// nên destroy() ngay sau khi transaction xong vẫn có thể mất dữ liệu.
+// Chỉ ghi lại tab đã đổi và xoá record của tab không còn; resolve khi transaction commit.
+// lastWritten chỉ cập nhật sau commit, nếu không tab ghi hỏng sẽ không bao giờ được thử lại.
+// durability 'strict' dùng cho lần ghi lúc đóng cửa sổ (mặc định có thể mất khi destroy ngay).
 export function writeSession(snapshot, { durability = 'default' } = {}) {
     return enqueue(async () => {
         const db = await openDb();
@@ -134,8 +115,7 @@ export function writeSession(snapshot, { durability = 'default' } = {}) {
         }, META_KEY);
 
         const liveIds = new Set(snapshot.tabs.map((tab) => tab.id));
-        // Chỉ cập nhật lastWritten khi transaction đã commit: chưa commit mà đã coi là "đã ghi" thì
-        // lần ghi sau bỏ qua đúng những tab vừa mất.
+        // Chỉ cập nhật lastWritten sau commit, nếu không lần sau bỏ qua đúng tab vừa mất.
         const pending = new Map();
         for (const tab of snapshot.tabs) {
             const fp = sessionFingerprint(tab);
@@ -157,7 +137,7 @@ export function writeSession(snapshot, { durability = 'default' } = {}) {
                 resolve();
             };
             tx.onerror = tx.onabort = () => {
-                // Quên vân tay cũ của những tab vừa định ghi: lần ghi sau sẽ thử lại chúng.
+                // Quên vân tay cũ để lần ghi sau thử lại.
                 pending.forEach((_fp, id) => lastWritten.delete(id));
                 reject(tx.error || new Error('IndexedDB transaction failed'));
             };
@@ -166,8 +146,7 @@ export function writeSession(snapshot, { durability = 'default' } = {}) {
     });
 }
 
-// Nhận phiên cũ đang nằm trong localStorage: ghi sang IDB rồi xoá key cũ. Ghi trước, xoá sau —
-// mất key cũ khi ghi IDB hỏng là mất phiên.
+// Ghi sang IDB rồi mới xoá key localStorage; xoá trước mà ghi hỏng là mất phiên.
 export async function migrateLegacySession(rawJson) {
     let parsed;
     try {
@@ -180,7 +159,7 @@ export async function migrateLegacySession(rawJson) {
     try {
         localStorage.removeItem('markdown-live-session');
     } catch (e) {
-        // storage bị chính sách chặn: key cũ còn nguyên cũng vô hại, IDB đã có bản chính.
+        // storage bị chặn: key cũ còn nguyên cũng vô hại, IDB đã có bản chính.
     }
     return true;
 }

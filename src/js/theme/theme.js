@@ -22,8 +22,7 @@ function applyTheme(theme, persist) {
     document.documentElement.setAttribute('data-theme', theme);
     syncWindowTheme(theme);
 
-    // Bật/tắt media của các link theme đã nạp sẵn: thuần đồng bộ, không có fetch nào,
-    // nên Preview đổi màu đúng lúc data-theme đổi (xem switchTheme bên dưới).
+    // Bật/tắt media của link theme đã nạp sẵn: đồng bộ, không fetch, nên Preview đổi màu cùng lúc.
     for (const link of themeCssLinks) {
         link.media = link.getAttribute('data-theme-css') === theme ? 'all' : 'not all';
     }
@@ -42,11 +41,8 @@ function applyTheme(theme, persist) {
     }
 }
 
-// Cả trang đổi màu bằng MỘT lần cross-fade của toàn trang (View Transitions) thay vì mỗi phần
-// tử tự transition riêng — cách sau rất nặng vì Preview có hàng trăm span KaTeX/hljs/Mermaid.
-// applyTheme giờ thuần đồng bộ, nên ảnh "cũ" được chụp trước khi đổi (mọi thứ còn màu cũ) và
-// ảnh "sau" sau khi đổi (mọi thứ đã cùng màu) → không còn thành phần nào nhảy sớm.
-// Không có API (WebView2 cũ) thì rơi về transition màu sẵn có của body/header/pane.
+// Đổi màu cả trang bằng MỘT cross-fade (View Transitions) thay vì mỗi phần tử transition riêng;
+// applyTheme đồng bộ nên ảnh trước/sau đều đúng màu. WebView2 cũ thì rơi về transition của body/header.
 function switchTheme(theme, persist) {
     const reducedMotion = window.matchMedia
         && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -66,10 +62,8 @@ export function initTheme() {
             const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
             showToast(nextTheme === 'dark' ? "Switched to Dark theme" : "Switched to Light theme");
             switchTheme(nextTheme, true);
-            // Xoá cache: SVG cũ mang màu của theme trước. Render ĐỪNG nằm trong
-            // startViewTransition (mermaid.render là việc nặng, chờ nó xong mới chụp
-            // ảnh "sau" sẽ đứng yên cả trang rồi mới fade — đó là cảm giác lag),
-            // nhưng PHẢI sau applyTheme, không thì Mermaid vẽ ra màu theme cũ.
+            // Xoá cache vì SVG mang màu theme cũ. Render nằm NGOÀI startViewTransition (chờ mermaid
+            // xong mới chụp sẽ đứng cả trang) nhưng PHẢI sau applyTheme.
             clearMermaidCache();
             invalidatePreviewCaches();
             if (typeof renderMarkdown === 'function') renderMarkdown();

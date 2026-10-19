@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// Cập nhật các thư viện trong src/vendor/ và đồng bộ src/THIRD_PARTY_NOTICES.md.
-// Nguồn: jsDelivr (bản npm chính thức). App offline-first nên vendor file phải nằm sẵn trong repo.
+// Cập nhật src/vendor/ từ jsDelivr (bản npm chính thức) và đồng bộ THIRD_PARTY_NOTICES.md.
+// App offline-first nên vendor file phải nằm sẵn trong repo.
 //
 //   node scripts/vendor-update.js --check              # báo cáo, không ghi file
 //   node scripts/vendor-update.js --all                # nâng tất cả packages lên npm latest
@@ -9,9 +9,8 @@
 //   node scripts/vendor-update.js --only katex,mermaid
 //   node scripts/vendor-update.js --set marked@15.0.12 # ghim version cụ thể
 //
-// highlight.js cố ý vắng: src/vendor/highlight.min.js là bundle ~193 ngôn ngữ tự build,
-// không có bản phát hành trên npm/jsDelivr/cdnjs (@highlightjs/cdn-assets chỉ có bản "common"
-// ~37 ngôn ngữ). Build tay rồi tự sửa version trong notices — công thức:
+// highlight.js cố ý vắng: vendor/highlight.min.js là bundle ~193 ngôn ngữ tự build (npm chỉ có bản
+// common ~37 ngôn ngữ). Build tay rồi sửa version trong notices — công thức:
 //   npm i --no-save esbuild highlight.js@11.12.0
 //   npx esbuild node_modules/highlight.js/lib/index.js --bundle --minify --format=iife --global-name=hljs --outfile=src/vendor/highlight.min.js
 //   node -e "globalThis.window=globalThis;eval(require('fs').readFileSync('src/vendor/highlight.min.js','utf8'));console.log(hljs.versionString, hljs.listLanguages().length)"
@@ -33,9 +32,8 @@ const REGISTRY = 'https://registry.npmjs.org';
 
 const LICENSE_NAMES = ['LICENSE', 'LICENSE.md', 'license', 'license.md', 'LICENCE', 'LICENCE.md', 'COPYING'];
 
-// `remote` là đường dẫn trong npm package; `local` là tên file trong src/vendor/.
-// `remote` hết bằng '/**' = copy toàn bộ thư mục (chỉ dùng cho fonts của KaTeX).
-// `tag` là tiền tố tag GitHub trong link nguồn ('' hoặc 'v').
+// remote = đường dẫn trong npm package, local = tên file trong src/vendor/.
+// remote kết thúc bằng '/**' = copy cả thư mục (chỉ dùng cho font KaTeX); tag = tiền tố tag GitHub.
 const PACKAGES = [
   {
     name: 'marked', npm: 'marked', repo: 'https://github.com/markedjs/marked',
@@ -86,16 +84,12 @@ const MANUAL_PACKAGES = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
 
 function readFile(p) {
   return fs.readFileSync(p, 'utf8');
 }
 
-// Ghi nguyên tử (tmp + rename) và bỏ qua khi nội dung không đổi: tránh mtime
-// churn kích hoạt vòng build lại + không để lại file nửa vời khi crash.
+// Ghi nguyên tử (tmp + rename), bỏ qua khi nội dung không đổi để khỏi mtime churn.
 function writeFileAtomic(p, data) {
   const buf = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
   const prev = fs.existsSync(p) ? fs.readFileSync(p) : null;
@@ -128,10 +122,8 @@ async function fetchJson(url) {
   return await res.json();
 }
 
-// jsDelivr chèn `//# sourceMappingURL=...` + newline ở cuối bản phục vụ; bản đã vendor trong
-// repo không có (đã tải bằng công cụ khác / tự cắt). Cắt cho khớp byte-parity, nếu không
-// mỗi lần update đều sinh diff ~39 byte ở 3 file.
-// Chỉ cắt khi comment nằm thật sự ở đuôi file, và giữ lại newline đứng trước nó.
+// jsDelivr chèn sourceMappingURL ở cuối file; bản vendor trong repo không có. Cắt cho khớp
+// byte-parity, chỉ khi comment nằm thật sự ở đuôi file và giữ newline đứng trước nó.
 function stripSourceMappingURL(buf) {
   const marker = Buffer.from('//# sourceMappingURL=');
   const idx = buf.lastIndexOf(marker);
@@ -166,9 +158,8 @@ async function npmLatestVersion(npmName) {
   return data.version;
 }
 
-// 'dist/fonts/**' -> mọi file .ttf/.woff/.woff2 trực tiếp trong thư mục đó.
-// Rỗng = sai đường dẫn, phải ném lỗi: nếu im lặng trả về [] thì bước prune sẽ xoá sạch
-// thư mục đang có (đã xảy ra một lần khi ghi 'fonts/**' thay vì 'dist/fonts/**').
+// 'dist/fonts/**' -> mọi file font trực tiếp trong thư mục đó.
+// Rỗng = sai đường dẫn, phải ném lỗi: im lặng trả [] thì bước prune sẽ xoá sạch thư mục.
 async function expandGlob(pkg, remote, version) {
   if (!remote.endsWith('/**')) return [remote];
   const dir = remote.slice(0, -2); // bỏ '**', giữ dấu '/' cuối
@@ -197,14 +188,9 @@ function isBreakingJump(from, to) {
   return a[0] === 0 && a[1] !== b[1];
 }
 
-// ---------------------------------------------------------------------------
-// THIRD_PARTY_NOTICES.md
-// ---------------------------------------------------------------------------
 
-// Các khối license của marked / DOMPurify chứa chính các dòng bắt đầu bằng '## '
-// ("## Grant of Copyright License", "## Contribution License Agreement"...).
-// Nên phải bỏ qua mọi heading nằm trong ```text, nếu không section sẽ bị cắt cụt
-// và phần thay license text không bao giờ chạy tới.
+// Khối license của marked/DOMPurify chứa các dòng bắt đầu bằng '## ', nên phải bỏ qua mọi heading
+// nằm trong ```text, nếu không section bị cắt cụt và license không bao giờ được thay.
 function topLevelSections(doc) {
   const out = [];
   let offset = 0;
@@ -217,8 +203,7 @@ function topLevelSections(doc) {
   return out;
 }
 
-// Cắt file theo heading `## <name>`; chỉ patch bên trong section tương ứng để không
-// đụng nhầm các section khác (mỗi package có nguyên khối license 400 dòng).
+// Cắt file theo heading '## <name>'; chỉ patch trong section tương ứng để không đụng package khác.
 function patchSection(doc, name, patch) {
   const sections = topLevelSections(doc);
   const i = sections.findIndex((s) => s.name === name);
@@ -238,8 +223,7 @@ function patchNoticesTableRow(doc, pkg, version) {
 function patchPackageSection(doc, pkg, version, licenseFile, licenseText) {
   const tag = pkg.tag + version;
   return patchSection(doc, pkg.name, (section) => {
-    // File notices trộn lẫn CRLF và LF, nên mọi pattern đều khoá `[^\r\n]`
-    // thay vì `$` — nếu không, dòng kết thúc bằng CRLF sẽ không khớp.
+    // File notices trộn CRLF và LF nên pattern phải khoá ký tự xuống dòng, không dùng $.
     section = section
       .replace(/^(- \*\*Version:\*\* )[^\r\n]+/m, `$1${version}`)
       .replace(/^(- \*\*Source:\*\* npm: <)[^<\r\n]+(> &middot; GitHub: <)[^<\r\n]+(>)/m,
@@ -261,9 +245,6 @@ function currentVersion(doc, pkg) {
   return m[1];
 }
 
-// ---------------------------------------------------------------------------
-// cập nhật
-// ---------------------------------------------------------------------------
 
 function ownedTopLevelNames() {
   const names = new Set();

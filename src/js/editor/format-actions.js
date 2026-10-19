@@ -30,8 +30,7 @@ export function applyHeadingLevel(level) {
         return res.line;
     });
     const replacedText = newLines.join('\n');
-    // So sánh TEXT chứ không so tổng delta: delta có dấu nên các dòng cộng/bớt cùng số ký tự triệt tiêu nhau
-    // (vd ['### a','bbbb'] + H1: -2 +2 = 0 nhưng vẫn phải đổi).
+    // So sánh TEXT chứ không so tổng delta: delta có dấu nên dòng cộng/bớt cùng độ dài triệt tiêu nhau.
     if (replacedText === original) return;
 
     const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
@@ -52,7 +51,7 @@ export function applyListStyle(style) {
     let num = 0;
     const newLines = lines.map((line, i) => {
         const parsed = parseListLine(line);
-        // Dòng thường: lấy phần thụt lề đầu dòng
+        // Dòng thường: lấy phần thụt lề đầu dòng.
         const indent = parsed ? parsed.indent : (line.match(/^[ \t]*/) || [''])[0];
         const rest = parsed ? parsed.rest : line.slice(indent.length);
 
@@ -81,12 +80,11 @@ export function applyListStyle(style) {
     // So sánh TEXT chứ không so tổng delta (xem lý do ở applyHeadingLevel).
     if (replacedText === original) return;
 
-    // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi giữa có dòng trống;
+    // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi có dòng trống;
     // nâng cấp sau: restart về 1 khi gặp đoạn văn mới.
     const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
 
-    // Giữ vùng bôi đen: marker thêm/xoá ở ĐẦU dòng nên selection mới tính bằng cách dịch theo delta độ dài
-    // của từng dòng (cùng cách handleEditorTab).
+    // Giữ vùng bôi đen: marker ở ĐẦU dòng nên selection mới dịch theo delta độ dài từng dòng.
     const firstLineDelta = newLines[0].length - lines[0].length;
     const newSelStart = selStart > lineStart
         ? Math.max(lineStart, selStart + firstLineDelta)
@@ -99,14 +97,12 @@ export function applyListStyle(style) {
 export function insertTableBlock(cols, rows) {
     const val = markdownInput.value;
     const selEnd = markdownInput.selectionEnd;
-    // rows ở lưới 5x5 và hộp thoại "Custom size" là số dòng THỰC SỰ của bảng, tính cả dòng tiêu đề mà
-    // buildTableMarkdown() tự sinh ra. Không trừ thì chọn 3x2 lại ra bảng 3 dòng.
-    // ponytail: luôn giữ tối thiểu 1 dòng thân — bảng Markdown không có dòng thân thì không còn ô nào để
-    // gõ và caret (đặt ở cuối phần chèn) rơi vào dòng '---'; nâng cấp sau: đặt caret vào ô tiêu đề.
+    // rows là số dòng THỰC SỰ của bảng, tính cả dòng tiêu đề buildTableMarkdown() tự sinh.
+    // ponytail: luôn giữ tối thiểu 1 dòng thân (bảng không có dòng thân thì không còn ô để gõ);
+    // nâng cấp sau: đặt caret vào ô tiêu đề.
     const bodyRows = Math.max(1, rows - 1);
     const table = buildTableMarkdown(bodyRows, cols);
-    // Chèn SAU vùng chọn, không phải tại vùng chọn: bôi đen "abc" rồi chèn bảng phải còn nguyên "abc".
-    // caret đặt cuối bảng (bên trong ô cuối) để gõ tiếp được ngay.
+    // Chèn SAU vùng chọn (bôi đen abc rồi chèn bảng phải còn abc); caret ở cuối bảng.
     const needTop = selEnd > 0 && val[selEnd - 1] !== '\n';
     const needBottom = selEnd < val.length && val[selEnd] !== '\n';
     const insert = (needTop ? '\n' : '') + table + (needBottom ? '\n' : '');
@@ -114,8 +110,7 @@ export function insertTableBlock(cols, rows) {
     applyEditorChange(val.substring(0, selEnd) + insert + val.substring(selEnd), caret, caret);
 }
 
-// Có vùng chọn: nội dung khối là vùng chọn (mỗi dòng code lùi 4 space đúng cú pháp fence); không có:
-// chèn placeholder và đặt caret vào dòng nội dung.
+// Có vùng chọn: nội dung khối là vùng chọn; không có: chèn placeholder và đặt caret vào dòng nội dung.
 export function insertBlockFence(kind) {
     const val = markdownInput.value;
     const selStart = markdownInput.selectionStart;
@@ -134,7 +129,7 @@ export function insertBlockFence(kind) {
     applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
 }
 
-// Độ dài của "```js\n" hoặc "```mermaid\n" dùng để tính vị trí caret
+// Độ dài của ```js hoặc ```mermaid dùng để tính vị trí caret.
 function langPrefixLen(kind) {
     return kind === 'mermaid' ? '```mermaid\n'.length : '```js\n'.length;
 }

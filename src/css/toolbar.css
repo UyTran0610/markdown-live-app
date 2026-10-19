@@ -19,16 +19,13 @@
     margin-right: auto;
 }
 
-/* Nhóm trái hiển thị như menu chữ (kiểu Typora / VS Code): chỉ chữ, không icon,
-   không viền — kể cả khi hover. Nhóm phải (View / Scroll / Theme / ?) giữ nguyên
-   nút có viền như hiện tại. */
+/* Nhóm trái dạng menu chữ (Typora/VS Code), không icon/viền kể cả hover; nhóm phải giữ nút có viền. */
 .toolbar-group .btn,
 .toolbar-group .btn:hover {
     border-color: transparent;
     padding: 0 6px;
 }
 
-/* Buttons */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -48,8 +45,7 @@
 }
 
 .btn[hidden] {
-    /* display:inline-flex ở .btn đè [hidden] của user-agent, phải khai báo lại — cùng lý do với
-       .tabs-nav-btn[hidden] trong tabs.css. Save All chỉ hiện khi có >= 2 tab đang sửa. */
+    /* inline-flex đè [hidden] của user-agent nên phải khai báo lại; Save All chỉ hiện khi >= 2 tab dirty. */
     display: none;
 }
 
@@ -122,21 +118,14 @@
     z-index: 500;
 }
 
-/* Menu Export nằm ở mép trái: neo theo cạnh trái nút, vì menu rộng hơn nút nên
-   neo `right: 0` (mặc định) sẽ tràn ra ngoài màn hình. #view-menu vẫn neo phải. */
+/* Menu Export neo trái vì rộng hơn nút; #view-menu vẫn neo phải. */
 .export-wrap .export-menu {
     left: 0;
     right: auto;
 }
 
-/* Animation mở/đóng menu (Export / View / Heading / List / Table / HTML).
-   Ẩn bằng `visibility` chứ không phải `display: none`: visibility transition được mọi
-   trình duyệt, đảo chiều đúng (mở -> visible ngay lập tức, đóng -> hidden ở cuối), nên
-   fade + trượt chạy được cả hai chiều. `display: none` + allow-discrete/@starting-style
-   thì nếu WebView2 không hỗ trợ, cả khai báo transition bị vô hiệu -> menu nhảy tức thì.
-   Menu là position:absolute nên ẩn kiểu này không chiếm chỗ, và pointer-events: none
-   chặn click như display:none. Khối này ở toolbar.css vì file này load SAU
-   format-bar.css, nên nó thắng .format-menu.hidden cùng specificity. */
+/* Ẩn bằng visibility (transition được, đảo chiều đúng) thay vì display: none + allow-discrete
+   vì WebView2 cũ sẽ làm menu nhảy. Khối ở đây để thắng .format-menu.hidden (load sau format-bar.css). */
 .export-menu,
 .format-menu {
     transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s;
@@ -198,8 +187,7 @@
     display: inline-flex;
 }
 
-/* Nút "?" là nút phụ (không phải hành động chính) nên không viền cho khác với các .btn khác.
-   Vẫn có hover + focus-visible nên không mất affordance bàn phím. */
+/* Nút phụ nên không viền; vẫn có hover + focus-visible. */
 .help-wrap .btn {
     padding: 0;
     width: 28px;
@@ -235,8 +223,7 @@
     color: var(--btn-active-text);
 }
 
-/* Nút View hiển thị icon + label theo chế độ xem hiện tại (class view-* trên <body>,
-   do applyViewMode() gắn — script chạy defer nên gắn class trước lần paint đầu tiên) */
+/* Icon + label theo view-* trên body; script defer gắn class trước lần paint đầu. */
 #btn-view .icon-editor,
 #btn-view .icon-split,
 #btn-view .icon-preview,

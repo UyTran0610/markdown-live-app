@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Thiết lập tương đương __dirname trong môi trường ES Module
+// Tương đương __dirname trong ESM.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Tự nhận diện thư mục gốc của dự án (markdown-live)
+// Nhận diện thư mục gốc dự án.
 const isInsideScripts = path.basename(__dirname) === 'scripts';
 const ROOT = isInsideScripts ? path.resolve(__dirname, '..') : __dirname;
 
@@ -20,8 +20,7 @@ function writeFile(p, content) {
   fs.writeFileSync(p, content, 'utf8');
 }
 
-// Ghi nguyên tử (tmp + rename) và bỏ qua khi nội dung không đổi:
-// tránh mtime churn kích hoạt vòng build lại + không để lại file nửa vời khi crash.
+// Ghi nguyên tử (tmp + rename), bỏ qua khi nội dung không đổi để khỏi mtime churn.
 function writeFileAtomic(p, content) {
   let prev = null;
   try {
@@ -38,7 +37,7 @@ function isValidVersion(v) {
   return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(v);
 }
 
-// Tự tìm file theo các vị trí thông dụng (root hoặc thư mục con)
+// Tìm file theo các vị trí thông dụng.
 function resolveExistingPath(candidates, fileDescription) {
   for (const relPath of candidates) {
     const fullPath = path.join(ROOT, relPath);
@@ -60,8 +59,7 @@ function parseTauriConf(content) {
 }
 
 function setTauriConfVersion(content, version) {
-  // Giữ nguyên format file: chỉ thay giá trị của "version" cấp cao nhất,
-  // rồi xác minh JSON vẫn hợp lệ và version đã đổi đúng chỗ.
+  // Chỉ thay version cấp cao nhất rồi xác minh JSON hợp lệ và đã đổi đúng chỗ.
   const oldVersion = getTauriConfVersion(content); // kiểm tra JSON + sự tồn tại
   const escaped = oldVersion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`(^\\s*"version"\\s*:\\s*)"${escaped}"`, 'm');
@@ -105,14 +103,13 @@ function setCargoVersion(content, version) {
 }
 
 function syncIndexHtmlVersion(content, version) {
-  // 1) Cache-bust các file css/js nội bộ
+  // 1) Cache-bust các file css/js nội bộ.
   content = content.replace(
     /(href|src)="((?!https?:|\/\/)[^"]+?\.(?:css|js))(?:\?v=[^"]*)?"/g,
     (_m, attr, filePath) => `${attr}="${filePath}?v=${version}"`
   );
 
-  // 2) Số phiên bản hiển thị trong hộp thoại About (ui/about.js đọc meta này).
-  // Như ?v= ở trên: cùng một nguồn sự thật (tauri.conf.json), không sửa tay được.
+  // 2) Meta app-version trong About, cùng nguồn sự thật tauri.conf.json.
   content = content.replace(
     /(<meta\s+name="app-version"\s+content=")[^"]*(")/,
     `$1${version}$2`

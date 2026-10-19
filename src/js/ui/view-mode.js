@@ -7,7 +7,7 @@ const VIEW_STORAGE_KEY = 'markdown-live-view';
 
 const DEFAULT_VIEW_MODE = 'split';
 
-// Phải khớp @media (max-width: 768px) trong style.css.
+// Phải khớp @media (max-width: 768px) trong layout.css.
 const VERTICAL_LAYOUT_MQ = '(max-width: 768px)';
 
 export const SPLIT_MIN_PERCENT = 20;
@@ -36,8 +36,7 @@ function getCurrentViewMode() {
         : 'split';
 }
 
-// localStorage có thể chứa rác (đổi tên key, sửa tay, phiên bản cũ): chỉ nhận đúng 3 giá trị hợp lệ,
-// nếu không body sẽ mất class view-* và resizer không hiện.
+// localStorage có thể chứa rác: chỉ nhận đúng 3 giá trị hợp lệ, nếu không body mất class view-*.
 export function isValidViewMode(mode) {
     return mode === 'editor' || mode === 'split' || mode === 'preview';
 }
@@ -50,14 +49,13 @@ function applyViewMode(mode, persist = true) {
     viewItems.forEach((item) => {
         item.classList.toggle('active', item.dataset.view === mode);
     });
-    // Ở chế độ Editor mọi lượt render đều bị bỏ qua (preview-pane bị display:none), nên chuyển
-    // sang chế độ có preview phải render bù, nếu không người dùng thấy preview cũ hoặc rỗng.
+    // Editor bỏ qua mọi lượt render nên chuyển sang chế độ có preview phải render bù.
     if (mode !== 'editor') renderActivePreview();
     if (persist) {
         try {
             localStorage.setItem(VIEW_STORAGE_KEY, mode);
         } catch (e) {
-            // Bỏ qua nếu localStorage bị chặn
+            // Bỏ qua nếu localStorage bị chặn.
         }
     }
 }
@@ -106,11 +104,11 @@ export function initViewMode() {
         isDraggingResizer = true;
         paneResizer.classList.add('dragging');
         document.body.classList.add('resizing');
-        // setPointerCapture có thể ném NotFoundError với pointer giả (automation)
+        // setPointerCapture có thể ném NotFoundError với pointer giả (automation).
         try {
             paneResizer.setPointerCapture(e.pointerId);
         } catch (err) {
-            // Không giữ capture: vẫn kéo được, chỉ là PointerEvent đi lạc ngoài resizer
+            // Không giữ capture vẫn kéo được, chỉ là PointerEvent đi lạc ngoài resizer.
         }
         e.preventDefault();
     });
@@ -118,13 +116,12 @@ export function initViewMode() {
     paneResizer.addEventListener('pointermove', (e) => {
         if (!isDraggingResizer) return;
         const rect = workspace.getBoundingClientRect();
-        // Chọn trục theo layout hiện tại (dọc khi màn hình nhỏ), kiểm mỗi lần move để kéo vắt qua ngưỡng
-        // resize cửa sổ cũng không lỗi.
+        // Chọn trục theo layout hiện tại, kiểm mỗi lần move để kéo vắt qua ngưỡng resize vẫn đúng.
         const vertical = window.matchMedia(VERTICAL_LAYOUT_MQ).matches;
         const size = vertical ? rect.height : rect.width;
         if (!(size > 0)) return;
         const point = vertical ? e.clientY - rect.top : e.clientX - rect.left;
-        // Xét ngưỡng biên theo percent THÔ (chưa clamp); clamp trước thì không bao giờ chạm 2%/98%.
+        // Xét ngưỡng biên theo percent THÔ; clamp trước thì không bao giờ chạm 2%/98%.
         const rawPercent = (point / size) * 100;
         const mode = computeViewModeFromPercent(rawPercent);
         if (mode !== 'split') {
@@ -139,13 +136,13 @@ export function initViewMode() {
 
     paneResizer.addEventListener('pointercancel', endResizerDrag);
 
-    // Chỉ nhớ chế độ xem, không nhớ vị trí splitter (luôn mở 50/50). Chạy ngay vì script dùng `defer`.
+    // Chỉ nhớ chế độ xem, không nhớ vị trí splitter (luôn mở 50/50). Script dùng defer.
     (function initViewModel() {
         let saved = null;
         try {
             saved = localStorage.getItem(VIEW_STORAGE_KEY);
         } catch (e) {
-            // Bỏ qua nếu localStorage bị chặn
+            // Bỏ qua nếu localStorage bị chặn.
         }
         applyViewMode(isValidViewMode(saved) ? saved : DEFAULT_VIEW_MODE, false);
     })();

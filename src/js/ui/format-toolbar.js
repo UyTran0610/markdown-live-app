@@ -55,7 +55,7 @@ function closeFormatMenus() {
 
 function toggleFormatMenu(entry) {
     const wasOpen = !entry.menu.classList.contains('hidden');
-    // Menu Export / View tự đóng nhờ listener click ở document trong module của chúng (click ở đây nổi bọt lên đó).
+    // Menu Export/View tự đóng nhờ listener click ở document của chúng (click ở đây nổi bọt lên).
     closeFormatMenus();
     if (!wasOpen) {
         entry.menu.classList.remove('hidden');
@@ -68,13 +68,12 @@ function anyFormatMenuOpen() {
     return formatMenus.some(({ menu }) => !menu.classList.contains('hidden'));
 }
 
-// Lưới chọn kích thước bảng: 5x5 ô. Số cột PHẢI khớp grid-template-columns: repeat(5, 22px) ở css/format-bar.css.
+// Lưới 5x5; số cột PHẢI khớp grid-template-columns: repeat(5, 22px) ở css/format-bar.css.
 const GRID_COLS = 5;
 const GRID_ROWS = 5;
 
-// Sáng đúng hình chữ nhật cols x rows của ô đang hover. KHÔNG dùng "i + 1 ô đầu": lưới rộng 5 cột nên
-// tiền tố tuyến tính làm cả dòng đầu sáng hết (hover bảng 2 dòng x 3 cột lại hiện 5x3).
-// cols = null: tắt sáng toàn bộ (hover ô khác hoặc rời menu).
+// Sáng đúng hình chữ nhật cols x rows; KHÔNG dùng i + 1 ô đầu vì lưới 5 cột sẽ sáng cả dòng đầu.
+// cols = null: tắt sáng toàn bộ.
 function highlightTableCells(grid, cols, rows) {
     const cells = grid.querySelectorAll('.table-cell');
     for (let i = 0; i < cells.length; i++) {
@@ -167,8 +166,7 @@ export function initFormatToolbar() {
             });
             grid.appendChild(cell);
         }
-        // Ô "Custom size" là nút có nhãn sẵn trong index.html ([data-table="custom"]); không tạo thêm ô
-        // trống ở đây vì nó trông y hệt ô kích thước và lại mở hộp thoại chứ không chèn bảng.
+        // Custom size là nút có nhãn sẵn trong index.html, không tạo ô trống ở đây.
         tableMenu.addEventListener('mouseleave', () => highlightTableCells(grid, null));
     })();
 

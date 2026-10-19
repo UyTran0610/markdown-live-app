@@ -1,4 +1,4 @@
-// js/core/dom.js — Tham chiếu tới các phần tử DOM của ứng dụng (lấy một lần, các module khác import lại).
+// js/core/dom.js — Tham chiếu DOM, query một lần rồi export cho mọi module.
 
 export const markdownInput = document.getElementById('markdown-input');
 
@@ -65,8 +65,7 @@ export const appVersion = document.getElementById('app-version');
 
 export const toast = document.getElementById('toast');
 
-// Bốn file CSS theme của Preview (2 light + 2 dark), nạp sẵn trong index.html.
-// Đổi theme chỉ bật/tắt media của chúng — không fetch, không đổi href.
+// 4 CSS theme Preview nạp sẵn trong index.html; đổi theme chỉ bật/tắt media của chúng.
 export const themeCssLinks = Array.from(document.querySelectorAll('link[data-theme-css]'));
 
 export const workspace = document.querySelector('.workspace');

@@ -82,13 +82,9 @@ export function handleEditorEnter(e) {
     const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
     const currentLine = val.substring(lineStart, selStart);
 
-    // Dòng task list rỗng: - [ ]
     const emptyTaskMatch = currentLine.match(/^(\s*[-*+]\s+\[[ xX]\]\s*)$/);
-    // Dòng bullet rỗng: -, *, +
     const emptyUlMatch = currentLine.match(/^(\s*[-*+]\s*)$/);
-    // Dòng số thứ tự rỗng: 1. hoặc 1)
     const emptyOlMatch = currentLine.match(/^(\s*\d+[.)]\s*)$/);
-    // Dòng trích dẫn rỗng: >
     const emptyBqMatch = currentLine.match(/^(\s*>+\s*)$/);
 
     if (emptyTaskMatch || emptyUlMatch || emptyOlMatch || emptyBqMatch) {
@@ -98,12 +94,11 @@ export function handleEditorEnter(e) {
         return;
     }
 
-    // Task list có nội dung: marker + [ ]/[x] + chữ
     const taskMatch = currentLine.match(/^(\s*)([-*+]|\d+[.)])(\s+\[[ xX]\]\s+)(.*)$/);
     if (taskMatch) {
         e.preventDefault();
         const [, indent, bullet, marker] = taskMatch;
-        // Dòng mới luôn bắt đầu với checkbox chưa tick
+        // Dòng mới luôn bắt đầu với checkbox chưa tick.
         const cleanMarker = marker.replace(/\[[xX]\]/, '[ ]');
         const insert = '\n' + indent + bullet + cleanMarker;
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
@@ -111,7 +106,6 @@ export function handleEditorEnter(e) {
         return;
     }
 
-    // Bullet: -, *, +
     const ulMatch = currentLine.match(/^(\s*)([-*+]\s+)(.*)$/);
     if (ulMatch) {
         e.preventDefault();
@@ -122,7 +116,6 @@ export function handleEditorEnter(e) {
         return;
     }
 
-    // Số thứ tự: 1. hoặc 1)
     const olMatch = currentLine.match(/^(\s*)(\d+)([.)]\s+)(.*)$/);
     if (olMatch) {
         e.preventDefault();
@@ -134,7 +127,6 @@ export function handleEditorEnter(e) {
         return;
     }
 
-    // Trích dẫn: > (có thể nhiều cấp)
     const bqMatch = currentLine.match(/^(\s*>+\s*)(.*)$/);
     if (bqMatch) {
         e.preventDefault();
@@ -144,7 +136,6 @@ export function handleEditorEnter(e) {
         return;
     }
 
-    // Phần thụt lề đầu dòng
     const indentMatch = currentLine.match(/^(\s+)/);
     if (indentMatch) {
         e.preventDefault();
@@ -171,8 +162,7 @@ export function wrapOrToggleFormat(wrapper, placeholder = '') {
     if (selStart >= wLen && selEnd + wLen <= val.length) {
         const before = val.substring(selStart - wLen, selStart);
         const after = val.substring(selEnd, selEnd + wLen);
-        // Cặp ký hiệu tìm được không được là MỘT PHẦN của cặp dài hơn (vd '*' trong '**' của bold không phải
-        // wrapper '*' của italic): xem thêm 1 ký tự ngoài before/after, nếu trùng wrapper thì chuỗi dấu dài hơn.
+        // Cặp tìm được không được là một phần của cặp dài hơn ('*' trong '**').
         const extraBefore = selStart - wLen - 1 >= 0 ? val[selStart - wLen - 1] : '';
         const extraAfter = selEnd + wLen < val.length ? val[selEnd + wLen] : '';
         const isPartOfLongerWrapper = extraBefore === wrapper[wrapper.length - 1] || extraAfter === wrapper[0];
@@ -204,7 +194,7 @@ export function handleEditorLink() {
     if (selStart === selEnd) {
         const insert = '[link](url)';
         const newText = val.substring(0, selStart) + insert + val.substring(selEnd);
-        // Chọn sẵn chữ "url" (vị trí 7-10 trong "[link](url)") để người dùng dán link đè lên.
+        // Chọn sẵn chữ url trong '[link](url)' để người dùng dán link đè lên.
         applyEditorChange(newText, selStart + 7, selStart + 10);
     } else {
         const insert = `[${selected}](url)`;

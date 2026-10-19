@@ -5,16 +5,14 @@ import { fitDocImageSize } from './images.js';
 import { getKatexAssets, getKatexFontDataUri, collectKatexFontKeys } from './math-fonts.js';
 import { convertKatexForDoc } from './math-mathml.js';
 
-// Clone span.katex gốc từ Preview, nhúng CSS KaTeX + đúng các font đang dùng (base64) vào SVG <foreignObject>,
-// vẽ lên canvas rồi xuất PNG. Công thức nào vẽ lỗi / ra ảnh trống thì giữ nguyên để convertKatexForDoc()
-// chuyển sang MathML như cũ (xem convertKatexToImagesForDoc).
+// Clone span.katex, nhúng CSS KaTeX + font đang dùng vào SVG foreignObject, vẽ lên canvas -> PNG.
+// Vẽ lỗi/ảnh trống thì giữ nguyên để convertKatexForDoc() chuyển sang MathML.
 const KATEX_IMG_SCALE = 3;
 
 const KATEX_IMG_PAD = 2;
 
-// Vẽ MỘT công thức (span.katex trong Preview) thành PNG. Trả { dataUrl, width, height, descent } (px, chưa nhân scale);
-// descent = khoảng cách từ baseline xuống đáy ảnh, dùng để canh ảnh inline cho thẳng hàng chữ.
-// Ném lỗi nếu canvas bị taint hoặc ảnh trống (WebView không vẽ được foreignObject) -> nơi gọi dùng MathML.
+// Trả { dataUrl, width, height, descent }; descent để canh baseline công thức inline.
+// Ném lỗi nếu canvas bị taint hoặc ảnh trống -> nơi gọi dùng MathML.
 async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
     const assets = await getKatexAssets();
 
@@ -22,7 +20,7 @@ async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
     // Lớp MathML ẩn không cần cho ảnh (và làm XHTML khó serialize hơn).
     clone.querySelectorAll('.katex-mathml').forEach((n) => n.remove());
 
-    // Giữ cỡ chữ/độ đậm của ngữ cảnh trong Preview; ép màu đen vì file Word nền trắng (Preview có thể đang ở Dark).
+    // Giữ cỡ chữ/độ đậm của ngữ cảnh; ép màu đen vì file Word nền trắng.
     const pcs = getComputedStyle(origKatex.parentElement || previewOutput);
     const wrap = document.createElement('div');
     wrap.style.cssText = 'display:inline-block;margin:0;padding:' + KATEX_IMG_PAD + 'px;white-space:nowrap;'
@@ -30,7 +28,7 @@ async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
         + 'font-size:' + pcs.fontSize + ';font-weight:' + pcs.fontWeight + ';';
     wrap.appendChild(clone);
 
-    // Đo ngoài màn hình: cùng document nên CSS KaTeX trang đang dùng áp dụng đúng.
+    // Đo ngoài màn hình: cùng document nên CSS KaTeX của trang áp dụng đúng.
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none;';
     host.appendChild(wrap);
@@ -70,7 +68,7 @@ async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
             img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         });
 
-        // Công thức rất rộng: hạ scale để canvas không vượt giới hạn kích thước của trình duyệt.
+        // Công thức rất rộng: hạ scale để canvas không vượt giới hạn trình duyệt.
         const s = Math.max(1, Math.min(scale, 6000 / Math.max(width, height)));
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(width * s);
@@ -83,11 +81,11 @@ async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
             ctx.drawImage(img, 0, 0, width, height);
         };
         draw();
-        // Font nhúng trong SVG có thể được giải mã trễ sau onload: chờ một nhịp rồi vẽ lại cho chắc.
+        // Font nhúng trong SVG có thể giải mã trễ sau onload: chờ một nhịp rồi vẽ lại.
         await new Promise((r) => setTimeout(r, 60));
         draw();
 
-        // getImageData ném SecurityError nếu canvas bị taint; ảnh không có pixel nào thì WebView đã bỏ qua foreignObject.
+        // getImageData ném SecurityError nếu canvas bị taint; ảnh không có pixel là WebView bỏ qua foreignObject.
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         let inked = false;
         for (let i = 3; i < data.length; i += 4) {
@@ -101,12 +99,11 @@ async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
     }
 }
 
-// Thay từng span.katex trong clone bằng <img> PNG. origRoot là Preview thật (để đo + lấy font), cloneRoot là bản
-// sẽ xuất. Công thức nào lỗi vẫn còn span.katex nên convertKatexForDoc() ở cuối sẽ xử lý bằng MathML.
+// Thay từng span.katex trong clone bằng <img> PNG; công thức lỗi còn nguyên để bước sau dùng MathML.
 export async function convertKatexToImagesForDoc(origRoot, cloneRoot) {
     const origEls = origRoot.querySelectorAll('span.katex');
     const cloneEls = cloneRoot.querySelectorAll('span.katex');
-    // Hai danh sách phải khớp theo chỉ số; lệch thì thôi, dùng MathML cho tất cả.
+    // Hai danh sách phải khớp theo chỉ số; lệch thì dùng MathML cho tất cả.
     if (origEls.length === cloneEls.length) {
         for (let i = 0; i < cloneEls.length; i++) {
             try {
@@ -141,7 +138,7 @@ export async function convertKatexToImagesForDoc(origRoot, cloneRoot) {
                         d.appendChild(img);
                     }
                 } else {
-                    // Công thức inline: hạ ảnh xuống đúng phần descent để baseline công thức trùng baseline chữ.
+                    // Công thức inline: hạ ảnh đúng phần descent để baseline trùng baseline chữ.
                     const shift = height > 0 ? descent * fit.height / height : 0;
                     if (shift > 0.5) img.style.verticalAlign = '-' + shift.toFixed(1) + 'px';
                     el.replaceWith(img);

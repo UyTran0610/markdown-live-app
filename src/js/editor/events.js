@@ -24,10 +24,8 @@ function switchToTabByNumber(e) {
     return true;
 }
 
-// Phím tắt toàn cục: gắn trên window chứ không gắn trên textarea, vì ở chế độ Preview cả
-// .editor-pane bị display:none (layout.css) nên phím bấm trong textarea không bắn được, và sau khi
-// bấm vào toolbar thì con trỏ cũng không còn trong textarea. Ctrl+S/Ctrl+B chết đúng lúc người
-// dùng đang nhìn preview là lỗi nặng nhất của kiểu gắn vào phần tử.
+// Phím tắt gắn trên window, không trên textarea: ở Preview .editor-pane là display:none và
+// sau khi bấm toolbar con trỏ không còn trong textarea.
 function handleGlobalShortcut(e) {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
@@ -36,16 +34,14 @@ function handleGlobalShortcut(e) {
     const key = e.key;
     const lowerKey = key.toLowerCase();
 
-    // Chuyển tab phải bắt TRƯỚC nhánh Tab thường bên dưới, nếu không Tab sẽ chèn khoảng trắng.
+    // Chuyển tab phải bắt TRƯỚC nhánh Tab thường, nếu không Tab sẽ chèn khoảng trắng.
     if (key === 'Tab') {
         e.preventDefault();
         cycleTab(e.shiftKey ? -1 : 1);
         return;
     }
 
-    // Ctrl+Alt+S = Save All. Phải đứng TRƯỚC nhánh Ctrl+S thường, nếu không nó rơi vào Save và
-    // không bao giờ tới được Save All. (Bản cũ bắt Ctrl+Alt+A trong khi tooltip trên nút ghi
-    // Ctrl+Alt+S, nên tổ hợp được quảng cáo là tổ hợp chết.)
+    // Ctrl+Alt+S = Save All phải đứng TRƯỚC Ctrl+S thường, nếu không không bao giờ tới được.
     if (lowerKey === 's' && e.altKey) {
         e.preventDefault();
         saveAllTabs();
@@ -146,8 +142,7 @@ export function initEditorEvents() {
         const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
         const key = e.key;
 
-        // Phím đã xử lý ở tầng toàn cục thì không chạy lại ở đây: mọi tổ hợp có Ctrl/Cmd hoặc Alt
-        // đều thuộc tầng đó (Ctrl+Alt+S = Save All nằm trong số này).
+        // Tổ hợp Ctrl/Cmd hoặc Alt đã xử lý ở tầng toàn cục, không chạy lại ở đây.
         if (isCmdOrCtrl || e.altKey) return;
 
         if (key === 'Tab') {
@@ -188,10 +183,8 @@ export function initEditorEvents() {
         }
 
         const closers = [')', ']', '}', '"', "'", '`'];
-        // Nhảy qua ký tự đóng phải ĐỨNG TRƯỚC auto-close. Với cặp đối xứng (" ` ') hai nhánh cùng
-        // khớp nên thứ tự ngược lại khiến nhánh này chết: gõ " mở ra "abc"| rồi gõ " lần nữa thì
-        // auto-close chèn thêm một cặp -> "abc"|"" thay vì nhảy qua dấu đóng đã có.
-        // Thứ tự này không đổi gì với ) ] } vì chúng vốn không nằm trong autoClosePairs.
+        // Nhảy qua ký tự đóng phải ĐỨNG TRƯỚC auto-close: với " ` ' hai nhánh cùng khớp, thứ tự
+        // ngược lại sẽ chèn thêm cặp thay vì nhảy qua dấu đóng.
         if (selStart === selEnd && closers.includes(key) && selStart < val.length && val[selStart] === key) {
             e.preventDefault();
             markdownInput.setSelectionRange(selStart + 1, selStart + 1);
@@ -236,14 +229,12 @@ export function initEditorEvents() {
     });
 
     markdownInput.addEventListener('input', (e) => {
-        // Đếm ký tự + tô màu + render + lưu nháp: dùng chung với applyEditorChange, không lặp lại 4 dòng.
+        // Đếm ký tự + tô màu + render + lưu nháp: dùng chung với applyEditorChange.
         syncEditorAfterChange();
 
         clearTimeout(editorHistory.typingTimer);
         const inputType = e.inputType || '';
-        // Nhấn dấu cách sinh inputType === 'insertText' (chuỗi 'Space' không bao giờ xuất hiện), nên phải nhận
-        // diện qua e.data. Thiếu nhánh này thì cả cụm "hello world" gộp thành một mục lịch sử và Undo lùi
-        // hết cụm thay vì từng từ.
+        // Dấu cách là inputType 'insertText', nhận qua e.data để mỗi từ là một mốc lịch sử.
         if ((inputType === 'insertText' && e.data === ' ')
             || inputType.includes('Line')
             || inputType.includes('history')) {

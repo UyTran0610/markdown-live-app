@@ -1,4 +1,3 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, State};
 
@@ -7,14 +6,12 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-// Đường dẫn file mà OS đưa cho instance ĐẦU TIÊN (double-click file .md khi app chưa chạy).
-// Callback của single-instance chỉ chạy ở instance THỨ HAI, nên không có state này thì argv của lần
-// khởi động đầu bị bỏ đi và double-click chẳng mở được file nào — trong khi tauri.conf.json đã đăng
-// ký file association cho .md/.markdown/.mdown/.mkd/.txt.
+// argv của instance ĐẦU TIÊN (double-click .md khi app chưa chạy); callback single-instance chỉ chạy
+// ở instance THỨ HAI nên không có state này là mất đường dẫn.
 #[derive(Default)]
 struct InitialPaths(Mutex<Vec<String>>);
 
-// Phần tử đầu của argv là đường dẫn của chính app; các cờ của webview bắt đầu bằng '-'.
+// Phần tử đầu của argv là đường dẫn app; cờ webview bắt đầu bằng '-'.
 fn file_args<I: IntoIterator<Item = String>>(argv: I) -> Vec<String> {
     argv.into_iter()
         .skip(1)
@@ -22,8 +19,7 @@ fn file_args<I: IntoIterator<Item = String>>(argv: I) -> Vec<String> {
         .collect()
 }
 
-// Frontend hỏi đúng một lần sau khi khôi phục session xong. std::mem::take nên gọi lại cũng không mở
-// trùng tab cũ.
+// Frontend hỏi một lần sau khi restore; std::mem::take nên gọi lại không mở trùng.
 #[tauri::command]
 fn take_initial_paths(state: State<'_, InitialPaths>) -> Vec<String> {
     std::mem::take(&mut *state.0.lock().unwrap())
@@ -32,15 +28,12 @@ fn take_initial_paths(state: State<'_, InitialPaths>) -> Vec<String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // PHẢI đăng ký trước mọi plugin khác, nếu không nó không kịp giành quyền làm tiến trình
-        // duy nhất và hai cửa sổ sẽ cùng ghi đè một phiên làm việc trong IndexedDB.
-        // Tiến trình thứ hai (do double-click file .md khi app đang chạy) đưa đường dẫn trong argv
-        // rồi thoát; ta bắn sang tiến trình đầu để nó mở thành tab.
+        // PHẢI đăng ký trước mọi plugin: nếu không, hai cửa sổ cùng ghi đè một session IndexedDB.
+        // Instance thứ hai gửi argv sang instance đầu rồi thoát.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let paths = file_args(argv);
             if let Some(window) = app.get_webview_window("main") {
-                // Cửa sổ đang thu nhỏ thì set_focus() một mình không bật nó lên được: người dùng
-                // double-click file và không thấy gì xảy ra.
+                // set_focus() không bật được cửa sổ đang thu nhỏ: phải unminimize + show trước.
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -51,7 +44,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
-        // dialog + fs: phục vụ Import/Export file (hộp thoại Save As và ghi file ra máy)
+        // dialog + fs: hộp thoại Save As và ghi file cho Import/Export.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         // manage() TRƯỚC setup(): setup ghi argv của instance đầu vào state này.

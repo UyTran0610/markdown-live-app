@@ -4,7 +4,7 @@ import { previewOutput } from '../core/dom.js';
 import { isSafeExternalUrl } from '../core/utils.js';
 
 export function initPreviewLinks() {
-    // Chặn click liên kết ngoài và mở bằng trình duyệt hệ thống để tránh lỗi điều hướng của WebView (app desktop).
+    // Chặn link ngoài và mở bằng trình duyệt hệ thống để tránh WebView điều hướng cả app.
     previewOutput.addEventListener('click', async (e) => {
         const link = e.target.closest('a');
         if (link && link.getAttribute('href')) {

@@ -6,8 +6,7 @@ import { deriveDocumentTitle, deriveExportBaseName, saveTextFile } from './file-
 import { convertKatexForDoc } from './math-mathml.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
-// CSS tối giản nhúng trong file HTML (trình duyệt không đọc được stylesheet của app). Phải kèm cả
-// sup/sub/kbd/mark/details, canh lề checkbox task list và canh giữa Mermaid: app lấy các rule này từ vendor CSS.
+// CSS tối giản nhúng trong HTML: phải kèm sup/sub/kbd/mark/details, checkbox task list và Mermaid.
 const HTML_STYLES = `
     body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.6; max-width: 800px; margin: 2rem auto; padding: 0 1rem; color: #1f2328; background: #fff; }
     h1 { font-size: 2em; } h2 { font-size: 1.5em; } h3 { font-size: 1.25em; }
@@ -40,7 +39,7 @@ const HTML_STYLES = `
 `;
 
 export function buildStandaloneHtml(bodyHtml, title) {
-    // Escape & < > để title không bẻ gãy thẻ <title>
+    // Escape & < > để title không bẻ gãy thẻ <title>.
     const safeTitle = String(title || 'Document')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return '<!DOCTYPE html>\n<html lang="en">\n<head>\n'
@@ -50,8 +49,7 @@ export function buildStandaloneHtml(bodyHtml, title) {
         + '<style>' + HTML_STYLES + '</style>\n</head>\n<body>\n' + bodyHtml + '\n</body>\n</html>';
 }
 
-// Gỡ icon Lucide của GFM alert (trình duyệt ngoài không có lib để vẽ lại); chỉ xoá đúng class lucide để
-// KHÔNG đụng SVG Mermaid, vì file HTML cần giữ nguyên SVG đó. Checkbox task list giữ nguyên.
+// Chỉ xoá icon lucide của alert, KHÔNG đụng SVG Mermaid; checkbox task list giữ nguyên.
 function stripLucideIcons(container) {
     container.querySelectorAll('svg.lucide').forEach((el) => el.remove());
 }
@@ -64,14 +62,14 @@ export async function exportHtml() {
     }
     showToast("Generating HTML file...");
 
-    // Clone Preview đã render xong (như exportDoc nhưng giữ nguyên SVG Mermaid, không cần chuyển sang PNG).
+    // Clone Preview đã render xong, giữ nguyên SVG Mermaid (không cần chuyển PNG).
     renderMarkdown();
     await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
 
     stripLucideIcons(clone);
 
-    // KaTeX -> MathML thuần: file không mang CSS của KaTeX nên phải thay span.katex bằng <math>.
+    // KaTeX -> MathML thuần vì file không mang CSS của KaTeX.
     convertKatexForDoc(clone);
 
     const html = buildStandaloneHtml(clone.innerHTML, deriveDocumentTitle(text));

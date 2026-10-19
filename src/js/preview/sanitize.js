@@ -1,10 +1,7 @@
 // js/preview/sanitize.js — Cấu hình và hook DOMPurify (chặn scheme nguy hiểm, mở link ngoài an toàn).
 
-// DOMPurify mặc định bỏ <foreignObject>, mà nhãn Mermaid (htmlLabels) nằm trong đó
-// -> thiếu ADD_TAGS này thì chữ trong flowchart biến mất.
-// DOMPurify >=3.4 còn kiểm tra namespace: phần tử XHTML bên trong <foreignObject> bị gỡ trừ khi
-// cha nó được khai là HTML integration point (mặc định chỉ có annotation-xml). ADD_TAGS chỉ giữ
-// được thẻ bọc, nên phải khai thêm foreignobject — Mermaid tự truyền đúng option này khi sanitize.
+// DOMPurify bỏ <foreignObject> (nhãn Mermaid nằm trong đó) và từ 3.4 còn kiểm namespace:
+// phải khai cả foreignobject, nếu không chữ trong flowchart biến mất.
 export const MERMAID_SANITIZE_CONFIG = {
     USE_PROFILES: { html: true, svg: true },
     ADD_ATTR: ['target', 'rel'],
@@ -21,7 +18,7 @@ export function initSanitizer() {
             // SVG <a> có tagName viết thường + xlink:href: chặn trên mọi phần tử.
             const url = node.getAttribute
                 ? (node.getAttribute('href') || node.getAttribute('xlink:href')) : null;
-            // Chặn scheme nguy hiểm: javascript:, data:, vbscript:
+            // Chặn scheme nguy hiểm: javascript:, data:, vbscript:.
             if (url != null && /^\s*(javascript|data|vbscript):/i.test(url)) {
                 node.removeAttribute('href');
                 node.removeAttribute('xlink:href');

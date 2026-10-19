@@ -1,9 +1,6 @@
-/* css/layout.css — Khung ứng dụng: header, workspace, pane, thanh kéo chia pane, 3 chế độ xem, responsive. */
+/* css/layout.css — Khung ứng dụng: header, workspace, pane, resizer, 3 chế độ xem, responsive. */
 
-/* Header & Toolbar
-   Cột: hàng trên là .titlebar (vùng kéo cửa sổ + #tab-strip + 3 nút cửa sổ tự vẽ), hàng dưới
-   là .toolbar. Padding nằm ở từng hàng (xem toolbar.css và .titlebar bên dưới), nên .app-header
-   không padding — nếu không tab bị dính mép. */
+/* Header xếp dọc: .titlebar ở trên, .toolbar ở dưới; padding ở từng hàng nên .app-header không padding. */
 .app-header {
     display: flex;
     flex-direction: column;
@@ -48,8 +45,7 @@ body.view-split #pane-resizer {
     display: block;
 }
 
-/* Khi kéo: giữ mặc định sẵn của textarea/svg để không nuốt pointer.
-   Cursor đổi theo trục kéo (dọc khi màn hình nhỏ) — xem media query cuối file */
+/* Khi kéo giữ default của textarea/svg để không nuốt pointer; cursor theo trục. */
 body.resizing {
     cursor: col-resize;
     user-select: none;
@@ -62,8 +58,7 @@ body.resizing {
     flex: 1;
 }
 
-/* Workspace Layout — điều khiển theo 3 chế độ xem đặt trên <body>:
-   view-split / view-editor / view-preview (luôn có đúng 1 class) */
+/* 3 chế độ xem đặt trên <body>: view-split / view-editor / view-preview. */
 .workspace {
     display: flex;
     flex: 1;
@@ -83,8 +78,7 @@ body.view-split .preview-pane {
     min-width: 0;
 }
 
-/* Chế độ Editor / Preview: pane được chọn chiếm trọn (flex:1 kế thừa từ .pane),
-   pane còn lại ẩn; resizer chỉ hiện ở view-split nên không cần luật riêng */
+/* Pane được chọn chiếm trọn, pane còn lại ẩn; resizer chỉ hiện ở view-split. */
 body.view-editor .preview-pane,
 body.view-preview .editor-pane {
     display: none;
@@ -94,9 +88,7 @@ body.view-editor .editor-pane {
     border-right: none;
 }
 
-/* ==== Thanh trạng thái ====
-   Nằm dưới .workspace, chiếm 22px. Ngắn gọn, chỉ có 4 mục; không dùng lại .btn vì đây là dải thụt
-   bị xuống dòng của app chứ không phải hàng nút. */
+/* Thanh trạng thái: cao 22px, 4 mục; không dùng .btn vì không phải hàng nút. */
 .status-bar {
     display: flex;
     align-items: center;
@@ -133,7 +125,7 @@ button.status-item:hover {
     color: var(--btn-text-hover);
 }
 
-/* Số ký tự: đẩy sát phải thanh trạng thái (trước nằm ở cuối thanh định dạng). */
+/* Số ký tự đẩy sát phải thanh trạng thái. */
 #char-counter {
     margin-left: auto;
 }
@@ -162,10 +154,8 @@ button.status-item:hover {
         border-right: none;
         border-bottom: 1px solid var(--border-color);
     }
-    /* Layout dọc: thanh ngăn cách vẫn hiện, kéo theo trục dọc.
-       Kéo lên sát mép trên -> Preview; kéo xuống sát mép dưới -> Editor
-       (ngưỡng 2%/98% do script.js xử lý, cùng công thức % với trục ngang).
-       Giữ selector body.view-split để resizer ẩn khi đã vào preview/editor. */
+    /* Layout dọc: kéo lên sát mép trên -> Preview, xuống sát mép dưới -> Editor (ngưỡng 2%/98%).
+       Giữ body.view-split để resizer ẩn khi đã vào preview/editor. */
     body.view-split #pane-resizer {
         display: block;
         cursor: row-resize;
@@ -183,11 +173,7 @@ button.status-item:hover {
     }
 }
 
-/* ==========================================================================
-   Titlebar tự vẽ — khung cửa sổ native đã tắt (tauri.conf.json "decorations": false),
-   nên hàng này phải tự lo cả vùng kéo lẫn 3 nút cửa sổ.
-   Một hàng: [dải tab][vùng kéo][thu nhỏ / phóng to / đóng].
-   ========================================================================== */
+/* Titlebar tự vẽ: một hàng [dải tab][vùng kéo][3 nút cửa sổ]. */
 .titlebar {
     display: flex;
     align-items: stretch;
@@ -196,8 +182,7 @@ button.status-item:hover {
     -webkit-user-select: none;
 }
 
-/* Icon app (chỉ icon, không tên app) — đúng chỗ titlebar native cũ đặt nó: sát mép trái.
-   16px cho gọn bằng hàng tab cao 26px + 2 * 4px padding. */
+/* Icon app sát mép trái, 16px cho gọn bằng hàng tab 26px. */
 .titlebar-icon {
     flex: 0 0 auto;
     align-self: center;
@@ -207,8 +192,7 @@ button.status-item:hover {
     -webkit-user-drag: none;
 }
 
-/* Dải tab co lại và tự cuộn ngang (tabs.css); phần trống còn lại thuộc .titlebar-drag nên
-   vùng kéo không bao giờ bị tab chiếm hết. */
+/* Dải tab co lại và tự cuộn; phần trống thuộc .titlebar-drag nên vùng kéo không bị chiếm hết. */
 .titlebar .tabs {
     flex: 0 1 auto;
     min-width: 0;
@@ -268,12 +252,8 @@ button.status-item:hover {
     color: #ffffff;
 }
 
-/* ==========================================================================
-   Overlay khi kéo file vào cửa sổ
-   Kéo file qua cửa sổ mà không có gì đổi thì người dùng không biết app có nhận file hay không.
-   `body.drop-target` do js/io/documents.js gắn theo sự kiện enter/over/leave của Tauri.
-   pointer-events: none — overlay chỉ để nhìn, cú thả vẫn phải tới webview.
-   ========================================================================== */
+/* Overlay khi kéo file vào cửa sổ (body.drop-target do documents.js gắn); pointer-events: none
+   để cú thả vẫn tới webview. */
 .drop-overlay {
     display: none;
     position: fixed;
@@ -292,8 +272,7 @@ body.drop-target .drop-overlay {
     display: flex;
 }
 
-/* Nút giữa đổi glyph theo trạng thái cửa sổ. .is-maximized do js/ui/window-controls.js gắn
-   lên .titlebar (cùng pattern ẩn/hiện icon của #btn-theme, vì lucide chỉ vẽ icon một lần). */
+/* .is-maximized do window-controls.js gắn; đổi glyph giữa thu nhỏ/phóng to. */
 .window-controls .icon-restore {
     display: none;
 }

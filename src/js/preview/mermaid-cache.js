@@ -1,6 +1,5 @@
 // js/preview/mermaid-cache.js — Cache SVG Mermaid theo mã nguồn để khỏi vẽ lại.
 
-// Cache SVG Mermaid theo mã nguồn: khối không đổi thì dùng lại, khỏi chạy mermaid.run() (50-200ms/biểu đồ).
 // Xoá khi đổi theme vì màu SVG gắn với theme lúc vẽ.
 export const mermaidCache = new Map();
 

@@ -6,10 +6,8 @@ import { processGFMAlerts } from './alerts.js';
 import { cacheMermaidResult, mermaidCache } from './mermaid-cache.js';
 import { MERMAID_SANITIZE_CONFIG } from './sanitize.js';
 
-// Gán id (slug) cho heading để link neo [mục](#muc) hoạt động. marked v14 bỏ tuỳ chọn headerIds nên tiêu đề
-// không có id và liên kết neo [mục](#muc-luc) không tìm thấy đích.
-// id phải duy nhất (tiêu đề trùng thêm hậu tố -1, -2). Chỉ đọc textContent rồi gán .id,
-// không parse HTML nên không mở thêm đường XSS.
+// Gán id slug cho heading để link neo [mục](#muc) hoạt động; marked v14 bỏ headerIds.
+// id phải duy nhất; chỉ đọc textContent nên không thêm đường XSS.
 export function assignHeadingIds(container) {
     const used = new Set();
     container.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
@@ -41,8 +39,7 @@ export function whenMermaidIdle(timeoutMs = 8000) {
     });
 }
 
-// Đánh số mỗi lượt renderMarkdown(). Mermaid vẽ bất đồng bộ nên lượt cũ (đã lỗi thời) có thể
-// ghi đè scrollTop sau khi lượt mới đã khôi phục đúng; so renderVersion để lượt cũ bỏ qua.
+// Mermaid vẽ bất đồng bộ nên lượt cũ có thể ghi đè scrollTop; so renderVersion để bỏ qua.
 let renderVersion = 0;
 
 export function renderMarkdown() {
@@ -52,9 +49,7 @@ export function renderMarkdown() {
 
     const previousPreviewScrollTop = previewOutput.scrollTop;
 
-    // try/catch quanh cả lời gọi: bắt được cả lỗi do chính marked ném vào ReferenceError khi thư viện chưa tải
-    // xong (script vendor đều defer). Cùng hành vi fail-closed như nhánh thiếu DOMPurify dưới đây: hiện văn
-    // bản thuần, không đụng innerHTML, editor vẫn gõ được.
+    // try/catch quanh marked.parse: vendor chưa tải xong thì hiện văn bản thô, không đụng innerHTML.
     let dirtyHtml;
     try {
         dirtyHtml = marked.parse(rawText);
@@ -66,7 +61,7 @@ export function renderMarkdown() {
         return;
     }
 
-    // Fail-closed: chưa tải được DOMPurify thì hiển thị văn bản thuần, không bao giờ innerHTML HTML chưa lọc.
+    // Fail-closed: chưa có DOMPurify thì hiện văn bản thuần, không bao giờ innerHTML HTML chưa lọc.
     if (typeof DOMPurify === 'undefined') {
         previewOutput.textContent = rawText;
         charCounter.textContent = `${rawText.length} characters`;
@@ -76,24 +71,21 @@ export function renderMarkdown() {
     const cleanHtml = DOMPurify.sanitize(dirtyHtml, {
         USE_PROFILES: { html: true, mathMl: true, svg: true },
         ADD_ATTR: ['target', 'rel'],
-        // Chỉ cho scheme http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn scheme lạ như javascript:)
+        // Chỉ cho http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn javascript:...).
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
     });
 
     previewOutput.innerHTML = cleanHtml;
-    // Gán id SAU khi sanitize: id là thuộc tính DOM, không đi qua HTML parser.
+    // Gán id SAU sanitize: id là thuộc tính DOM, không qua HTML parser.
     assignHeadingIds(previewOutput);
     charCounter.textContent = `${rawText.length} characters`;
 
-    // KHÔNG khôi phục scrollTop ở đây: các bước sau (GFM alerts, hljs, mermaid, lucide) còn đổi chiều cao;
-    // nếu chèn thêm chiều cao phía TRÊN vị trí đang xem thì preview bị đẩy lệch, trông như "cuộn dần lên"
-    // sau mỗi lần gõ. Chỉ khôi phục MỘT lần ở cuối hàm (restorePreviewScrollTop).
+    // Chỉ khôi phục scrollTop MỘT lần ở cuối: các bước sau còn đổi chiều cao preview.
 
     processGFMAlerts();
 
-    // ponytail: bỏ highlight khi preview >300k ký tự (O(blocks x size) mỗi lần gõ); nâng cấp sau: highlight
-    // riêng từng khối thay đổi hoặc dùng worker. Đo bằng cleanHtml (đã có sẵn trong RAM) vì đọc textContent
-    // phải serialize lại cả cây DOM.
+    // ponytail: bỏ highlight khi preview >300k ký tự (O(blocks x size) mỗi lần gõ);
+    // nâng cấp sau: highlight riêng khối đổi hoặc dùng worker.
     const isHugePreview = cleanHtml.length > 300000;
     if (typeof hljs !== 'undefined' && !isHugePreview) {
         previewOutput.querySelectorAll('pre code').forEach((block) => {
@@ -136,8 +128,7 @@ export function renderMarkdown() {
             pendingMermaidJobs++;
             mermaidTimeout = setTimeout(() => {
                 mermaidScheduled = false;
-                // Mermaid có thể làm khối cao hơn nhiều so với code chữ ban đầu: ghi scrollTop NGAY TRƯỚC khi thay
-                // nội dung để khôi phục đúng vị trí đang xem sau khi vẽ xong (tránh preview bị nhảy/trôi lên).
+                // Ghi scrollTop NGAY TRƯỚC khi thay nội dung: Mermaid làm khối cao hơn nhiều.
                 const scrollTopBeforeMermaid = previewOutput.scrollTop;
                 const scrollGenBeforeMermaid = previewScrollGen;
 
@@ -146,7 +137,7 @@ export function renderMarkdown() {
                     suppressErrors: true
                 }).then(() => {
                     nodesToRender.forEach((node) => {
-                        // Mermaid sinh SVG chưa qua lọc (click/href javascript:): lọc lại trước khi tin và cache.
+                        // Mermaid sinh SVG chưa qua lọc: lọc lại trước khi tin và cache.
                         if (typeof DOMPurify !== 'undefined' && node.innerHTML) {
                             node.innerHTML = DOMPurify.sanitize(node.innerHTML, MERMAID_SANITIZE_CONFIG);
                         }
@@ -156,8 +147,7 @@ export function renderMarkdown() {
                         }
                     });
                     notifyPreviewChanged();
-                    // Có lượt renderMarkdown() mới hơn chạy trong lúc Mermaid vẽ (vd người dùng gõ tiếp): lượt này đã lỗi
-                    // thời, scrollTopBeforeMermaid không còn đúng. Bỏ qua khôi phục scroll để khỏi ghi đè vị trí của lượt mới.
+                    // Lượt render mới hơn đã chạy: bỏ qua khôi phục scroll để không ghi đè vị trí mới.
                     if (myRenderVersion !== renderVersion) return;
                     // Người dùng đã cuộn trong lúc vẽ: giữ vị trí mới, không ghi đè.
                     if (scrollGenBeforeMermaid !== previewScrollGen) return;
@@ -175,7 +165,7 @@ export function renderMarkdown() {
         lucide.createIcons({ root: previewOutput });
     }
 
-    // Khôi phục scroll một lần, sau khi mọi thay đổi chiều cao đồng bộ ở trên đã xong.
+    // Khôi phục scroll một lần, sau khi mọi thay đổi chiều cao đồng bộ đã xong.
     restorePreviewScrollTop(previousPreviewScrollTop);
 }
 
@@ -186,15 +176,13 @@ function restorePreviewScrollTop(desiredScrollTop) {
 
 let previewScrollGen = 0;
 
-// HTML preview đã qua hết pipeline (sanitize + hljs + Mermaid + icon), dùng để dựng lại preview của
-// một tab đã xem mà không phải chạy lại toàn bộ pipeline.
+// HTML preview đã qua pipeline, dùng dựng lại preview của tab đã xem mà không chạy lại.
 export function currentPreviewHtml() {
     return previewOutput.innerHTML;
 }
 
-// Dựng lại preview từ HTML cache. Vẫn phải làm đúng phần bookkeeping của renderMarkdown: tăng
-// renderVersion và huỷ lượt Mermaid đang bay, nếu không lượt cũ ghi scrollTop vào tab mới.
-// Không chạy lại hljs/mermaid: HTML cache đã có kết quả, chạy lần hai sẽ bọc span hai lần.
+// Dựng lại từ cache nhưng vẫn tăng renderVersion và huỷ Mermaid đang bay, nếu không lượt cũ ghi
+// scrollTop vào tab mới. Không chạy lại hljs/mermaid (sẽ bọc span hai lần).
 export function renderCachedHtml(html, scrollTop) {
     renderVersion++;
     clearTimeout(mermaidTimeout);
@@ -207,9 +195,7 @@ export function renderCachedHtml(html, scrollTop) {
     restorePreviewScrollTop(scrollTop);
 }
 
-// Cache theo tab nằm ở documents.js; render.js chỉ báo "preview vừa đổi ngoài dự kiến" để cache được
-// bỏ. Mermaid vẽ bất đồng bộ và thay cả khối <pre> sau khi hàm đã trả về, nên cache chụp ở đó
-// không có SVG — bỏ cache thay vì giữ bản thiếu sơ đồ.
+// Báo preview đổi ngoài dự kiến để cache bị bỏ: Mermaid vẽ xong sau khi hàm đã trả về.
 const previewChangedListeners = [];
 
 export function onPreviewChanged(fn) {
@@ -220,8 +206,7 @@ function notifyPreviewChanged() {
     previewChangedListeners.forEach((fn) => fn());
 }
 
-// Được gọi từ scroll-sync mỗi khi người dùng cuộn Preview: renderMarkdown dùng số này để biết
-// người dùng đã cuộn trong lúc Mermaid vẽ (giữ vị trí mới, không ghi đè bằng vị trí cũ).
+// scroll-sync gọi khi người dùng cuộn: renderMarkdown dùng để biết có ghi đè scroll hay không.
 export function notifyPreviewScrolled() {
     previewScrollGen++;
 }

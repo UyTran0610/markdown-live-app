@@ -19,8 +19,7 @@ function handleScroll(source, target) {
     target.scrollTop = scrollPercentage * Math.max(targetScrollable, 0);
 }
 
-// Gộp scroll-sync theo khung hình (rAF) để tránh đọc scrollHeight/scrollTop (ép tính lại layout) trên
-// từng sự kiện scroll dồn dập.
+// Gộp scroll-sync theo khung hình (rAF) để không đọc scrollHeight/scrollTop mỗi sự kiện scroll.
 let editorScrollTicking = false;
 
 let previewScrollTicking = false;
@@ -47,7 +46,7 @@ export function initScrollSync() {
     previewOutput.addEventListener('touchstart', () => activeScrollSource = previewOutput, { passive: true });
 
     markdownInput.addEventListener('scroll', () => {
-        // Lớp tô màu cú pháp phải bám sát tuyệt đối theo pixel nên đồng bộ ngay, không qua rAF
+        // Lớp tô màu phải bám tuyệt đối theo pixel nên đồng bộ ngay, không qua rAF.
         editorHighlight.scrollTop = markdownInput.scrollTop;
         editorHighlight.scrollLeft = markdownInput.scrollLeft;
 
@@ -72,7 +71,7 @@ export function initScrollSync() {
     btnSync.addEventListener('click', () => {
         isSyncScrollEnabled = !isSyncScrollEnabled;
         btnSync.classList.toggle('active', isSyncScrollEnabled);
-        // aria theo class .active: nếu không set, màn hình đọc luôn "pressed".
+        // aria theo class .active: không set thì màn hình đọc luôn là pressed.
         btnSync.setAttribute('aria-pressed', String(isSyncScrollEnabled));
         showToast(isSyncScrollEnabled ? "Sync scroll enabled" : "Sync scroll disabled");
     });

@@ -1,12 +1,7 @@
 /* css/format-bar.css — Thanh định dạng Markdown phía trên editor (nút icon, dropdown, lưới chọn bảng). */
 
-/* ==========================================================================
-   Thanh định dạng Markdown (Format bar) — gắn trực tiếp vào cột Editor,
-   ngay trên vùng soạn thảo, vì đây là nơi người dùng thao tác nhiều nhất.
-   Dùng flex-wrap (không phải overflow-x) vì các menu thả xuống của
-   Heading/List/Table cần đổ xuống dưới nút — một container overflow:auto/
-   hidden ở đây sẽ cắt mất các menu đó.
-   ========================================================================== */
+/* Flex-wrap (không overflow-x) vì menu Heading/List/Table đổ xuống dưới nút; container
+   overflow: auto/hidden ở đây sẽ cắt mất menu. */
 .format-bar {
     display: flex;
     flex-wrap: wrap;
@@ -76,8 +71,7 @@
     transform: rotate(180deg);
 }
 
-/* Trạng thái bật cho nút icon dạng toggle (vd: Sync Scroll) —
-   cùng tint xanh với .btn.active nhưng không viền, giữ ngôn ngữ "ghost". */
+/* Nút toggle bật: tint xanh như .btn.active nhưng không viền. */
 .btn-icon.active {
     background: var(--btn-active-bg);
     color: var(--btn-active-text);
@@ -109,9 +103,7 @@
     z-index: 500;
 }
 
-/* Trạng thái ẩn + animation của .format-menu nằm ở css/toolbar.css (khối dùng chung
-   với .export-menu), vì file đó load sau và phải thắng .format-menu.hidden cùng
-   specificity. KHÔNG khai báo display: none ở đây — sẽ cắt mất transition. */
+/* Ẩn + animation của .format-menu nằm ở toolbar.css (load sau, thắng cùng specificity); đừng đặt display: none ở đây. */
 
 .format-item {
     display: flex;

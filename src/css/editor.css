@@ -1,6 +1,5 @@
-/* css/editor.css — Vùng soạn thảo + lớp tô màu cú pháp Markdown. */
+/* css/editor.css — Vùng soạn thảo và lớp tô màu cú pháp Markdown. */
 
-/* Editor Styling */
 .editor-container {
     position: relative;
     flex: 1;
@@ -102,9 +101,6 @@
     background: none;
 }
 
-/* ==========================================================================
-   Tô màu cú pháp Markdown trong Editor (Syntax Highlighting)
-   ========================================================================== */
 .md-header-marker { color: var(--md-header-marker); font-weight: 600; }
 .md-header { font-weight: 700; }
 .md-header-1 { color: var(--md-header-1); }
@@ -153,7 +149,6 @@
 .md-footnote-marker, .md-footnote-id { color: var(--md-footnote); font-weight: 600; }
 .md-footnote-ref { color: var(--md-footnote); }
 
-/* HTML inline elements */
 .md-kbd-marker { color: var(--md-kbd); opacity: 0.7; }
 .md-kbd {
     color: var(--md-kbd);

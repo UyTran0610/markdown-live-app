@@ -1,7 +1,6 @@
 // js/export/doc-transform.js — Biến đổi DOM cho file DOC: gỡ id thừa, blockquote / alert thành bảng.
 
-// Word/LibreOffice biến MỌI id thành "bookmark" (ngoặc xám ở đầu đề mục). assignHeadingIds() chỉ để neo
-// trong app, nên khi xuất DOC gỡ id của tiêu đề không có liên kết neo (#...) nào trỏ tới.
+// Word biến mọi id thành bookmark, nên gỡ id heading không có link neo (#...) trỏ tới khi xuất DOC.
 export function stripUnusedHeadingIds(container) {
     const linked = new Set();
     container.querySelectorAll('a[href^="#"]').forEach((a) => {
@@ -14,10 +13,8 @@ export function stripUnusedHeadingIds(container) {
     });
 }
 
-// Viền ô của bảng dữ liệu phải nằm INLINE trên từng ô, không được để trong <style> của file DOC.
-// Word (và filter Word của LibreOffice dùng để mở .doc) chỉ hỗ trợ một tập selector CSS yếu hơn:
-// class của <table> không xuống được ô con, nên luật dạng ".doc-data-table td" bị bỏ qua và bảng ra
-// không có viền. Đây cũng chính là cách khung quote bên dưới đã làm cho Word.
+// Viền ô phải INLINE trên từng ô: Word chỉ hỗ trợ selector yếu, class của <table> không xuống ô con
+// nên '.doc-data-table td' bị bỏ qua.
 export function styleDataTablesForDoc(container) {
     container.querySelectorAll('table').forEach((table) => {
         table.style.borderCollapse = 'collapse';
@@ -34,7 +31,7 @@ export function styleDataTablesForDoc(container) {
     });
 }
 
-// Màu viền/tiêu đề của từng loại GFM Alert khi xuất DOC (Word không hiểu CSS variable).
+// Màu viền/tiêu đề từng loại GFM Alert khi xuất DOC (Word không hiểu CSS variable).
 const DOC_ALERT_COLORS = {
     note: '#0969da',
     tip: '#1a7f37',
@@ -43,10 +40,8 @@ const DOC_ALERT_COLORS = {
     caution: '#d1242f'
 };
 
-// Word gộp các đoạn liền kề có cùng viền thành MỘT khối viền, nên nhiều <blockquote> / GFM Alert đứng cạnh
-// nhau bị dính thành một thanh dọc liên tục. Chuyển mỗi blockquote thành bảng 1 ô (viền trái làm "thanh quote",
-// có padding + nền thật) và chèn một đoạn đệm nhỏ phía sau: Word cũng gộp cả hai bảng liền kề, nên đoạn đệm
-// là thứ duy nhất tách chúng ra. Duyệt ngược để blockquote lồng nhau được xử lý từ trong ra ngoài.
+// Word gộp các blockquote liền kề thành một thanh viền: mỗi cái thành bảng 1 ô + đoạn đệm phía sau,
+// duyệt ngược để blockquote lồng nhau xử lý từ trong ra ngoài.
 export function convertQuotesForDoc(container) {
     const quotes = Array.from(container.querySelectorAll('blockquote')).reverse();
     quotes.forEach((bq) => {
@@ -65,9 +60,8 @@ export function convertQuotesForDoc(container) {
         table.style.cssText = 'border-collapse:collapse;border:none;width:100%;margin:0;';
 
         const td = document.createElement('td');
-        // Bảng khung này không có class doc-data-table nên không dính viền ô của DOC_STYLES; thêm mso-border-*-alt
-        // để Word chắc chắn chỉ vẽ viền trái.
-        // setAttribute (không dùng .style.cssText): CSSOM của trình duyệt sẽ loại bỏ thuộc tính mso-* không nhận ra.
+        // Không có class doc-data-table nên thêm mso-border-*-alt để Word chỉ vẽ viền trái.
+        // setAttribute thay .style.cssText: CSSOM loại bỏ thuộc tính mso-* không nhận ra.
         td.setAttribute('style', 'border-top:none;border-right:none;border-bottom:none;'
             + 'mso-border-top-alt:none;mso-border-right-alt:none;mso-border-bottom-alt:none;'
             + 'border-left:4pt solid ' + borderColor + ';'
@@ -81,7 +75,7 @@ export function convertQuotesForDoc(container) {
         if (firstEl && firstEl.tagName === 'P') firstEl.style.marginTop = '0';
         if (lastEl && lastEl.tagName === 'P') lastEl.style.marginBottom = '0';
 
-        // Tiêu đề alert: tô đúng màu loại alert (class CSS của app không có trong file DOC).
+        // Tiêu đề alert tô đúng màu loại alert (class CSS của app không có trong file DOC).
         const title = td.querySelector('.markdown-alert-title');
         if (title && type) {
             title.style.color = borderColor;

@@ -19,8 +19,8 @@ function closeExportMenu() {
     btnExport.setAttribute('aria-expanded', 'false');
 }
 
-// Chống chạy chồng: mỗi lượt xuất chờ Mermaid tới 8s rồi mới mở hộp thoại Save (hoặc window.print), gọi hai
-// lần sẽ ra 2 hộp thoại / 2 lần in. ponytail: một cờ chung cho cả 4 nút, nâng cấp sau: xếp hàng lượt thứ 2.
+// Chống chạy chồng: mỗi lượt chờ Mermaid tới 8s rồi mới Save/print, gọi hai lần ra 2 hộp thoại.
+// ponytail: một cờ chung cho cả 4 nút; nâng cấp sau: xếp hàng lượt thứ 2.
 export function makeExclusive(fn) {
     let busy = false;
     return async (...args) => {
@@ -34,7 +34,7 @@ export function makeExclusive(fn) {
     };
 }
 
-// PDF = hộp thoại In của hệ điều hành: render lại và chờ Mermaid + font xong rồi mới window.print().
+// PDF = hộp thoại In của OS: render lại và chờ Mermaid + font xong rồi mới window.print().
 async function exportPdf() {
     showToast("Preparing the print page / exporting PDF...");
     renderMarkdown();
@@ -53,8 +53,7 @@ function setExportDisabled(disabled) {
     exportButtons.forEach((btn) => { btn.disabled = disabled; });
 }
 
-// Một wrapper dùng chung cho cả 4 nút: cờ busy phải chung thì mới chặn được chạy chồng, không tạo mới ở mỗi lần
-// bấm. Khoá nút trong lúc xuất cũng là phản hồi cho người dùng (một lượt DOC kéo vài giây, bấm hai lần dễ xảy ra).
+// Wrapper dùng chung cho 4 nút: cờ busy phải chung mới chặn được chạy chồng; khoá nút cũng là phản hồi.
 const runExport = makeExclusive(async (run) => {
     closeExportMenu();
     setExportDisabled(true);
@@ -66,8 +65,7 @@ const runExport = makeExclusive(async (run) => {
 });
 
 export function initExportMenu() {
-    // KHÔNG stopPropagation: listener document bên dưới cần thấy click để đóng menu khác (format/view) đang
-    // mở; stopPropagation ở đây (và ở btnView) làm hai dropdown mở chồng lên nhau.
+    // KHÔNG stopPropagation: listener document cần thấy click để đóng menu khác đang mở.
     btnExport.addEventListener('click', () => {
         const isHidden = exportMenu.classList.toggle('hidden');
         exportWrap.classList.toggle('open', !isHidden);

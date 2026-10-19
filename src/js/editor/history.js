@@ -30,15 +30,13 @@ export const editorHistory = {
     },
 
     undo(el) {
-        // Bỏ timer gom lịch sử còn treo: nếu để chạy sau khi đã lùi, nó push lại giá trị hiện tại và sinh
-        // entry trùng không liền kề, làm Undo/Redo lệch bước.
+        // Bỏ timer gom còn treo, nếu không nó push lại giá trị hiện tại và sinh entry trùng.
         clearTimeout(this.typingTimer);
-        // Lưu nội dung chưa kịp vào lịch sử trước khi lùi. push() đã tự tăng this.index nên KHÔNG giảm thêm,
-        // nếu không Undo sẽ lùi 2 bước thay vì 1.
+        // push() đã tăng index nên KHÔNG giảm thêm, nếu không Undo lùi 2 bước.
         if (this.stack[this.index] && this.stack[this.index].val !== el.value) {
             this.push(el.value, el.selectionStart, el.selectionEnd);
         }
-        // Chỉ lùi được khi còn mục phía trước; stack rỗng (index = -1) thì index > 0 là false nên tự thoát.
+        // Chỉ lùi khi còn mục phía trước; index > 0 tự thoát khi stack rỗng.
         if (this.index > 0) {
             this.index--;
             const state = this.stack[this.index];
@@ -60,22 +58,13 @@ export const editorHistory = {
     }
 };
 
-// Trần ký tự cho TOÀN APP, không phải từng tab. Mỗi mục giữ nguyên chuỗi nội dung nên một file
-// vài MB là vài chục MB lịch sử; nhân lên số tab là hết RAM. documents.js gọi pruneAllHistories()
-// khi chuyển tab — chỉ ở đó thì không tốn công mỗi lần gõ.
-//
-// Đo bằng s.length là O(1) trong JS (độ dài chuỗi lưu sẵn), nên cộng vài nghìn mục là không tốn.
-// 20M ký tự ~ 40MB UTF-16.
+// Trần ký tự cho TOÀN APP (mỗi mục giữ cả tài liệu); documents.js gọi khi chuyển tab, không mỗi lần gõ.
+// 20M ký tự ~ 40MB UTF-16; s.length là O(1).
 export const HISTORY_MAX_CHARS = 20000000;
 
-// Cắt bớt từ các stack của tab NỀN trước (tab đang mở giữ nguyên đến lượt sau), rồi tới tab đang
-// mở nếu vẫn còn dư. index phải dịch theo vì cắt ở đầu làm mất mục cũ đã lùi qua.
-// histories: mọi stack, tab đang mở đặt CUỐI để nó bị cắt sau cùng — đó là cái người dùng đang Undo.
-// histories đặt theo thứ tự ưu tiên cắt: tab đang mở đưa vào CUỐI để nó bị cắt sau cùng, vì đó
-// là cái người dùng đang Undo. Mỗi lượt, stack h_i bị cắt xuống đúng số dư của trần sau khi trừ
-// hết các stack còn lại — cắt "nhiều nhất có thể mà vẫn còn dưới trần".
-// Duyệt tối đa 2 vòng rồi dừng: một lượt đã đủ để h_i về đúng mức, nên 2 vòng là biên an toàn
-// và luôn kết thúc, không cần nhánh "stalled".
+// Cắt stack tab nền trước, tab đang mở đặt CUỐI nên bị cắt sau cùng; index dịch theo vì cắt ở đầu.
+// Mỗi lượt cắt h_i xuống đúng số dư của trần sau khi trừ các stack còn lại.
+// Tối đa 2 vòng là biên an toàn và luôn kết thúc.
 export function pruneAllHistories(histories, maxChars = HISTORY_MAX_CHARS) {
     if (!histories.length) return;
     const chars = histories.map(historyChars);
@@ -95,7 +84,7 @@ function historyChars(h) {
     return h.stack.reduce((sum, entry) => sum + entry.val.length, 0);
 }
 
-// Bỏ mục cũ từ đầu cho tới khi còn tối đa `budget` ký tự. Trả về số ký tự đã bỏ.
+// Bỏ mục cũ từ đầu cho tới khi còn tối đa budget ký tự. Trả về số ký tự đã bỏ.
 function trimHistory(h, budget) {
     const before = historyChars(h);
     if (before <= budget) return 0;
@@ -106,7 +95,7 @@ function trimHistory(h, budget) {
         cut++;
     }
     h.stack.splice(0, cut);
-    // -1 là "trước mục cũ nhất", tức không còn gì để Undo tới — không xuống dưới -1.
+    // -1 là trước mục cũ nhất, không xuống dưới -1.
     h.index = Math.max(-1, Math.min(h.index - cut, h.stack.length - 1));
     return before - chars;
 }

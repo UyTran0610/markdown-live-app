@@ -1,8 +1,5 @@
 /* css/tokens.css — Biến màu (design tokens) cho theme Sáng / Tối. */
 
-/* ==========================================================================
-   Theme Tokens (Light mặc định + Dark override qua [data-theme="dark"])
-   ========================================================================== */
 :root {
     color-scheme: light;
 
@@ -17,8 +14,7 @@
     --header-text: #24292f;
     --logo-icon: #0969da;
 
-    /* Nút dạng "ghost": không nền, không viền; chỉ hiện nền nhạt khi hover.
-       Trạng thái bật dùng tint xanh nhạt (cùng màu link ở Preview). */
+    /* Nút ghost: không nền/viền, hover nền nhạt; bật thì tint xanh như link Preview. */
     --btn-bg: transparent;
     --btn-border: #d0d7de;
     --btn-border-hover: #afb8c1;

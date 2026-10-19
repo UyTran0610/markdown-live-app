@@ -1,10 +1,6 @@
-// js/ui/confirm-dialog.js — Hộp thoại hỏi cho quyết định không thể đảo ngược: đóng tab chưa lưu,
-// file bên ngoài đã sửa, file bị xoá khỏi đĩa, ghi đè file của tab khác.
-//
-// Thay confirm() của WebView vì nó không có nút "Lưu" (người dùng phải hủy, lưu, rồi đóng lại) và
-// trông như hộp thoại trình duyệt. Trả Promise: id của nút được chọn, hoặc null khi hủy.
-//
-// Một hộp thoại duy nhất cho mọi câu hỏi: gọi lồng nhau sẽ lấy đè câu trả lời của câu trước.
+// js/ui/confirm-dialog.js — Hộp thoại hỏi cho quyết định không thể đảo ngược (đóng tab chưa lưu,
+// file ngoài đã sửa, ghi đè file tab khác). Thay confirm() vì cần nút Lưu.
+// Trả Promise: id nút được chọn, hoặc null khi huỷ. Chỉ một hộp thoại tại một thời điểm.
 
 import {
     confirmCancelBtn,
@@ -15,8 +11,7 @@ import {
     confirmTitle
 } from '../core/dom.js';
 
-// Đổi 3 nút cho đúng câu hỏi. Thứ tự trên màn hình: primary | secondary | cancel, và Cancel luôn
-// cuối để Tab-traverse (mũi tên phải là next) kết thúc ở nút thoát an toàn.
+// Thứ tự primary | secondary | cancel; Cancel cuối để Tab kết thúc ở nút an toàn.
 let settle = null;
 let returnFocus = null;
 
@@ -41,14 +36,12 @@ function fill(btn, action) {
     btn.hidden = false;
 }
 
-// `actions`: tối đa 2 nút quyết định + Cancel luôn có sẵn. primary = `.dialog-btn.primary`,
-// secondary = nút thường. Trả null nếu người dùng đóng bằng Esc / bấm ra ngoài.
+// Tối đa 2 nút quyết định + Cancel luôn có; trả null nếu Esc hoặc bấm ra ngoài.
 export function confirmAction({ title, message, actions, cancelLabel = 'Cancel' }) {
     if (settle) closeWith(null);
 
     confirmTitle.textContent = title;
-    // Chỉ nội dung app tự dựng (tên file do người dùng đặt cũng đi qua escapeHtml): innerHTML cho
-    // phép xuống dòng trong câu hỏi dài mà textContent không có.
+    // innerHTML để câu hỏi xuống dòng được; tên file đều qua escapeHtml.
     confirmMessage.innerHTML = escapeHtml(message).replace(/\n/g, '<br>');
 
     const [primary, secondary] = actions;
@@ -80,8 +73,7 @@ export function initConfirmDialog() {
         if (e.target === confirmDialog) closeWith(null);
     });
 
-    // Enter = primary, Esc = hủy, Tab = khoá vòng focus. stopPropagation chặn phím tắt toàn cục
-    // của editor lọt xuống dưới hộp thoại (giống dialogs.js).
+    // Enter = primary, Esc = huỷ, Tab giữ vòng focus; chặn phím tắt toàn cục lọt xuống.
     confirmDialog.addEventListener('keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Escape') {

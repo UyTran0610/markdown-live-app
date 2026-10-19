@@ -1,19 +1,12 @@
-/* css/tabs.css — Thanh tab đang mở: nằm trong .titlebar (layout.css), cùng hàng với vùng kéo
-   cửa sổ và 3 nút cửa sổ tự vẽ. Dùng lại đúng token của .btn / .btn.active (toolbar.css) để tab
-   không lệch màu với phần còn lại. */
+/* css/tabs.css — Dải tab trong .titlebar; dùng lại token .btn / .btn.active. */
 
-/* Cuộn ngang khi mở nhiều tab.
-   Thanh cuộn KHÔNG chiếm chỗ (height: 0) và KHÔNG dùng scrollbar-width: mọi thanh cuộn có
-   mặt trong hàng titlebar 34px đều ăn mất 4px đáy (thin ~11px còn ăn nhiều hơn), làm tab
-   bị đẩy lên và mất viền dưới — tab sẽ nhảy 4px đúng lúc mở tới tab đầu tiên bị tràn.
-   Cuộn vẫn đủ cách: lăn chuột / trackpad (initTabs map deltaY sang scrollLeft), Ctrl+Tab,
-   và tab đang mở luôn được kéo vào khung nhìn sau mỗi lần store emit. */
+/* Cuộn ngang không chiếm chỗ (height: 0): thanh cuộn trong hàng titlebar 34px ăn mất 4px đáy
+   làm tab nhảy khi tràn. Vẫn cuộn được bằng lăn chuột, Ctrl+Tab và kéo tab active vào khung nhìn. */
 .tabs {
     display: flex;
     align-items: flex-end;
     gap: 2px;
-    /* 4 + 26 + 4 = 34 = đúng hàng titlebar (layout.css): tab luôn cách trên/dưới 4px,
-       viền bao quanh trọn tab không dính vào đường kẻ của toolbar bên dưới. */
+    /* 4 + 26 + 4 = 34 = hàng titlebar; tab cách trên/dưới 4px. */
     padding: 4px 8px;
     overflow-x: auto;
 }
@@ -22,9 +15,7 @@
     height: 0;
 }
 
-/* Tab bị khuất cần một chỉ báo nhìn thấy được. Fade 2 mép chỉ bật ở mép đang còn tab bị cắt
-   (class do tabs.js bật/tắt): bật sẵn vô điều kiện sẽ fade luôn nút "+" ở mép phải dù
-   không tab nào bị khuất. */
+/* Fade mép chỉ bật ở mép còn tab bị cắt (class do tabs.js gắn), nếu không sẽ fade cả nút +. */
 .tabs.can-left {
     mask-image: linear-gradient(90deg, transparent 0, #000 16px);
 }
@@ -37,8 +28,7 @@
     mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
 }
 
-/* Hai nút cuộn dải tab, nằm ngoài #tab-strip (index.html) nên chắc chắn không phải vùng kéo
-   cửa sổ. Cùng bề rộng hàng titlebar 34px, chỉ hiện khi dải tab tràn (tabs.js bật/tắt [hidden]). */
+/* Nút cuộn ngoài #tab-strip nên không phải vùng kéo; cao 34px, chỉ hiện khi dải tràn. */
 .tabs-nav {
     display: flex;
     flex: 0 0 auto;
@@ -83,18 +73,13 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    /* Co giãn thay vì cuộn ngay: flex 0 1 auto + min-width để tab thu dần về 96px rồi mới tràn,
-       đúng kiểu Chrome/Edge. min-width buộc phải có vì .tab là inline-flex + nowrap nên không có
-       nó flex item không co dưới min-content. */
+    /* Co dần về 96px rồi mới tràn (Chrome/Edge); min-width: 0 bắt buộc vì tab là inline-flex nowrap. */
     flex: 0 1 auto;
     min-width: 96px;
     max-width: 220px;
     height: 26px;
     padding: 0 8px;
-    /* Viền bao quanh trọn tab (đủ 4 cạnh, bo cả 4 góc): tab không còn dán liền
-       xuống hàng dưới như kiểu tab gắn vào nội dung. Mọi tab đều có viền, tab active
-       mới đậm màu hơn (xem .tab.active) — trước đây viền là transparent nên tab không
-       active không có gì để nhìn ở tràn nhiều tab. */
+    /* Viền đủ 4 cạnh, bo 4 góc; tab active đậm hơn để tab thường vẫn thấy khi tràn. */
     border: 1px solid var(--border-color);
     border-radius: 6px;
     background: transparent;
@@ -104,8 +89,7 @@
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
-    /* Kéo bằng cảm ứng/but viết: không có touch-action:none thì trình duyệt hủy chuỗi pointer
-       để cuộn, kéo tab bị giữa chừng. */
+    /* touch-action: none để trình duyệt không huỷ chuỗi pointer khi kéo bằng cảm ứng. */
     touch-action: none;
     position: relative;
     transition: background-color 0.15s, color 0.15s;
@@ -122,10 +106,7 @@
     color: var(--text-primary);
 }
 
-/* Tên dài cắt bằng CSS; tab.name giữ nguyên phần đầy đủ cho toast và session.
-   min-width: 0 là bắt buộc: .tab là inline-flex + white-space nowrap nên không có nó
-   flex item không co được dưới min-content, chữ sẽ tràn ra ngoài .tab (max-width
-   chỉ cắt hộp, không cắt chữ) và đè lên tab kế bên. */
+/* Cắt tên dài bằng CSS; min-width: 0 bắt buộc để flex item co dưới min-content. */
 .tab-name {
     flex: 1 1 auto;
     min-width: 0;
@@ -133,8 +114,7 @@
     text-overflow: ellipsis;
 }
 
-/* Tab không đọc/ghi được file (status !== 'ok'): dấu ! thay vì icon để không phụ thuộc
-   lucide.createIcons() chạy lại sau khi dải tab được dựng lại. */
+/* Tab lỗi dùng dấu ! vì lucide không vẽ lại icon sau mỗi lần dựng dải tab. */
 .tab-broken {
     flex: 0 0 auto;
     display: inline-flex;
@@ -162,9 +142,7 @@
     border-left: 6px solid transparent;
 }
 
-/* Chấm "chưa lưu" là xám nhạt, không dùng màu xanh link: nổi quá sẽ kéo mắt vào dải
-   tab mỗi lần gõ. Độ mờ đặt bằng opacity (không đổi màu riêng cho từng theme) nên chấm dịu
-   đều ở cả theme sáng lẫn tối; tab active đậm lại đúng 1 bậc. */
+/* Chấm chưa lưu màu xám nhạt, opacity để dịu đều cả hai theme; tab active đậm hơn 1 bậc. */
 .tab-dot {
     flex: 0 0 auto;
     width: 6px;
@@ -183,9 +161,7 @@
     display: none;
 }
 
-/* Chỉ tab MỚI mới mang class .tab-enter (xem seenIds trong tabs.js). Cả dải tab được
-   replaceChildren() mỗi lần store emit, nên animation gắn bằng CSS cho mọi tab sẽ
-   nháy lại toàn bộ dải mỗi lần đổi tab. */
+/* Chỉ tab mới mang .tab-enter; gắn cho mọi tab sẽ nháy cả dải mỗi lần emit. */
 .tab-enter {
     animation: tab-enter 0.18s ease-out;
 }
@@ -197,8 +173,7 @@
     }
 }
 
-/* Dấu X không ẩn hẳn: luôn hiện đủ đậm (--text-secondary) để affordance đóng tab
-   thấy được khi không hover và không có chuột. */
+/* Dấu X luôn đủ đậm (--text-secondary) để affordance đóng tab thấy được cả khi không hover. */
 .tab-close {
     display: inline-flex;
     align-items: center;
@@ -219,8 +194,7 @@
 }
 
 .tab-add {
-    /* position:sticky giữ nút "+" dính mép phải khi dải tab cuộn: nút này là đường duy nhất mở
-       tab mới, cuộn mất nó là mất khả năng mở tab mà không phải lăn ngược lại đầu dải. */
+    /* Sticky giữ nút + ở mép phải: cuộn mất nó là mất đường mở tab mới. */
     position: sticky;
     right: 0;
     flex: 0 0 auto;
@@ -249,9 +223,7 @@
     outline-offset: -2px;
 }
 
-/* ==== Kéo tab để đổi thứ tự (tabs.js) ==== */
-/* Ô trống hộ chỗ cho tab đang kéo: rộng bằng tab gốc (đặt inline), nên các tab khác
-   trượt theo đúng khoảng trống mà tab kéo sẽ nằm vào. */
+/* Ô trống giữ chỗ, rộng bằng tab gốc, để các tab khác trượt đúng khoảng. */
 .tab-slot {
     flex: 0 0 auto;
     height: 26px;
@@ -259,8 +231,7 @@
     border-radius: 6px;
 }
 
-/* Tab đang kéo: nhấc ra khỏi luồng (position: fixed) và bám chuột bằng transform.
-   pointer-events: none để chuột đi xuyên xuống dải tab thay vì bị dính vào nó. */
+/* Tab kéo ra khỏi luồng (fixed), bám chuột bằng transform; pointer-events: none để chuột xuyên xuống. */
 .tab-dragging {
     position: fixed;
     z-index: 60;
@@ -274,8 +245,7 @@
     cursor: grabbing;
 }
 
-/* Tab đang kéo là position: fixed nên không bị overflow cắt, nhưng vẫn dính mask ở mép
-   (mask áp cho cả con) — tắt trong lúc kéo để tab kéo không bị mờ khi kéo sát biên. */
+/* Tắt mask khi kéo: tab fixed vẫn dính mask ở mép và bị mờ khi kéo sát biên. */
 .tabs.reordering.can-left,
 .tabs.reordering.can-right {
     mask-image: none;
@@ -287,8 +257,7 @@
     transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
-/* Windows: Settings > Accessibility > Visual effects > Animation effects off —
-   tắt chuyển động vào của tab, hover / đóng tab vẫn hoạt động y như thường. */
+/* Tắt chuyển động vào của tab khi Windows giảm animation; hover/đóng vẫn bình thường. */
 @media (prefers-reduced-motion: reduce) {
     .tab-enter {
         animation: none;

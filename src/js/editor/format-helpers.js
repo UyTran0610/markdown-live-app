@@ -8,9 +8,8 @@ export function getHeadingLevel(line) {
 
 // level = 0 nghĩa là gỡ heading. Trả về { line, delta }, hoặc null nếu không có gì thay đổi.
 export function setHeadingLevel(line, level) {
-    // Như getHeadingLevel nhưng tách riêng phần thụt lề và khoảng trắng sau #
+    // Như getHeadingLevel nhưng tách riêng phần thụt lề và khoảng trắng sau #.
     const m = line.match(/^([ \t]{0,3})(#{1,6})([ \t]+|$)/);
-    // Dòng thường: lấy phần thụt lề đầu dòng
     const indent = m ? m[1] : (line.match(/^[ \t]*/) || [''])[0];
     const rest = m ? line.slice(m[0].length) : line.slice(indent.length);
     if (!m && level === 0) return null;
@@ -19,20 +18,18 @@ export function setHeadingLevel(line, level) {
     return { line: newLine, delta: newLine.length - line.length };
 }
 
-// Trả về { indent, marker, kind, rest } (kind: bullet | numbered | task | quote),
-// hoặc null nếu không phải dòng danh sách.
+// Trả { indent, marker, kind, rest } (bullet | numbered | task | quote), hoặc null nếu không phải list.
 export function parseListLine(line) {
-    // thụt lề, marker (-, *, +, 1. / 1) hoặc >), khoảng trắng, checkbox tuỳ chọn, phần còn lại
+    // thụt lề, marker (-, *, +, 1. / 1) hoặc >), khoảng trắng, checkbox tuỳ chọn, phần còn lại.
     const m = line.match(/^([ \t]*)([-*+]|\d+[.)]|>)([ \t]+)(\[[ xX]\][ \t]+)?(.*)$/);
     if (!m) return null;
     const [, indent, mark, sp, checkbox, rest] = m;
-    // Marker bắt đầu bằng chữ số -> danh sách có thứ tự
     const kind = checkbox ? 'task' : (mark === '>' ? 'quote' : (/^\d/.test(mark) ? 'numbered' : 'bullet'));
     return { indent, marker: mark + sp + (checkbox || ''), kind, rest };
 }
 
-// rows = số dòng THÂN bảng (tối thiểu 1, để luôn có ô để gõ). ponytail: header để trống cho người dùng điền;
-// nâng cấp sau: điền tên cột từ vùng chọn hiện tại nếu có.
+// rows = số dòng THÂN bảng (tối thiểu 1). ponytail: header để trống cho người dùng điền;
+// nâng cấp sau: điền tên cột từ vùng chọn hiện tại.
 export function buildTableMarkdown(rows, cols) {
     const r = Math.max(1, Math.min(99, rows | 0));
     const c = Math.max(1, Math.min(99, cols | 0));
@@ -45,13 +42,12 @@ export function buildTableMarkdown(rows, cols) {
 export function normalizeLinkUrl(raw) {
     const url = String(raw || '').trim();
     if (!url) return '';
-    // Đã có scheme (http:, mailto:, ...), anchor # hoặc protocol-relative // thì giữ nguyên
+    // Đã có scheme, anchor # hoặc // thì giữ nguyên.
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith('#') || url.startsWith('//')) return url;
     return 'https://' + url;
 }
 
 export function escapeLinkText(text) {
-    // Thêm \ trước [ và ]
     return text.replace(/([\[\]])/g, '\\$1');
 }
 
@@ -90,8 +86,7 @@ export function wrapHtmlTag(val, selStart, selEnd, tag) {
 }
 
 export function buildBlockFence(kind, body) {
-    // Chỉ thay placeholder khi body rỗng/toàn khoảng trắng; giữ nguyên nội dung (kể cả thụt lề) vì vùng chọn
-    // đưa vào code block đã được indent sẵn.
+    // Chỉ thay placeholder khi body rỗng; nội dung vùng chọn đã được indent sẵn.
     const hasBody = body != null && String(body).trim() !== '';
     if (kind === 'math') {
         return '$$\n' + (hasBody ? body : 'f(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx') + '\n$$';

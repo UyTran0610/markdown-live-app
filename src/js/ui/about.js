@@ -1,9 +1,6 @@
-// js/ui/about.js — Nút "?" cuối toolbar: mở hộp thoại About (logo + tên + phiên bản) và
-// đọc LICENSE / THIRD_PARTY_NOTICES.md ngay trong hộp đó.
-//
-// Hai file nằm trong frontendDist (src/) nên fetch chạy được cả ở dev lẫn bản cài, hoàn toàn offline.
-// data-doc chỉ nhận đúng 2 tên hardcode ở index.html, và DOMPurify fail-closed, nên không có
-// bề mặt path traversal: tên file lấy thẳng từ data-doc, không ghép từ input người dùng.
+// js/ui/about.js — Nút ? cuối toolbar: hộp thoại About và đọc LICENSE / THIRD_PARTY_NOTICES.md.
+// Hai file nằm trong src/ nên fetch chạy offline ở cả dev lẫn bản cài; tên lấy từ data-doc hardcode
+// (không ghép từ input) nên không có path traversal.
 
 import {
     appVersion,
@@ -29,8 +26,7 @@ export function isInfoDialogOpen() {
     return !infoDialog.classList.contains('hidden');
 }
 
-// Một modal duy nhất, hai view: About (mặc định) và tài liệu. .dialog-wide làm modal rộng ra
-// khi đọc tài liệu dài; quay lại About thì thu về .dialog mặc định.
+// Một modal, hai view: About và tài liệu; .dialog-wide chỉ khi đọc tài liệu dài.
 function showAbout() {
     infoDoc.classList.add('hidden');
     infoAbout.classList.remove('hidden');
@@ -69,7 +65,7 @@ async function showDoc(name) {
         return;
     }
 
-    // Fail-closed y như renderMarkdown: không có marked/DOMPurify thì hiện text thuần, không đụng innerHTML.
+    // Fail-closed như renderMarkdown: thiếu marked/DOMPurify thì hiện text thuần, không đụng innerHTML.
     if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
         infoBody.textContent = text;
         return;
@@ -77,15 +73,14 @@ async function showDoc(name) {
     infoBody.innerHTML = DOMPurify.sanitize(marked.parse(text), {
         USE_PROFILES: { html: true, mathMl: true, svg: true },
         ADD_ATTR: ['target', 'rel'],
-        // Khác MERMAID_SANITIZE_CONFIG: chỉ nhận URL có scheme. initPreviewLinks() chỉ bind vào
-        // previewOutput nên link tương đối trong modal ("[LICENSE](LICENSE)") sẽ điều hướng cả
-        // WebView khỏi app; ở đây DOMPurify gỡ href, link còn lại thành text thuần.
+        // Khác Mermaid: chỉ nhận URL có scheme. initPreviewLinks() chỉ bind vào previewOutput nên link
+        // tương đối trong modal sẽ điều hướng cả WebView; ở đây DOMPurify gỡ href, còn lại text thuần.
         ALLOWED_URI_REGEXP: /^(?:https?|mailto|tel|callto|ftp):/i
     });
 }
 
 export function initAbout() {
-    // Số phiên bản do scripts/sync-version.js ghi vào <meta name="app-version"> mỗi lần dev/build.
+    // scripts/sync-version.js ghi phiên bản vào <meta name="app-version"> mỗi lần dev/build.
     appVersion.textContent = document.querySelector('meta[name="app-version"]')?.content || '';
 
     btnHelp.addEventListener('click', openAboutDialog);
@@ -104,10 +99,7 @@ export function initAbout() {
         if (e.target === infoDialog) closeInfoDialog();
     });
 
-    // Chặn phím lọt xuống editor bên dưới; Esc phải xử lý ở đây. Modal có 2 view nên Esc lùi
-    // từng tầng: ở view tài liệu thì về About (y hệt nút Back), ở view About mới đóng hộp.
-    // Tab giữ vòng focus giữa các nút của view đang mở (About có 2 mục, doc có Back) —
-    // cùng pattern ui/dialogs.js.
+    // Esc lùi từng tầng: view tài liệu về About, view About mới đóng. Tab giữ vòng focus trong view.
     infoDialog.addEventListener('keydown', (e) => {
         e.stopPropagation();
         if (e.key === 'Escape') {
@@ -116,8 +108,7 @@ export function initAbout() {
             else backToAbout();
         } else if (e.key === 'Tab') {
             e.preventDefault();
-            // offsetParent === null ⇔ display:none: view ẩn (About / tài liệu) vẫn còn trong DOM,
-            // focus() vào nút ẩn là no-op nên vòng focus sẽ kẹt. Chỉ xét nút đang hiện.
+            // offsetParent === null là display:none: focus() vào nút ẩn là no-op nên chỉ xét nút đang hiện.
             const focusables = Array.from(infoDialog.querySelectorAll('button'))
                 .filter((b) => b.offsetParent !== null);
             const idx = focusables.indexOf(document.activeElement);

@@ -1,5 +1,5 @@
-// js/ui/about.js — Nút ? cuối toolbar: hộp thoại About và đọc LICENSE / THIRD_PARTY_NOTICES.md.
-// Hai file nằm trong src/ nên fetch chạy offline ở cả dev lẫn bản cài; tên lấy từ data-doc hardcode
+// js/ui/about.js — Nút ? cuối toolbar: hộp thoại About và đọc LICENSE / PRIVACY.md / THIRD_PARTY_NOTICES.md.
+// Các file nằm trong src/ nên fetch chạy offline ở cả dev lẫn bản cài; tên lấy từ data-doc hardcode
 // (không ghép từ input) nên không có path traversal.
 
 import {

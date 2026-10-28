@@ -102,11 +102,12 @@ function highlightMarkdownLine(line) {
     return highlightInline(escapeHtml(line));
 }
 
-export function highlightMarkdown(text) {
+// state: trạng thái khối ở đầu đoạn text, cho cửa sổ tô màu bắt đầu giữa fence / comment / khối toán.
+export function highlightMarkdown(text, state = {}) {
     const lines = text.split('\n');
-    let inFence = false;
-    let inMathBlock = false;
-    let inHtmlComment = false;
+    let inFence = state.inFence === true;
+    let inMathBlock = state.inMathBlock === true;
+    let inHtmlComment = state.inHtmlComment === true;
     let inIndentedCode = false;
 
     const isPlainPara = (s) => {

@@ -94,7 +94,8 @@ export async function runPerfCheck() {
                 renderTimes.push(performance.now() - start);
 
                 start = performance.now();
-                updateEditorHighlight();
+                // force: nội dung không đổi nên lượt 2-3 sẽ bỏ qua nếu không ép dựng lại.
+                updateEditorHighlight(true);
                 void editorHighlightCode.offsetHeight;
                 highlightTimes.push(performance.now() - start);
 

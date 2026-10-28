@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
+import { editorHighlightCode, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -15,6 +15,7 @@ import {
     wrapHtmlTag
 } from '../editor/format-helpers.js';
 import { editorHistory, pruneAllHistories } from '../editor/history.js';
+import { updateEditorHighlight } from '../editor/highlight.js';
 import { syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
@@ -610,6 +611,25 @@ export async function runSelfCheck() {
         assert('katex font key chuẩn hoá bold/normal/nháy',
             katexFontKey('KaTeX_Main', 'normal', 'bold') === 'KaTeX_Main|normal|700'
             && katexFontKey('"KaTeX_Math"', 'italic', '400') === 'KaTeX_Math|italic|400');
+
+        await section('tô màu editor', async () => {
+            const longDoc = '# Tiêu đề\n\n' + 'đoạn **đậm** và `code` cùng [link](https://example.com)\n\n'.repeat(800);
+            markdownInput.value = longDoc;
+            markdownInput.scrollTop = 0;
+            updateEditorHighlight();
+            // Pane ẩn (chế độ Preview) thì highlight chủ động bỏ qua vì mọi số đo bằng 0.
+            if (!markdownInput.clientWidth) {
+                skip('tô màu editor', 'pane đang ẩn');
+                return;
+            }
+            // Ngoài cửa sổ là text thô; toàn bộ chữ vẫn phải khớp textarea, lệch là caret trôi khỏi chữ.
+            assert('highlight giữ đúng toàn bộ chữ của textarea', editorHighlightCode.textContent === longDoc + '\n');
+            markdownInput.scrollTop = markdownInput.scrollHeight;
+            updateEditorHighlight();
+            assert('cuộn xuống đáy vẫn giữ đúng chữ', editorHighlightCode.textContent === longDoc + '\n');
+            // Chỉ cửa sổ được tô: phần trên là text thô, nếu tô cả file thì node đầu rỗng.
+            assert('chỉ tô cửa sổ, phần ngoài là text thô', editorHighlightCode.firstChild.length > 0);
+        });
 
         let mark = results.length;
         if (typeof katex !== 'undefined') await section('KaTeX -> MathML', async () => {

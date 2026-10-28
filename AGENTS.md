@@ -11,7 +11,7 @@ Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no b
 - CSS (`src/css/*.css`): `tokens` -> `base` -> `layout` -> `format-bar` -> `dialogs` -> `toast` -> `toolbar` -> `tabs` -> `editor` -> `preview` -> `print`
 - scripts, all `defer`, in order: lucide, marked, purify, highlight, mermaid, katex, marked-katex-extension
 
-`src/js/main.js` imports each module, calls its `initXxx()` in a fixed order (see Init order) and owns the only `DOMContentLoaded`. Most modules export one `initXxx()` that only registers listeners; the exceptions are `dev/selfcheck.js` (`runSelfCheck`), `io/documents.js` and `preview/render.js`, which export their functions directly.
+`src/js/main.js` imports each module, calls its `initXxx()` in a fixed order (see Init order) and owns the only `DOMContentLoaded`. Most modules export one `initXxx()` that only registers listeners; the exceptions are `dev/selfcheck.js` (`runSelfCheck`), `dev/perfcheck.js` (`runPerfCheck`), `io/documents.js` and `preview/render.js`, which export their functions directly.
 
 | Path | Role |
 |---|---|
@@ -24,6 +24,7 @@ Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no b
 | `src/js/ui/` | `tabs.js` (tab strip: unsaved dot, broken-file mark, roving tabindex + Enter/Space/Delete on the focused tab, close / new-tab, Save / Save As / Save All state, drag-to-reorder — lift with `position:fixed`, FLIP the rest, commit with `moveTab()`; only scrolls the active tab into view when the active tab actually changed), `tab-menu.js` (right-click menu on a tab + Recent + Clear Recent + all-tabs list; bulk close asks one dialog for the whole group and passes `{ force: true }` to each `closeTab`), `popup-menu.js` (the one popup element all three menus share), `confirm-dialog.js` (3-button dialog → Promise; replaces `confirm()`), `status-bar.js` (EOL toggle, caret position, encoding), `view-mode.js` (Editor / Split / Preview + pane divider), `format-toolbar.js`, `dialogs.js`, `about.js`, `scroll-sync.js`, `window-controls.js` (the self-drawn titlebar's window buttons **and** `onCloseRequested`, which is the only reliable "app is quitting" hook). |
 | `src/js/theme/theme.js` | Light / Dark apply, persist, follow system. All 4 preview vendor CSS are preloaded and toggled via `media`, so the switch is one synchronous tick inside a View Transition. |
 | `src/js/dev/selfcheck.js` | Quick self-check suite (`?selfcheck`). |
+| `src/js/dev/perfcheck.js` | Performance harness: preview render + editor highlight at 20k/100k/200k/400k chars (`?perf`, results in `console.table`). |
 | `src/css/` | One file per area, in the load order above. `dialogs.css` hides dialogs with `visibility` + `pointer-events: none`, never `display: none` — that would kill the transition. `tabs.css` reuses the `.btn` / `.btn.active` tokens, no new colours. `print.css` holds the print / PDF rules. |
 | `src/vendor/` | Locally bundled third-party libs. `highlight.min.js` is a hand-built 193-language esbuild bundle — npm ships no browser build, so `scripts/vendor-update.js` keeps it in `MANUAL_PACKAGES` and documents the rebuild recipe in its header comment. Must stay fully offline: never add CDN links. |
 | `src-tauri/src/lib.rs` | Rust backend; `greet` + `take_initial_paths` commands, `clipboard-manager`, `opener`, `dialog`, `fs` plugins, plus `single-instance` (which is Rust-only and must be registered FIRST, or a second launch writes over the same IndexedDB session). The only other Rust responsibility is keeping the first launch's argv in `InitialPaths` (see `.setup()`). All other logic lives in JS. |
@@ -68,7 +69,7 @@ Tauri v2 + vanilla JS/HTML/CSS offline-first Markdown editor. No framework, no b
 ## Commands
 
 - `npm run vendor` refreshes `src/vendor/` (`scripts/vendor-update.js`); `npm run tauri build` makes NSIS/MSI, CI publishes Portable `.exe`, Setup `.exe`, `.msi`.
-- Testing = `?selfcheck` only; there are no other test/lint/format commands.
+- Testing = `?selfcheck` (correctness) and `?perf` (timings, `console.table`); there are no other test/lint/format commands.
 - Do NOT launch the app yourself. `npm run tauri dev` opens a desktop window; leave running it to the user and say so in your report.
 
 ## Versioning

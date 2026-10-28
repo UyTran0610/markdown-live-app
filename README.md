@@ -278,7 +278,7 @@ markdown-live-app/
 │   │   ├── io/                 # Tab & document store, import from disk
 │   │   ├── ui/                 # Format bar, dialogs, tabs, scroll sync, view modes
 │   │   ├── theme/              # Light / Dark theme
-│   │   └── dev/                # Self-check suite (open with ?selfcheck)
+│   │   └── dev/                # Self-check (?selfcheck) + perf harness (?perf)
 │   ├── vendor/                 # Local 3rd-party bundles (marked, katex,
 │   │   └── fonts/              # mermaid...) + KaTeX web fonts
 │   ├── THIRD_PARTY_NOTICES.md  # Licences of the bundled vendor libraries

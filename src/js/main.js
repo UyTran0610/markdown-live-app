@@ -1,5 +1,6 @@
 // js/main.js — Điểm vào của ứng dụng: khởi tạo các module theo đúng thứ tự.
 
+import { runPerfCheck } from './dev/perfcheck.js';
 import { runSelfCheck } from './dev/selfcheck.js';
 import { initContentActions } from './editor/content.js';
 import { initEditorEvents } from './editor/events.js';
@@ -74,6 +75,13 @@ if (location.search.includes('selfcheck')) {
     window.addEventListener('DOMContentLoaded', async () => {
         await ready;
         runSelfCheck();
+    });
+}
+
+if (location.search.includes('perf')) {
+    window.addEventListener('DOMContentLoaded', async () => {
+        await ready;
+        runPerfCheck();
     });
 }
 

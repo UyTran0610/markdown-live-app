@@ -278,7 +278,7 @@ markdown-live-app/
 │   │   ├── io/                 # Lưu trữ tab & tài liệu, nhập file từ ổ đĩa
 │   │   ├── ui/                 # Thanh định dạng, hộp thoại, tab, đồng bộ cuộn, chế độ xem
 │   │   ├── theme/              # Theme Sáng / Tối
-│   │   └── dev/                # Bộ tự kiểm tra (mở với ?selfcheck)
+│   │   └── dev/                # Tự kiểm tra (?selfcheck) + đo hiệu năng (?perf)
 │   ├── vendor/                 # Thư viện bên thứ 3 lưu cục bộ (marked, katex,
 │   │   └── fonts/              # mermaid...) + font web KaTeX
 │   ├── THIRD_PARTY_NOTICES.md  # Giấy phép của các thư viện trong vendor/

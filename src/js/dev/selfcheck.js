@@ -650,7 +650,7 @@ export async function runSelfCheck() {
             const aboutItems = document.querySelectorAll('.about-item');
             assert('nút ? là nút cuối toolbar', document.querySelector('.toolbar').lastElementChild.querySelector('#btn-help') !== null);
             assert('nút ? không còn dropdown', document.getElementById('help-menu') === null);
-            assert('about có 2 mục tài liệu', aboutItems.length === 2);
+            assert('about có 3 mục tài liệu', aboutItems.length === 3);
 
             document.getElementById('btn-help').click();
             assert('bấm ? mở thẳng modal About', isInfoDialogOpen());

@@ -261,7 +261,7 @@
     color: var(--text-secondary);
 }
 
-/* 2 mục tài liệu dùng lại style hàng menu của toolbar, trải hết bề ngang. */
+/* 3 mục tài liệu dùng lại style hàng menu của toolbar, trải hết bề ngang. */
 .about-list {
     display: flex;
     flex-direction: column;

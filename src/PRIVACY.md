@@ -1,6 +1,6 @@
 # Privacy Statement
 
-**Markdown Live** — Last updated: October 27, 2026
+**Markdown Live** — Last updated: October 28, 2026
 
 Markdown Live is an offline-first Markdown editor for Windows. This statement explains what the application does with your information. It applies to the desktop application distributed through GitHub Releases. It does not apply to the GitHub website, to websites you open from the app, or to third-party services you choose to use.
 
@@ -9,7 +9,7 @@ In this statement, **"we"** means the developer of Markdown Live, **"the app"** 
 ## Summary
 
 - We do not collect, transmit, or share your documents or usage data.
-- There are no accounts, analytics, telemetry, advertising, or tracking.
+- The app has no accounts, analytics, telemetry, advertising, or tracking.
 - Your documents and settings stay on your device.
 - The editor works without an internet connection. Only remote content in a document, or a link you click, uses the network.
 
@@ -37,7 +37,7 @@ The app stores the following information locally so it can restore your workspac
 | :--- | :--- |
 | Unsaved drafts and text of untitled tabs | Restore work you have not saved yet |
 | Paths and last-known modification times of open files | Reopen tabs and detect changes made outside the app |
-| Tab order, active tab, pinned tabs, cursor and scroll position | Restore your workspace as you left it |
+| Tab order, active tab, pinned tabs, and the editor's cursor and scroll position | Restore your workspace as you left it |
 | Theme, view mode, and line-ending style (LF / CRLF) | Reopen with your settings |
 | Recent files (up to 10 paths) | Populate the **Recent** menu |
 
@@ -45,7 +45,7 @@ The app keeps this information in its local data folder:
 
 `%LOCALAPPDATA%\com.uytran.markdownlive`
 
-Tab and session data live in IndexedDB; preferences live in local storage. The app does not add its own encryption, so access is controlled by your Windows user account.
+Theme and view mode live in local storage; tab, session, recent-file, and line-ending data live in IndexedDB. The app does not add its own encryption, so access is controlled by your Windows user account.
 
 You control this information:
 
@@ -54,11 +54,11 @@ You control this information:
 - The **Clear** button in the editor empties the editor; it does not delete the file on disk.
 - To remove all local app data, close the app and delete the folder above. Uninstalling the app or deleting the portable executable removes the program, but the local data folder may remain until you delete it.
 
-Local data remains until you clear it or delete the folder. Closing a tab or removing the app does not delete your Markdown files.
+Local data remains until you remove it as described above or delete the folder. Closing a tab or removing the app does not delete your Markdown files.
 
 ## 3. Access to Your Files
 
-The app reads and writes document files only when you choose to open or save them. You can open a file with the **Open** dialog, by dragging it into the window, from the **Recent** list, by opening it from Windows (file association), or by restoring a previous session. **Save** writes to the file's existing path without asking again; **Save As** and **Export** ask where to write the new file.
+The app reads or writes the contents of document files only when you open, save, export, or restore them. You can open a file with the **Open** dialog, by dragging it into the window, from the **Recent** list, by opening it from Windows (file association), or by restoring a previous session. **Save** writes to the file's existing path without asking again; **Save As** and **Export** ask where to write the new file.
 
 While a file is open, the app checks the active file when the window regains focus or when you switch to its tab. If the file changed on disk, the app asks what to do before overwriting it.
 
@@ -72,15 +72,15 @@ The editor works without an internet connection for local documents. The excepti
 
 ## 5. Clipboard
 
-The **Copy** action places the Markdown text of the current tab on the system clipboard. **Copy Path** in a tab's context menu places that file's path on the clipboard. The app writes to the clipboard only when you use one of these actions, and it does not read or monitor the clipboard in the background. Pasting into the editor is a standard editor action performed at your request.
+The **Copy** action places the Markdown text of the current tab on the system clipboard. **Copy Path** in a tab's context menu places that file's path on the clipboard. The app's own code writes to the clipboard only for these actions; standard cut, copy, and paste actions also use the clipboard at your request. The app does not read or monitor the clipboard in the background.
 
 ## 6. Network Activity
 
 The app itself does not send data over the network. It does not contact us, use analytics, or check for updates automatically. The following actions can involve the network:
 
-- **Links:** Clicking a link in the preview opens it in your default web browser. That website is governed by its own privacy policy.
-- **Remote content in your documents:** If your Markdown references a remote resource (for example, an image hosted at an `https://` address), displaying it may cause your device to request it from that server, which can reveal your IP address to that server. This is determined by the content of your document, not by data collection in the app.
-- **Downloading the app:** Releases are distributed through GitHub. Downloading from GitHub is subject to [GitHub's Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+- **External links:** Clicking an external link in a document or the **About** dialog opens it in your default web browser (or your default mail or phone app for `mailto:` and `tel:` links). That website or service is governed by its own privacy policy.
+- **Remote content in your documents:** If your Markdown references a remote resource (for example, an image hosted at an `https://` address), displaying it may cause your device to request it from that server. That request can reveal your IP address to the server, along with the fact that you viewed the document. The embedded WebView2 may also store cookies or cached copies of that content in the app's local data folder; deleting that folder removes them. This is determined by the content of your document, not by data collection in the app.
+- **Downloading the app:** Releases are distributed through GitHub. Downloading from GitHub is subject to [GitHub's Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). The Windows installer may also download the Microsoft Edge WebView2 Runtime from Microsoft if it is not already installed.
 
 ## 7. Third-Party Components
 

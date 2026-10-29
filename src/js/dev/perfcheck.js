@@ -103,15 +103,15 @@ export async function runPerfCheck() {
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
-            // Cuộn: cả stack thật của một bước cuộn phải dựng lại cửa sổ tô màu.
-            // force: nếu tài liệu chưa đủ cao để nhảy ra ngoài vùng phủ thì cache sẽ bỏ qua lượt đo.
+            // Cuộn: đo đúng đường cuộn thật — chỉ lô ở hai mép được tô lại.
+            // Không force: force dựng lại cả lớp nên con số sẽ là đường sửa văn bản, không phải đường cuộn.
             const scrollable = markdownInput.scrollHeight - markdownInput.clientHeight;
             const scrollTimes = [];
             for (let run = 0; run < RUNS; run++) {
                 let start = performance.now();
                 markdownInput.scrollTop = Math.round(scrollable * (run % 2 === 0 ? 0.85 : 0.15));
                 editorHighlight.scrollTop = markdownInput.scrollTop;
-                updateEditorHighlight(true);
+                updateEditorHighlight();
                 void editorHighlightCode.offsetHeight;
                 scrollTimes.push(performance.now() - start);
                 await new Promise((resolve) => setTimeout(resolve, 0));

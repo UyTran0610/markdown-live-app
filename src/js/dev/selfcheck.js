@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { editorHighlightCode, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
+import { editorHighlight, editorHighlightCode, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -624,11 +624,13 @@ export async function runSelfCheck() {
             }
             // Ngoài cửa sổ là text thô; toàn bộ chữ vẫn phải khớp textarea, lệch là caret trôi khỏi chữ.
             assert('highlight giữ đúng toàn bộ chữ của textarea', editorHighlightCode.textContent === longDoc + '\n');
+            // Chia lô không được thêm/bớt dòng ở ranh giới: lớp tô màu phải cao đúng bằng textarea.
+            assert('lớp tô màu cao bằng textarea', Math.abs(editorHighlight.scrollHeight - markdownInput.scrollHeight) <= 2);
             markdownInput.scrollTop = markdownInput.scrollHeight;
             updateEditorHighlight();
             assert('cuộn xuống đáy vẫn giữ đúng chữ', editorHighlightCode.textContent === longDoc + '\n');
-            // Chỉ cửa sổ được tô: phần trên là text thô, nếu tô cả file thì node đầu rỗng.
-            assert('chỉ tô cửa sổ, phần ngoài là text thô', editorHighlightCode.firstChild.length > 0);
+            // Chỉ cửa sổ được tô: lô đầu đang ngoài cửa sổ là text thô, nếu tô cả file thì nó có span con.
+            assert('chỉ tô cửa sổ, phần ngoài là text thô', !editorHighlightCode.firstElementChild.querySelector('span'));
         });
 
         let mark = results.length;

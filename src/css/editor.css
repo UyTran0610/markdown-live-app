@@ -101,6 +101,11 @@
     background: none;
 }
 
+/* Mỗi lô là một block độc lập: đổi cửa sổ tô màu chỉ layout lại lô đó, không phải cả tài liệu. */
+#editor-highlight-code > span {
+    display: block;
+}
+
 .md-header-marker { color: var(--md-header-marker); font-weight: 600; }
 .md-header { font-weight: 700; }
 .md-header-1 { color: var(--md-header-1); }

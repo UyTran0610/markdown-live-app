@@ -1,6 +1,6 @@
-// js/dev/perfcheck.js — Đo hiệu năng render preview + tô màu editor, mở app với ?perf.
+// js/dev/perfcheck.js — Đo hiệu năng render preview + tô màu editor + cuộn trang, mở app với ?perf.
 
-import { editorHighlightCode, markdownInput, previewOutput, viewItems } from '../core/dom.js';
+import { editorHighlight, editorHighlightCode, markdownInput, previewOutput, viewItems } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { editorHistory } from '../editor/history.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
@@ -103,11 +103,27 @@ export async function runPerfCheck() {
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
+            // Cuộn: cả stack thật của một bước cuộn phải dựng lại cửa sổ tô màu.
+            // force: nếu tài liệu chưa đủ cao để nhảy ra ngoài vùng phủ thì cache sẽ bỏ qua lượt đo.
+            const scrollable = markdownInput.scrollHeight - markdownInput.clientHeight;
+            const scrollTimes = [];
+            for (let run = 0; run < RUNS; run++) {
+                let start = performance.now();
+                markdownInput.scrollTop = Math.round(scrollable * (run % 2 === 0 ? 0.85 : 0.15));
+                editorHighlight.scrollTop = markdownInput.scrollTop;
+                updateEditorHighlight(true);
+                void editorHighlightCode.offsetHeight;
+                scrollTimes.push(performance.now() - start);
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
             rows.push({
                 chars: markdownInput.value.length,
                 'render median (ms)': round1(median(renderTimes)),
                 'render max (ms)': round1(Math.max(...renderTimes)),
-                'highlight median (ms)': round1(median(highlightTimes))
+                'highlight median (ms)': round1(median(highlightTimes)),
+                'scroll median (ms)': round1(median(scrollTimes)),
+                'scroll max (ms)': round1(Math.max(...scrollTimes))
             });
         }
     } catch (err) {

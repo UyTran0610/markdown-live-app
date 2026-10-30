@@ -27,6 +27,7 @@
     .dialog-overlay,
     .drop-overlay,
     #pane-resizer,
+    #pane-resizer-ghost,
     .popup-menu,
     .status-bar,
     .toast {

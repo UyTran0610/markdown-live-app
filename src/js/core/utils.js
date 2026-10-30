@@ -1,12 +1,14 @@
 // js/core/utils.js — debounce, kiểm tra URL ngoài, slug dùng chung cho heading và tên file.
 
+// delay có thể là số hoặc hàm: tài liệu lớn cần chờ lâu hơn trước khi render preview.
 export function debounce(func, delay = 300) {
     let timeoutId;
     return function (...args) {
         clearTimeout(timeoutId);
+        const wait = typeof delay === 'function' ? delay() : delay;
         timeoutId = setTimeout(() => {
             func.apply(this, args);
-        }, delay);
+        }, wait);
     };
 }
 

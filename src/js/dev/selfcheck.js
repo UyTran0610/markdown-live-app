@@ -1,6 +1,7 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
 import { editorHighlight, editorHighlightCode, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
+import { isResizingPanes, setPanesResizing } from '../core/flags.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
@@ -17,7 +18,7 @@ import {
 import { editorHistory, pruneAllHistories } from '../editor/history.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
 import { highlightMarkdown } from '../editor/syntax/block.js';
-import { syncEditorAfterChange } from '../editor/sync.js';
+import { renderDelayFor, syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
 import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
@@ -34,11 +35,14 @@ import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
 import { dropIndex, disambiguateTabName, tabScrollState } from '../ui/tabs.js';
 import {
+    GHOST_DRAG_MIN_CHARS,
     SPLIT_MAX_PERCENT,
     SPLIT_MIN_PERCENT,
     computeSplitPercent,
     computeViewModeFromPercent,
-    isValidViewMode
+    ghostOffsetPx,
+    isValidViewMode,
+    usesGhostDrag
 } from '../ui/view-mode.js';
 
 export async function runSelfCheck() {
@@ -126,6 +130,27 @@ export async function runSelfCheck() {
         assert('kéo giữa -> split', computeViewModeFromPercent(50) === 'split');
         assert('view mode rác bị từ chối', isValidViewMode('abc') === false && isValidViewMode('') === false);
         assert('view mode hợp lệ được nhận', isValidViewMode('editor') && isValidViewMode('split') && isValidViewMode('preview'));
+
+        // Kéo thanh chia: ngưỡng ghost, vị trí thanh ảo, cờ đang kéo pane.
+        assert('tài liệu nhỏ kéo live', usesGhostDrag(GHOST_DRAG_MIN_CHARS) === false);
+        assert('tài liệu lớn kéo ghost', usesGhostDrag(GHOST_DRAG_MIN_CHARS + 1) === true);
+        assert('ngưỡng ghost là 100k ký tự', GHOST_DRAG_MIN_CHARS === 100000);
+        assert('thanh ảo giữa vùng -> lệch nửa bề rộng', ghostOffsetPx(50, 1000) === 497.5);
+        assert('thanh ảo ở mép trái -> lệch âm nửa bề dày', ghostOffsetPx(0, 1000) === -2.5);
+        assert('cờ kéo pane mặc định tắt', isResizingPanes() === false);
+        setPanesResizing(true);
+        assert('cờ kéo pane bật khi đang kéo', isResizingPanes() === true);
+        setPanesResizing(false);
+        assert('cờ kéo pane tắt lại sau khi kéo', isResizingPanes() === false);
+
+        // Render preview phải giãn debounce theo độ dài: tài liệu lớn render 1.1–2.2s,
+        // chạy giữa lúc gõ sẽ cướp main thread.
+        assert('render file nhỏ chờ 300ms', renderDelayFor(0) === 300);
+        assert('render file 99k chờ 300ms', renderDelayFor(99000) === 300);
+        assert('render file 100k chờ 450ms', renderDelayFor(100000) === 450);
+        assert('render file 200k chờ 600ms', renderDelayFor(200000) === 600);
+        assert('render file 400k chờ 900ms', renderDelayFor(400000) === 900);
+        assert('render file rất lớn không vượt 1s', renderDelayFor(5000000) === 1000);
 
         assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
         assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);
@@ -748,6 +773,35 @@ export async function runSelfCheck() {
                 }
             }
             assert('fuzz tô màu tăng dần: 8 batch khớp bản dựng mới', ok);
+            // Đếm số lần đọc scrollHeight: đọc là ép layout toàn textarea.
+            // Gõ tay (số dòng không đổi) phải KHÔNG đọc, còn dán lôi thì phải đọc lại,
+            // nếu không ước lượng wrap lệch xa và vùng nhìn thấy sẽ mất màu tô.
+            const reads = { n: 0 };
+            const scrollHeightDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+            if (scrollHeightDesc && scrollHeightDesc.get && markdownInput.clientWidth > 0) {
+                Object.defineProperty(markdownInput, 'scrollHeight', {
+                    configurable: true,
+                    get() { reads.n++; return scrollHeightDesc.get.call(this); }
+                });
+                try {
+                    const base = 'a\nb\nc' + 'z'.repeat(20000);
+                    markdownInput.value = base;
+                    updateEditorHighlight(true);
+                    const afterBuild = reads.n;
+                    markdownInput.value = 'a\nb\ncX' + 'z'.repeat(20000);
+                    updateEditorHighlight();
+                    const afterTyping = reads.n;
+                    markdownInput.value = 'a\nb\nc' + 'y'.repeat(5000) + 'z'.repeat(20000);
+                    updateEditorHighlight();
+                    const afterPaste = reads.n;
+                    assert('gõ tay không đọc scrollHeight (không ép layout)', afterTyping === afterBuild);
+                    assert('dán lôi đo lại scrollHeight', afterPaste > afterTyping);
+                } finally {
+                    delete markdownInput.scrollHeight;
+                }
+            } else {
+                skip('đếm lần đọc scrollHeight', 'editor đang ẩn hoặc trình duyệt không có getter');
+            }
             markdownInput.value = saved;
             markdownInput.scrollTop = savedScroll;
             updateEditorHighlight(true);

@@ -72,6 +72,8 @@ export const workspace = document.querySelector('.workspace');
 
 export const paneResizer = document.getElementById('pane-resizer');
 
+export const paneResizerGhost = document.getElementById('pane-resizer-ghost');
+
 export const viewWrap = document.querySelector('.view-wrap');
 
 export const btnView = document.getElementById('btn-view');

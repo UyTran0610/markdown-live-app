@@ -52,6 +52,25 @@ body.resizing {
     -webkit-user-select: none;
 }
 
+/* Kéo thanh chia: khoá hover/cursor trong pane để không tốn phí hit-test mỗi frame. */
+body.resizing .editor-pane,
+body.resizing .preview-pane {
+    pointer-events: none;
+}
+
+/* Thanh chia ảo: pane đứng yên, chỉ thanh này bám chuột bằng transform (GPU, không reflow). */
+#pane-resizer-ghost {
+    position: fixed;
+    display: none;
+    top: 0;
+    left: 0;
+    width: 5px;
+    background: var(--btn-active-border);
+    pointer-events: none;
+    z-index: 30;
+    will-change: transform;
+}
+
 /* Trước khi script.js gắn class (flash 1 khung hình): layout mặc định là split */
 .editor-pane,
 .preview-pane {

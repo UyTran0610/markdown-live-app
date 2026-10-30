@@ -1,6 +1,7 @@
 // js/editor/highlight.js — Lớp tô màu cú pháp phía sau textarea (chỉ tô vùng nhìn thấy).
 
 import { editorHighlight, editorHighlightCode, markdownInput } from '../core/dom.js';
+import { isResizingPanes } from '../core/flags.js';
 import { highlightMarkdown } from './syntax/block.js';
 
 // Phải khớp #markdown-input / #editor-highlight trong css/editor.css.
@@ -13,6 +14,10 @@ const OVERSCAN = 1.5;
 const CHUNK_LINES = 128;
 // Vùng đổi rộng hơn tỉ lệ này thì dựng lại cả lớp (chép nguyên tài liệu, đổi tab).
 const FULL_REBUILD_RATIO = 0.5;
+// Ngân sách lệch của ước lượng wrap: số ký tự đã sửa kể từ lần đo scrollHeight gần nhất.
+// Gõ tay mỗi phím chỉ dùng 1 ký tự nên không bao giờ chạm ngân sách; dán lôi thì chạm,
+// và lúc đó phải đo lại, nếu không ước lượng lệch xa và vùng nhìn thấy mất màu tô.
+const TOP_REFRESH_CHARS = 200;
 
 // ?perf: perfcheck bật cờ này để đếm đường đi của lớp tô màu; tắt thì không tốn gì.
 export const highlightPerf = {
@@ -31,6 +36,8 @@ let lastWidth = 0;
 let tops = [];
 let lineCount = 0;
 let chunks = [];
+// Số ký tự đã sửa kể từ lần tính tops gần nhất (xem TOP_REFRESH_CHARS).
+let topDrift = 0;
 
 const EMPTY_STATE = { inFence: false, inHtmlComment: false, inMathBlock: false };
 
@@ -70,6 +77,7 @@ function updateTops(lines) {
     const totalRows = Math.max(1, Math.round((markdownInput.scrollHeight - PAD_Y * 2) / LINE_HEIGHT));
     tops = lineTops(lines, totalRows);
     lineCount = lines.length;
+    topDrift = 0;
 }
 
 // Thứ tự ưu tiên giống vòng lặp trong highlightMarkdown: comment -> fence -> toán.
@@ -210,7 +218,11 @@ function editLayer(prev, text) {
             chunk.painted = false;
         }
     }
-    updateTops(lines);
+    // Số dòng không đổi thì đỉnh dòng (chỉ dùng chọn cửa sổ tô màu) vẫn gần đúng: bỏ qua
+    // updateTops để không đọc scrollHeight, vì đọc là ép layout toàn bộ textarea (35–130ms mỗi phím).
+    // Sửa lôi (dán) thì ngân sách lệch đầy -> phải đo lại, nếu không vùng nhìn thấy sẽ mất màu.
+    topDrift += changed;
+    if (lineDelta !== 0 || topDrift > TOP_REFRESH_CHARS) updateTops(lines);
     return true;
 }
 
@@ -293,5 +305,9 @@ export function initEditorHighlight() {
     // Cuộn không đổi nội dung thì cửa sổ tô màu phải trôi theo; guard trong update lo phần bỏ qua.
     markdownInput.addEventListener('scroll', scheduleEditorHighlight);
     // Đổi bề rộng (kéo divider, đổi view, maximize) là đổi chỗ wrap của cả hai lớp.
-    new ResizeObserver(scheduleEditorHighlight).observe(markdownInput);
+    // Đang kéo divider thì tạm dừng: tô lại mỗi frame tốn 77–193ms, tô một lần lúc nhả chuột.
+    new ResizeObserver(() => {
+        if (isResizingPanes()) return;
+        scheduleEditorHighlight();
+    }).observe(markdownInput);
 }

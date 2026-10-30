@@ -14,6 +14,17 @@ const CHUNK_LINES = 128;
 // Vùng đổi rộng hơn tỉ lệ này thì dựng lại cả lớp (chép nguyên tài liệu, đổi tab).
 const FULL_REBUILD_RATIO = 0.5;
 
+// ?perf: perfcheck bật cờ này để đếm đường đi của lớp tô màu; tắt thì không tốn gì.
+export const highlightPerf = {
+    enabled: false,
+    build: 0,
+    edited: 0,
+    editFailed: 0,
+    paintCalls: 0,
+    paintedChunks: 0,
+    chunks: 0
+};
+
 // Đỉnh từng dòng và các lô hiện tại; text đổi thì chỉ dựng lại vùng bị chạm, bề rộng đổi thì chỉ tính lại đỉnh.
 let lastText = null;
 let lastWidth = 0;
@@ -109,6 +120,7 @@ function chunkAtLine(line) {
 // Toàn bộ tài liệu vẫn nằm trong lớp (đúng thứ tự) để wrap và caret khớp textarea;
 // chỉ có lô quanh viewport là HTML đã tô, phần còn lại là text thô.
 function buildLayer(text) {
+    if (highlightPerf.enabled) highlightPerf.build++;
     const lines = text.split('\n');
     updateTops(lines);
     chunks = [];
@@ -211,11 +223,17 @@ function paint(from, to) {
             chunk.painted = false;
         }
     }
+    let painted = 0;
     for (let i = from; i <= to; i++) {
         const chunk = chunks[i];
         if (chunk.painted) continue;
         chunk.el.innerHTML = highlightMarkdown(chunk.body, chunk.state);
         chunk.painted = true;
+        painted++;
+    }
+    if (highlightPerf.enabled) {
+        highlightPerf.paintCalls++;
+        highlightPerf.paintedChunks += painted;
     }
 }
 
@@ -225,13 +243,20 @@ export function updateEditorHighlight(force = false) {
     // Pane ẩn (chế độ Preview): mọi số đo bằng 0, ResizeObserver gọi lại khi pane hiện.
     if (!width) return;
     // Text đổi thì sửa lô; bề rộng đổi thì chỉ wrap đổi, không đụng nội dung lô nào.
-    if (force || lastText === null || (text !== lastText && !editLayer(lastText, text))) {
-        buildLayer(text);
-    } else if (text === lastText && width !== lastWidth) {
-        updateTops(text.split('\n'));
+    let rebuilt = force || lastText === null;
+    if (!rebuilt && text !== lastText) {
+        if (editLayer(lastText, text)) {
+            if (highlightPerf.enabled) highlightPerf.edited++;
+        } else {
+            if (highlightPerf.enabled) highlightPerf.editFailed++;
+            rebuilt = true;
+        }
     }
+    if (rebuilt) buildLayer(text);
+    else if (text === lastText && width !== lastWidth) updateTops(text.split('\n'));
     lastText = text;
     lastWidth = width;
+    if (highlightPerf.enabled) highlightPerf.chunks = chunks.length;
 
     const scrollTop = markdownInput.scrollTop;
     const viewHeight = markdownInput.clientHeight;

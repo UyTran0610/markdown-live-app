@@ -267,7 +267,7 @@ export function reopenClosedTab() {
     activateTab(open || createTab(closed));
 }
 
-export async function closeTab(id, { force = false } = {}) {
+export async function closeTab(id, { force = false, remember = true } = {}) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
     // force: đóng hàng loạt — người dùng đã trả lời một hộp thoại cho cả nhóm.
@@ -288,7 +288,8 @@ export async function closeTab(id, { force = false } = {}) {
         if (tabs.indexOf(tab) < 0) return;
     }
 
-    rememberClosedTab(tab);
+    // remember: false = tab tạm của perfcheck, không đẩy vào Ctrl+Shift+T.
+    if (remember) rememberClosedTab(tab);
     const wasActive = tab.id === activeId;
     const index = tabs.indexOf(tab);
     tabs.splice(index, 1);

@@ -138,19 +138,14 @@ export function highlightMarkdown(text, state = {}) {
             continue;
         }
 
-        // Fence code: ``` hoặc ~~~ (từ 3 ký tự), phần còn lại là info string
+        // Fence code: ``` hoặc ~~~ (từ 3 ký tự), phần còn lại là info string.
+        // Dòng đóng cũng phải giữ info string, nếu không lớp tô màu mất chữ so với textarea.
         const fenceMatch = line.match(/^(\s{0,3})(`{3,}|~{3,})(.*)$/);
         if (fenceMatch) {
             inIndentedCode = false;
-            if (!inFence) {
-                inFence = true;
-                const [, indent, marker, lang] = fenceMatch;
-                outputLines.push(`${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span><span class="md-fence-lang">${escapeHtml(lang)}</span>`);
-            } else {
-                inFence = false;
-                const [, indent, marker] = fenceMatch;
-                outputLines.push(`${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span>`);
-            }
+            inFence = !inFence;
+            const [, indent, marker, lang] = fenceMatch;
+            outputLines.push(`${escapeHtml(indent)}<span class="md-fence-marker">${escapeHtml(marker)}</span><span class="md-fence-lang">${escapeHtml(lang)}</span>`);
             continue;
         }
 

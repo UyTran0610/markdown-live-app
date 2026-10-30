@@ -11,16 +11,17 @@ const OVERSCAN = 1.5;
 // Lớp chia lô theo dòng, mỗi lô một block (xem #editor-highlight-code > span trong css/editor.css):
 // đổi cửa sổ chỉ layout lại lô ở hai mép, không ngắt dòng lại cả tài liệu (phần lớn độ trễ cuộn).
 const CHUNK_LINES = 128;
+// Vùng đổi rộng hơn tỉ lệ này thì dựng lại cả lớp (chép nguyên tài liệu, đổi tab).
+const FULL_REBUILD_RATIO = 0.5;
 
-// Đỉnh từng dòng và các lô hiện tại; chỉ dựng lại khi text hoặc bề rộng đổi.
+// Đỉnh từng dòng và các lô hiện tại; text đổi thì chỉ dựng lại vùng bị chạm, bề rộng đổi thì chỉ tính lại đỉnh.
 let lastText = null;
 let lastWidth = 0;
 let tops = [];
 let lineCount = 0;
 let chunks = [];
-// Khoảng lô đang được tô; -1 = chưa tô gì.
-let paintedFrom = -1;
-let paintedTo = -1;
+
+const EMPTY_STATE = { inFence: false, inHtmlComment: false, inMathBlock: false };
 
 // Đỉnh từng dòng (px) suy từ số dòng hiển thị thật của textarea; phần tử cuối là đáy tài liệu.
 // Chỉ dùng để CHỌN cửa sổ: ước lượng lệch thì thiếu màu chứ không lệch chữ, vì ngoài cửa sổ là text thô.
@@ -54,66 +55,168 @@ function lineAt(tops, y, count) {
     return lo;
 }
 
-// Cửa sổ có thể bắt đầu giữa fence / HTML comment / khối toán nên phải biết trạng thái khối ở đầu cửa sổ.
+function updateTops(lines) {
+    const totalRows = Math.max(1, Math.round((markdownInput.scrollHeight - PAD_Y * 2) / LINE_HEIGHT));
+    tops = lineTops(lines, totalRows);
+    lineCount = lines.length;
+}
+
 // Thứ tự ưu tiên giống vòng lặp trong highlightMarkdown: comment -> fence -> toán.
 const BLOCK_MARK = /^[ \t]{0,3}(`{3,}|~{3,})|(<!--)|(-->)|^[ \t]*(\$\$)[ \t]*$/gm;
 
 // shortcut: bỏ qua indented code và fence thụt bằng tab ở đầu cửa sổ; lệch thì chỉ sai màu vài dòng.
-function blockStateBefore(text, offset) {
-    const state = { inFence: false, inHtmlComment: false, inMathBlock: false };
+function advanceBlockState(state, text) {
+    const next = { ...state };
     BLOCK_MARK.lastIndex = 0;
     let mark;
-    while ((mark = BLOCK_MARK.exec(text)) !== null && mark.index < offset) {
+    while ((mark = BLOCK_MARK.exec(text)) !== null) {
         if (mark[1]) {
-            if (!state.inHtmlComment) state.inFence = !state.inFence;
+            if (!next.inHtmlComment) next.inFence = !next.inFence;
         } else if (mark[2]) {
-            if (!state.inFence && !state.inMathBlock) state.inHtmlComment = true;
+            if (!next.inFence && !next.inMathBlock) next.inHtmlComment = true;
         } else if (mark[3]) {
-            state.inHtmlComment = false;
-        } else if (!state.inFence && !state.inHtmlComment) {
-            state.inMathBlock = !state.inMathBlock;
+            next.inHtmlComment = false;
+        } else if (!next.inFence && !next.inHtmlComment) {
+            next.inMathBlock = !next.inMathBlock;
         }
     }
-    return state;
+    return next;
+}
+
+// Lô chứa offset (lô cuối nhận offset == độ dài tài liệu).
+function chunkAt(offset) {
+    let lo = 0;
+    let hi = chunks.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (chunks[mid].start <= offset) lo = mid;
+        else hi = mid - 1;
+    }
+    return lo;
+}
+
+function chunkAtLine(line) {
+    let lo = 0;
+    let hi = chunks.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (chunks[mid].line <= line) lo = mid;
+        else hi = mid - 1;
+    }
+    return lo;
 }
 
 // Toàn bộ tài liệu vẫn nằm trong lớp (đúng thứ tự) để wrap và caret khớp textarea;
 // chỉ có lô quanh viewport là HTML đã tô, phần còn lại là text thô.
 function buildLayer(text) {
     const lines = text.split('\n');
-    const totalRows = Math.max(1, Math.round((markdownInput.scrollHeight - PAD_Y * 2) / LINE_HEIGHT));
-    tops = lineTops(lines, totalRows);
-    lineCount = lines.length;
+    updateTops(lines);
     chunks = [];
     let start = 0;
+    let state = EMPTY_STATE;
     for (let i = 0; i < lines.length; i += CHUNK_LINES) {
         // '\n' cuối lô kết thúc dòng cuối của lô; block kế tiếp bắt đầu dòng mới nên không thêm dòng trống.
         const body = lines.slice(i, i + CHUNK_LINES).join('\n') + '\n';
         const el = document.createElement('span');
         el.textContent = body;
-        chunks.push({ el, body, start });
+        chunks.push({ el, body, start, line: i, state, painted: false });
+        state = advanceBlockState(state, body);
         start += body.length;
     }
     editorHighlightCode.replaceChildren(...chunks.map((chunk) => chunk.el));
-    paintedFrom = -1;
-    paintedTo = -1;
 }
 
-// Tô các lô trong [from, to], trả các lô rời vùng về text thô. Chỉ lô đổi trạng thái mới bị layout lại.
-function paint(text, from, to) {
-    for (let i = Math.max(paintedFrom, 0); i <= paintedTo; i++) {
-        if (i < from || i > to) chunks[i].el.textContent = chunks[i].body;
+// Dựng lại đúng vùng bị chạm; lô sau chỉ cộng delta vào start/line, không đụng DOM.
+// Vùng dừng ở biên lô cũ + delta (thêm 1 lô nếu mất newline biên) nên lô cuối có thể ngắn hơn CHUNK_LINES.
+function editLayer(prev, text) {
+    let prefix = 0;
+    const max = Math.min(prev.length, text.length);
+    while (prefix < max && prev.charCodeAt(prefix) === text.charCodeAt(prefix)) prefix++;
+    let suffix = 0;
+    while (suffix < max - prefix
+        && prev.charCodeAt(prev.length - 1 - suffix) === text.charCodeAt(text.length - 1 - suffix)) suffix++;
+    const oldEnd = prev.length - suffix;
+    const changed = Math.max(oldEnd - prefix, text.length - suffix - prefix);
+    if (changed > Math.max(prev.length, text.length) * FULL_REBUILD_RATIO) return false;
+
+    const i0 = chunkAt(prefix);
+    let i1 = oldEnd > prefix ? chunkAt(oldEnd - 1) : i0;
+    // Xoá đúng biên lô làm mất newline cuối lô: dòng đầu lô sau nhập vào dòng cuối vùng,
+    // nên gộp thêm lô đó để biên mới vẫn nằm ở đầu dòng.
+    if (oldEnd > prefix && i1 + 1 < chunks.length
+        && oldEnd === chunks[i1].start + chunks[i1].body.length) i1++;
+    const lines = text.split('\n');
+    const lineDelta = lines.length - lineCount;
+    const lineStart = chunks[i0].line;
+    const oldNextLine = i1 + 1 < chunks.length ? chunks[i1 + 1].line : lineCount;
+    const regionLines = lines.slice(lineStart, oldNextLine + lineDelta);
+    if (!regionLines.length) return false;
+
+    const oldCount = i1 - i0 + 1;
+    const regionState = chunks[i0].state;
+    const oldNextState = i1 + 1 < chunks.length ? chunks[i1 + 1].state : null;
+    const delta = text.length - prev.length;
+    let offset = chunks[i0].start;
+    const parts = [];
+    for (let k = 0; k < regionLines.length; k += CHUNK_LINES) {
+        const part = k / CHUNK_LINES;
+        const body = regionLines.slice(k, k + CHUNK_LINES).join('\n') + '\n';
+        // Tái dùng element cũ: giữ vị trí DOM, chỉ thay text (xoá HTML đã tô).
+        const el = part < oldCount ? chunks[i0 + part].el : document.createElement('span');
+        el.textContent = body;
+        parts.push({ el, body, start: offset, line: lineStart + k, state: regionState, painted: false });
+        offset += body.length;
     }
-    for (let i = from; i <= to; i++) {
-        if (i < paintedFrom || i > paintedTo) {
-            chunks[i].el.innerHTML = highlightMarkdown(
-                chunks[i].body,
-                chunks[i].start > 0 ? blockStateBefore(text, chunks[i].start) : undefined
-            );
+    const anchor = chunks[i1].el.nextSibling;
+    for (let k = oldCount; k < parts.length; k++) editorHighlightCode.insertBefore(parts[k].el, anchor);
+    for (let k = parts.length; k < oldCount; k++) chunks[i0 + k].el.remove();
+    chunks.splice(i0, oldCount, ...parts);
+    for (let i = i0 + parts.length; i < chunks.length; i++) {
+        chunks[i].start += delta;
+        chunks[i].line += lineDelta;
+    }
+
+    // State từng lô trong vùng phải tính tuần tự: fence/comment có thể mở rồi đóng giữa vùng.
+    let state = regionState;
+    for (let i = i0; i < i0 + parts.length; i++) {
+        chunks[i].state = state;
+        state = advanceBlockState(state, chunks[i].body);
+    }
+    // State cuối vùng đổi thì state của mọi lô sau cũng đổi, kể cả khi dòng đổi không chứa ký hiệu khối.
+    const stateChanged = oldNextState !== null && (state.inFence !== oldNextState.inFence
+        || state.inHtmlComment !== oldNextState.inHtmlComment
+        || state.inMathBlock !== oldNextState.inMathBlock);
+    if (stateChanged) {
+        for (let i = i0 + parts.length; i < chunks.length; i++) {
+            chunks[i].state = state;
+            state = advanceBlockState(state, chunks[i].body);
+        }
+        // HTML đã tô của các lô sau dựa trên trạng thái cũ; trả hết về text thô rồi tô lại cửa sổ.
+        for (const chunk of chunks) {
+            if (!chunk.painted) continue;
+            chunk.el.textContent = chunk.body;
+            chunk.painted = false;
         }
     }
-    paintedFrom = from;
-    paintedTo = to;
+    updateTops(lines);
+    return true;
+}
+
+// Tô các lô trong [from, to], trả các lô đã tô nằm ngoài về text thô.
+function paint(from, to) {
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        if (chunk.painted && (i < from || i > to)) {
+            chunk.el.textContent = chunk.body;
+            chunk.painted = false;
+        }
+    }
+    for (let i = from; i <= to; i++) {
+        const chunk = chunks[i];
+        if (chunk.painted) continue;
+        chunk.el.innerHTML = highlightMarkdown(chunk.body, chunk.state);
+        chunk.painted = true;
+    }
 }
 
 export function updateEditorHighlight(force = false) {
@@ -121,21 +224,22 @@ export function updateEditorHighlight(force = false) {
     const width = markdownInput.clientWidth;
     // Pane ẩn (chế độ Preview): mọi số đo bằng 0, ResizeObserver gọi lại khi pane hiện.
     if (!width) return;
-    // Text hoặc bề rộng đổi thì wrap đổi; chỉ cuộn thì giữ nguyên các lô đã dựng.
-    if (force || text !== lastText || width !== lastWidth) {
-        lastText = text;
-        lastWidth = width;
+    // Text đổi thì sửa lô; bề rộng đổi thì chỉ wrap đổi, không đụng nội dung lô nào.
+    if (force || lastText === null || (text !== lastText && !editLayer(lastText, text))) {
         buildLayer(text);
+    } else if (text === lastText && width !== lastWidth) {
+        updateTops(text.split('\n'));
     }
+    lastText = text;
+    lastWidth = width;
 
     const scrollTop = markdownInput.scrollTop;
     const viewHeight = markdownInput.clientHeight;
     const top = scrollTop - PAD_Y;
     const overscan = viewHeight * OVERSCAN;
-    const from = Math.floor(lineAt(tops, top - overscan, lineCount) / CHUNK_LINES);
-    const to = Math.min(Math.floor(lineAt(tops, top + viewHeight + overscan, lineCount) / CHUNK_LINES), chunks.length - 1);
-    // Khoảng lô không đổi thì không đụng DOM: cuộn trong cùng vài lô là miễn phí.
-    if (from !== paintedFrom || to !== paintedTo) paint(text, from, to);
+    const from = chunkAtLine(lineAt(tops, top - overscan, lineCount));
+    const to = chunkAtLine(lineAt(tops, top + viewHeight + overscan, lineCount));
+    paint(from, to);
 
     // Thay nội dung làm lớp này mất vị trí cuộn; textarea là chân lý.
     editorHighlight.scrollTop = scrollTop;

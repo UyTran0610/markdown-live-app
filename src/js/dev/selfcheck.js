@@ -16,6 +16,7 @@ import {
 } from '../editor/format-helpers.js';
 import { editorHistory, pruneAllHistories } from '../editor/history.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
+import { highlightMarkdown } from '../editor/syntax/block.js';
 import { syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
@@ -631,6 +632,125 @@ export async function runSelfCheck() {
             assert('cuộn xuống đáy vẫn giữ đúng chữ', editorHighlightCode.textContent === longDoc + '\n');
             // Chỉ cửa sổ được tô: lô đầu đang ngoài cửa sổ là text thô, nếu tô cả file thì nó có span con.
             assert('chỉ tô cửa sổ, phần ngoài là text thô', !editorHighlightCode.firstElementChild.querySelector('span'));
+        });
+
+        await section('tô màu tăng dần', async () => {
+            if (!markdownInput.clientWidth) {
+                skip('tô màu tăng dần', 'pane đang ẩn');
+                return;
+            }
+            const saved = markdownInput.value;
+            const savedScroll = markdownInput.scrollTop;
+            const doc = [];
+            for (let n = 0; n < 300; n++) {
+                doc.push(`## Mục ${n}`, '', `đoạn **đậm** và \`code\` cùng [link](https://example.com/${n})`);
+                if (n % 17 === 0) doc.push('```js', `const x${n} = ${n};`, '```');
+                if (n % 23 === 0) doc.push('<!-- ghi chú -->', '$$', 'x^2 + y^2', '$$');
+            }
+            // Seed cố định: FAIL phải tái hiện được.
+            let seed = 20261030;
+            const rand = (n) => {
+                seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+                return seed % n;
+            };
+            const lineOffset = (text, n) => {
+                let at = 0;
+                for (let i = 0; i < n; i++) {
+                    const nl = text.indexOf('\n', at);
+                    if (nl < 0) return text.length;
+                    at = nl + 1;
+                }
+                return at;
+            };
+            // Chèn/xoá ở đầu, cuối, giữa dòng, biên lô, dán nhiều dòng và ký hiệu khối.
+            const edits = [
+                (v) => v + 'x',
+                (v) => 'x' + v,
+                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + 'chữ' + v.slice(at); },
+                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '\n- mục mới\n' + v.slice(at); },
+                (v) => { const at = rand(v.length); return v.slice(0, at) + v.slice(at + 1 + rand(Math.min(40, v.length - at))); },
+                (v) => { const at = lineOffset(v, 128 * (1 + rand(3))); return v.slice(0, at) + 'biên\n' + v.slice(at); },
+                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '```\n' + v.slice(at); },
+                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '$$' + v.slice(at); },
+                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '<!--' + v.slice(at); }
+            ];
+
+            // Oracle: mỗi lô đã tô phải khớp highlight dựng mới, state quét lại từ đầu tài liệu.
+            const BLOCK_MARK = /^[ \t]{0,3}(`{3,}|~{3,})|(<!--)|(-->)|^[ \t]*(\$\$)[ \t]*$/gm;
+            const stateBefore = (text, offset) => {
+                const state = { inFence: false, inHtmlComment: false, inMathBlock: false };
+                BLOCK_MARK.lastIndex = 0;
+                let mark;
+                while ((mark = BLOCK_MARK.exec(text)) !== null && mark.index < offset) {
+                    if (mark[1]) {
+                        if (!state.inHtmlComment) state.inFence = !state.inFence;
+                    } else if (mark[2]) {
+                        if (!state.inFence && !state.inMathBlock) state.inHtmlComment = true;
+                    } else if (mark[3]) {
+                        state.inHtmlComment = false;
+                    } else if (!state.inFence && !state.inHtmlComment) {
+                        state.inMathBlock = !state.inMathBlock;
+                    }
+                }
+                return state;
+            };
+            const probe = document.createElement('div');
+            const paintedOk = () => {
+                const full = markdownInput.value + '\n';
+                let offset = 0;
+                for (const el of editorHighlightCode.children) {
+                    const body = el.textContent;
+                    const start = offset;
+                    // Lô chưa tô là text thô (không có span); lô đã tô phải khớp bản highlight mới.
+                    if (full.slice(start, start + body.length) !== body) return false;
+                    offset += body.length;
+                    if (!el.querySelector('span')) continue;
+                    probe.innerHTML = highlightMarkdown(body, stateBefore(full, start));
+                    if (probe.innerHTML !== el.innerHTML) return false;
+                }
+                return offset === full.length;
+            };
+
+            markdownInput.value = doc.join('\n');
+            markdownInput.scrollTop = 0;
+            updateEditorHighlight(true);
+            let ok = true;
+            // Hồi quy: xoá vắt qua biên lô đầu -> vùng dựng lại gồm 2 lô cũ, phần sau phải tái dùng element.
+            const boundary = lineOffset(markdownInput.value, 128);
+            markdownInput.value = markdownInput.value.slice(0, boundary - 10) + markdownInput.value.slice(boundary + 190);
+            updateEditorHighlight();
+            if (editorHighlightCode.textContent !== markdownInput.value + '\n' || !paintedOk()) ok = false;
+            // Hồi quy: xoá đúng cuối lô (mất newline biên) -> dòng đầu lô sau nhập vào dòng cuối vùng.
+            markdownInput.value = doc.join('\n');
+            updateEditorHighlight(true);
+            const edge = lineOffset(markdownInput.value, 128);
+            markdownInput.value = markdownInput.value.slice(0, edge - 9) + markdownInput.value.slice(edge);
+            updateEditorHighlight();
+            if (editorHighlightCode.textContent !== markdownInput.value + '\n' || !paintedOk()) ok = false;
+            markdownInput.value = doc.join('\n');
+            markdownInput.scrollTop = 0;
+            updateEditorHighlight(true);
+            for (let batch = 0; batch < 8; batch++) {
+                const steps = 5 + rand(10);
+                for (let step = 0; step < steps; step++) {
+                    markdownInput.value = edits[rand(edits.length)](markdownInput.value);
+                    const maxScroll = Math.max(markdownInput.scrollHeight - markdownInput.clientHeight, 0);
+                    markdownInput.scrollTop = rand(2) ? 0 : Math.round(maxScroll * (rand(100) / 100));
+                    updateEditorHighlight();
+                    if (editorHighlightCode.textContent !== markdownInput.value + '\n') ok = false;
+                }
+                // Ba vị trí: lô vừa tô, và lô được tô sau khi cuộn.
+                const maxScroll = Math.max(markdownInput.scrollHeight - markdownInput.clientHeight, 0);
+                for (const top of [0, markdownInput.scrollTop, maxScroll]) {
+                    markdownInput.scrollTop = top;
+                    updateEditorHighlight();
+                    if (!paintedOk()) ok = false;
+                }
+            }
+            assert('fuzz tô màu tăng dần: 8 batch khớp bản dựng mới', ok);
+            markdownInput.value = saved;
+            markdownInput.scrollTop = savedScroll;
+            updateEditorHighlight(true);
         });
 
         let mark = results.length;

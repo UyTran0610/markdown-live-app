@@ -153,6 +153,13 @@ export function scheduleEditorHighlight() {
     });
 }
 
+// Perfcheck dùng: hủy rAF đang treo để giờ đo bắt đầu rỗng rAF, không bị guard nuốt mất tô màu.
+export function cancelScheduledEditorHighlight() {
+    if (editorHighlightRAF === null) return;
+    cancelAnimationFrame(editorHighlightRAF);
+    editorHighlightRAF = null;
+}
+
 export function initEditorHighlight() {
     // Cuộn không đổi nội dung thì cửa sổ tô màu phải trôi theo; guard trong update lo phần bỏ qua.
     markdownInput.addEventListener('scroll', scheduleEditorHighlight);

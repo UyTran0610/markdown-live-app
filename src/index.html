@@ -63,8 +63,9 @@
             <!-- KHÔNG đặt data-tauri-drag-region lên #tab-strip: Tauri dừng ở ancestor đầu tiên có
                  attribute, nên bấm tab sẽ kéo cả cửa sổ và tab fixed lệch khỏi chuột.
                  Vùng kéo là .titlebar-drag bên phải. -->
-            <!-- Icon app, không tên app; draggable="false" vì user-select: none không chặn kéo ảnh HTML5. -->
-            <img class="titlebar-icon" src="assets/icon-128.png" alt="" draggable="false">
+            <!-- Icon app, không tên app; draggable="false" vì user-select: none không chặn kéo ảnh HTML5.
+                 Dùng bản vẽ riêng 256x256 (assets/icon-256.svg), màu cố định không đổi theo theme. -->
+            <img class="titlebar-icon" src="assets/icon-256.svg?v=2.0.6" alt="" draggable="false">
             <div id="tab-strip" class="tabs" role="tablist" aria-label="Open files"></div>
             <!-- Vùng kéo cửa sổ: phần trống bên phải dải tab (nút cuộn, nút cửa sổ). -->
             <div class="titlebar-drag" data-tauri-drag-region></div>

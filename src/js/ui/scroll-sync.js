@@ -1,7 +1,6 @@
 // js/ui/scroll-sync.js — Cuộn đồng bộ giữa editor và preview + nút bật / tắt.
 
 import { btnSync, editorHighlight, markdownInput, previewOutput } from '../core/dom.js';
-import { showToast } from '../core/toast.js';
 import { notifyPreviewScrolled } from '../preview/render.js';
 
 let isSyncScrollEnabled = true;
@@ -73,6 +72,5 @@ export function initScrollSync() {
         btnSync.classList.toggle('active', isSyncScrollEnabled);
         // aria theo class .active: không set thì màn hình đọc luôn là pressed.
         btnSync.setAttribute('aria-pressed', String(isSyncScrollEnabled));
-        showToast(isSyncScrollEnabled ? "Sync scroll enabled" : "Sync scroll disabled");
     });
 }

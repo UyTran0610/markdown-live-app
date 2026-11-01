@@ -1,7 +1,6 @@
 // js/theme/theme.js — Theme Sáng / Tối: áp dụng, lưu lựa chọn, theo theme hệ thống.
 
 import { btnTheme, themeCssLinks } from '../core/dom.js';
-import { showToast } from '../core/toast.js';
 import { invalidatePreviewCaches } from '../io/documents.js';
 import { clearMermaidCache } from '../preview/mermaid-cache.js';
 import { renderMarkdown } from '../preview/render.js';
@@ -60,7 +59,6 @@ export function initTheme() {
     if (btnTheme) {
         btnTheme.addEventListener('click', () => {
             const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
-            showToast(nextTheme === 'dark' ? "Switched to Dark theme" : "Switched to Light theme");
             switchTheme(nextTheme, true);
             // Xoá cache vì SVG mang màu theme cũ. Render nằm NGOÀI startViewTransition (chờ mermaid
             // xong mới chụp sẽ đứng cả trang) nhưng PHẢI sau applyTheme.

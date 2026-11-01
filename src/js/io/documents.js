@@ -122,7 +122,6 @@ export function setActiveEol(eol) {
     tab.eol = eol;
     // Tab chưa có file: lựa chọn này thành mặc định cho các tab Untitled sau.
     if (!tab.path) defaultEol = eol;
-    showToast(`New lines will be saved as ${eol === '\r\n' ? 'CRLF' : 'LF'}.`);
     emit();
     saveSession();
 }
@@ -342,9 +341,8 @@ export async function openFiles() {
 
 // Tách khỏi openFiles: kéo-thả, file association và recent cũng gọi tới.
 export async function openPaths(paths) {
-    // Danh sách rỗng không được thành toast 'Opened 0 files'.
+    // Danh sách rỗng: không làm gì.
     if (!paths || !paths.length) return;
-    let opened = 0;
     let failed = 0;
     const created = [];
     let reused = null;
@@ -353,7 +351,6 @@ export async function openPaths(paths) {
         const existing = tabs.find((tab) => sameFilePath(tab.path, path));
         if (existing) {
             reused = existing;
-            opened++;
             continue;
         }
         const raw = await readTextFile(path);
@@ -381,7 +378,6 @@ export async function openPaths(paths) {
         });
         noteRecentPath(path);
         created.push(tab);
-        opened++;
     }
 
     // Chỉ nạp tab active vào editor: mỗi lần nạp là một lượt render đầy đủ.
@@ -390,9 +386,7 @@ export async function openPaths(paths) {
 
     emit();
     saveSession();
-    showToast(opened === 1 && !failed
-        ? `Opened "${tabs.find((t) => sameFilePath(t.path, paths[0]))?.name ?? ''}".`
-        : `Opened ${opened} file${opened === 1 ? '' : 's'}${failed ? `, ${failed} failed` : ''}.`);
+    if (failed) showToast(`Could not open ${failed} of ${paths.length} file${paths.length === 1 ? '' : 's'}.`);
 }
 
 const baseName = (path) => String(path || '').split(/[\\/]/).pop();
@@ -509,7 +503,6 @@ export async function saveTab(tab, options = {}) {
         tab.diskIgnoredMtime = null;
         emit();
         saveSession();
-        showToast(`Saved "${tab.name}".`);
         return 'saved';
     } finally {
         saving = false;

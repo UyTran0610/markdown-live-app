@@ -12,7 +12,6 @@ import {
     infoDialog,
     infoDoc
 } from '../core/dom.js';
-import { showToast } from '../core/toast.js';
 
 let dialogReturnFocus = null;
 
@@ -61,7 +60,6 @@ async function showDoc(name) {
     } catch (err) {
         console.error('Could not load ' + name + ':', err);
         infoBody.textContent = 'Could not load ' + name + '.';
-        showToast('Could not load ' + name);
         return;
     }
 

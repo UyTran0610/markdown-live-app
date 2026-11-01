@@ -219,6 +219,13 @@ export async function runSelfCheck() {
             assert('tab sạch có path không lưu nội dung', sessionKeepsContent({ path: '/a.md', content: 'x', savedContent: 'x' }) === false);
             assert('tab dirty có path vẫn lưu nội dung', sessionKeepsContent({ path: '/a.md', content: 'y', savedContent: 'x' }) === true);
             assert('tab chưa có path luôn lưu nội dung', sessionKeepsContent({ path: null, content: '', savedContent: '' }) === true);
+            // Thoát bằng "Don't save": bỏ bản nháp, tab file đọc lại đĩa, tab Untitled thành rỗng.
+            assert('thoát không lưu -> tab file không giữ nội dung', sessionKeepsContent({ path: '/a.md', content: 'y', savedContent: 'x' }, true) === false);
+            assert('thoát không lưu -> tab Untitled không giữ nội dung', sessionKeepsContent({ path: null, content: 'x', savedContent: '' }, true) === false);
+            const discardedDraft = deserializeSession(JSON.stringify({
+                activeId: 1, tabs: [{ id: 1, path: null, name: 'Untitled 1', content: null, dirty: false, eol: '\n', bom: false }]
+            }));
+            assert('thoát không lưu -> tab Untitled mở lại rỗng, sạch', discardedDraft.tabs[0].content === '' && isTabDirty(discardedDraft.tabs[0]) === false);
             const noContent = deserializeSession(JSON.stringify({
                 activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: null, dirty: false, eol: '\n', bom: false }]
             }));
@@ -295,6 +302,8 @@ export async function runSelfCheck() {
             const liveWire = serializeSession();
             assert('serializeSession đánh cờ reload cho mọi tab lỗi', liveWire.tabs.every((t) => t.reload === (t.status !== 'ok')));
             assert('serializeSession giữ mặc định EOL', liveWire.defaultEol === '\n' || liveWire.defaultEol === '\r\n');
+            const discardWire = serializeSession({ discardUnsaved: true });
+            assert('serializeSession bỏ bản nháp khi thoát không lưu', discardWire.tabs.every((t) => t.content === null && t.dirty === false && t.savedHash === null && t.savedLen === null));
             // Fingerprint phải phủ MỌI key của record, bỏ sót là ghi phiên cũ và mất dữ liệu im lặng.
             const fpTab = { id: 1, path: '/a.md', name: 'a.md', content: 'hello', dirty: true, scrollTop: 0 };
             assert('vân tay session: record không đổi -> giống nhau', sessionFingerprint(fpTab) === sessionFingerprint({ ...fpTab }));

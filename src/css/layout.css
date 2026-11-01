@@ -243,7 +243,9 @@ button.status-item:hover {
     transition: background-color 0.15s, color 0.15s;
 }
 
-.win-btn:hover {
+/* Overlay native của snap-layout chặn pointer nên nút maximize không nhận :hover. */
+.win-btn:hover,
+.win-btn.is-hovered {
     background: var(--btn-bg-hover);
     color: var(--text-primary);
 }

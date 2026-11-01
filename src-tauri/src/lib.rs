@@ -43,6 +43,8 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
+        // Windows 11: HWND trong suốt phủ nút maximize, vì WebView2 chặn WM_NCHITTEST của cửa sổ.
+        .plugin(tauri_plugin_snap_layout::init().button_id("win-max").build())
         .plugin(tauri_plugin_opener::init())
         // dialog + fs: hộp thoại Save As và ghi file cho Import/Export.
         .plugin(tauri_plugin_dialog::init())

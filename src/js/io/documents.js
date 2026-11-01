@@ -32,6 +32,10 @@ let nextId = 1;
 // Đang khôi phục session: gán textarea vào tab active sẽ xoá bản nháp đọc từ đĩa.
 let restoring = false;
 
+// Cửa sổ đang đóng: chỉ flushSession được ghi, nếu không visibilitychange/debounce gõ
+// ghi lại bản nháp ngay sau snapshot "Don't save".
+let sessionFrozen = false;
+
 // EOL mặc định cho tab mới, đổi ở status bar và nhớ qua session.
 let defaultEol = '\n';
 
@@ -624,8 +628,9 @@ export async function checkActiveTabDisk() {
 
 
 // Tab sạch có path không lưu content: khôi phục đọc lại từ đĩa (quota).
-export function sessionKeepsContent(tab) {
-    return !tab.path || isTabDirty(tab);
+// discardUnsaved: thoát bằng "Don't save" -> bỏ mọi bản nháp, tab file đọc lại đĩa ở lần sau.
+export function sessionKeepsContent(tab, discardUnsaved = false) {
+    return !discardUnsaved && (!tab.path || isTabDirty(tab));
 }
 
 // File vừa mở, mới nhất trước; sống trong bản ghi 'meta'.
@@ -648,36 +653,40 @@ function noteRecentPath(path) {
 }
 
 // Hàm thuần: selfcheck gọi được.
-export function serializeSession() {
+// discardUnsaved: bỏ bản nháp khỏi snapshot, không đụng tab đang sống (flush lỗi thì còn nguyên).
+export function serializeSession({ discardUnsaved = false } = {}) {
     return {
         activeId,
         recent: recentPaths,
         // EOL mặc định của tab mới sống cùng session.
         defaultEol,
-        tabs: tabs.map((tab) => ({
-            id: tab.id,
-            path: tab.path,
-            name: tab.name,
-            // null = không lưu content, đọc lại từ đĩa (khác '' là tab rỗng thật).
-            content: sessionKeepsContent(tab) ? tab.content : null,
-            // eol/bom phải sống cùng session, nếu không lần lưu sau đổi CRLF thành LF và mất BOM.
-            eol: tab.eol,
-            bom: tab.bom,
-            // status + diskMtime: 'unreadable' chặn Ctrl+S ghi đè file thật bằng bản rỗng.
-            status: tab.status,
-            diskMtime: tab.diskMtime,
-            pinned: tab.pinned === true,
-            // reload: tab lỗi phải được đọc lại ở lần chạy sau, nếu không thành tab rỗng vĩnh viễn.
-            reload: tab.status !== 'ok',
-            // Không lưu savedContent (nhân đôi dung lượng); dirty là boolean đủ để hiện dấu.
-            dirty: isTabDirty(tab),
-            // savedHash/savedLen: chỉ tab savedContent === null cần, để biết đã gõ lại đúng bản gốc.
-            savedHash: tab.savedContent === null ? (tab.savedHash || null) : hashText(tab.savedContent),
-            savedLen: tab.savedContent === null ? (Number.isFinite(tab.savedLen) ? tab.savedLen : null) : tab.savedContent.length,
-            scrollTop: tab.scrollTop,
-            selStart: tab.selStart,
-            selEnd: tab.selEnd
-        }))
+        tabs: tabs.map((tab) => {
+            const keep = sessionKeepsContent(tab, discardUnsaved);
+            return {
+                id: tab.id,
+                path: tab.path,
+                name: tab.name,
+                // null = không lưu content, đọc lại từ đĩa (khác '' là tab rỗng thật).
+                content: keep ? tab.content : null,
+                // eol/bom phải sống cùng session, nếu không lần lưu sau đổi CRLF thành LF và mất BOM.
+                eol: tab.eol,
+                bom: tab.bom,
+                // status + diskMtime: 'unreadable' chặn Ctrl+S ghi đè file thật bằng bản rỗng.
+                status: tab.status,
+                diskMtime: tab.diskMtime,
+                pinned: tab.pinned === true,
+                // reload: tab lỗi phải được đọc lại ở lần chạy sau, nếu không thành tab rỗng vĩnh viễn.
+                reload: tab.status !== 'ok',
+                // Không lưu savedContent (nhân đôi dung lượng); dirty là boolean đủ để hiện dấu.
+                dirty: keep && isTabDirty(tab),
+                // savedHash/savedLen: chỉ tab savedContent === null cần, để biết đã gõ lại đúng bản gốc.
+                savedHash: !keep ? null : (tab.savedContent === null ? (tab.savedHash || null) : hashText(tab.savedContent)),
+                savedLen: !keep ? null : (tab.savedContent === null ? (Number.isFinite(tab.savedLen) ? tab.savedLen : null) : tab.savedContent.length),
+                scrollTop: tab.scrollTop,
+                selStart: tab.selStart,
+                selEnd: tab.selEnd
+            };
+        })
     };
 }
 
@@ -725,10 +734,12 @@ export function deserializeSession(raw, fallbackId = 1) {
 
 // true = đã commit xuống IndexedDB; onCloseRequested chỉ destroy cửa sổ khi nhận true,
 // nếu không là mất bản nháp của mọi tab.
-export function saveSession(options) {
+export function saveSession(options = {}) {
     if (restoring) return Promise.resolve(true);
+    // options.final: snapshot cuối của flushSession, được xuyên qua khoá.
+    if (sessionFrozen && !options.final) return Promise.resolve(true);
     captureActive();
-    return writeSession(serializeSession(), options)
+    return writeSession(serializeSession(options), options)
         .then(() => true)
         .catch((err) => {
             // Không xoá gì khi ghi hỏng: bản ghi cũ vẫn nguyên và lần sau thử lại được.
@@ -866,11 +877,16 @@ function migrateLegacy() {
 
 // Resolve khi transaction đã commit; onCloseRequested chỉ destroy khi nhận true.
 // false = chưa chắc gì nằm trên đĩa.
-export async function flushSession() {
+export async function flushSession(options = {}) {
     // durability 'strict': mặc định ghi qua OS buffer, destroy() ngay sau đó vẫn mất.
-    const ok = await saveSession({ durability: 'strict' });
+    const ok = await saveSession({ ...options, durability: 'strict', final: true });
     await whenSessionWritten();
     return ok;
+}
+
+// Gọi ngay trước flushSession khi đóng cửa sổ; writer khác bị chặn tới khi mở khoá.
+export function freezeSession(frozen = true) {
+    sessionFrozen = frozen;
 }
 
 export function initDocuments() {

@@ -37,8 +37,6 @@ let currentIndex = -1;
 let matchCase = false;
 let useRegex = false;
 let invalidRegex = false;
-// Range của từng match (dùng cho CSS Custom Highlight API).
-let ranges = [];
 let highlightRAF = null;
 
 // ---------- Phần thuần: tìm và thay, không đụng DOM ----------
@@ -172,26 +170,17 @@ function applyHighlights() {
     if (!highlightSupported()) return;
     if (!isOpen || !matches.length) {
         CSS.highlights.delete(HIGHLIGHT_NAME);
-        ranges = [];
         return;
     }
+    // Không cache Range: lớp tô màu thay text node thì Range live tụt về phần tử cha (vẫn isConnected)
+    // và trỏ vào khoảng rỗng, nên mỗi lần vẽ phải dựng lại.
     const segs = buildSegments();
     const limit = Math.min(matches.length, MAX_HIGHLIGHTS);
     const highlight = new Highlight();
-    const next = [];
     for (let i = 0; i < limit; i++) {
-        // Range còn nối vào DOM thì vẫn đúng: lớp tô màu chỉ thay text node của lô vừa vẽ lại.
-        const old = ranges[i];
-        let range = (old && old.startContainer.isConnected && old.endContainer.isConnected) ? old : null;
-        if (!range) range = makeRange(segs, matches[i]);
-        if (!range) {
-            next.push(null);
-            continue;
-        }
-        highlight.add(range);
-        next.push(range);
+        const range = makeRange(segs, matches[i]);
+        if (range) highlight.add(range);
     }
-    ranges = next;
     CSS.highlights.set(HIGHLIGHT_NAME, highlight);
 }
 
@@ -264,7 +253,6 @@ function refresh({ select, scroll = false } = {}) {
     const found = findMatches(markdownInput.value, findInput.value, { matchCase, useRegex });
     invalidRegex = found === null;
     matches = found || [];
-    ranges = [];
     findInput.classList.toggle('invalid', invalidRegex);
 
     if (prev) {
@@ -349,7 +337,6 @@ export function closeFindWidget() {
     isOpen = false;
     findWidget.classList.remove('open');
     if (highlightSupported()) CSS.highlights.delete(HIGHLIGHT_NAME);
-    ranges = [];
     markdownInput.focus();
 }
 

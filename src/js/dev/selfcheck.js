@@ -888,6 +888,23 @@ export async function runSelfCheck() {
             findReplaceAllBtn.click();
             assert('thay hết đổi đúng nội dung', markdownInput.value === 'bar bar bard');
 
+            // Cuộn xa làm lớp tô màu thay text node: highlight phải dựng lại Range chứ không
+            // tái dùng Range đã tụt về span chunk (vẫn isConnected nhưng rỗng).
+            const savedScroll = markdownInput.scrollTop;
+            markdownInput.value = 'từ khóa\n\n'.repeat(300);
+            updateEditorHighlight(true);
+            findInput.value = 'từ khóa';
+            findInput.dispatchEvent(new Event('input'));
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            markdownInput.scrollTop = markdownInput.scrollHeight;
+            updateEditorHighlight();
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            const findHighlight = CSS.highlights ? CSS.highlights.get('md-find-all') : null;
+            assert('highlight tìm kiếm còn đúng sau khi cuộn xa', !!findHighlight
+                && findHighlight.size > 0
+                && [...findHighlight].every((range) => range.startContainer.nodeType === Node.TEXT_NODE && !range.collapsed));
+            markdownInput.scrollTop = savedScroll;
+
             closeFindWidget();
             assert('đóng widget', !findWidget.classList.contains('open'));
             markdownInput.value = saved;

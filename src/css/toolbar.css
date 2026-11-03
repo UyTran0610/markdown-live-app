@@ -185,6 +185,7 @@
 /* Nút "?" — mở thẳng hộp thoại About, không có dropdown. */
 .help-wrap {
     display: inline-flex;
+    margin-right: -6px;
 }
 
 /* Nút phụ nên không viền; vẫn có hover + focus-visible. */
@@ -195,6 +196,11 @@
     border-color: transparent;
     background: transparent;
     color: var(--text-secondary);
+}
+
+.help-wrap .btn svg {
+    width: 17px;
+    height: 17px;
 }
 
 .help-wrap .btn:hover {

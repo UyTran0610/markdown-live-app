@@ -51,9 +51,19 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 
 ## Screenshots
 
-![Main Interface - Light mode](images/light-mode.png)
+<div align="center">
 
-![Main Interface - Dark mode](images/dark-mode.png)
+<img src="images/light-mode.webp" alt="Markdown Live - Main interface in Light mode" width="880" />
+
+<sub><b>Light mode</b> — clean and high-contrast, ideal for daytime work and for exporting documents</sub>
+
+<br />
+
+<img src="images/dark-mode.webp" alt="Markdown Live - Main interface in Dark mode" width="880" />
+
+<sub><b>Dark mode</b> — easy on the eyes in low light; follows your system theme or can be switched manually</sub>
+
+</div>
 
 ---
 

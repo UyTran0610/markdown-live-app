@@ -51,9 +51,19 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 
 ## Ảnh chụp màn hình
 
-![Giao diện chính - Light mode](images/light-mode.png)
+<div align="center">
 
-![Giao diện chính - Dark mode](images/dark-mode.png)
+<img src="images/light-mode.webp" alt="Markdown Live - Giao diện chính ở chế độ Sáng" width="880" />
+
+<sub><b>Giao diện Sáng (Light)</b> — rõ ràng, tương phản tốt, phù hợp làm việc ban ngày và xuất tài liệu</sub>
+
+<br />
+
+<img src="images/dark-mode.webp" alt="Markdown Live - Giao diện chính ở chế độ Tối" width="880" />
+
+<sub><b>Giao diện Tối (Dark)</b> — dịu mắt khi thiếu sáng; tự theo theme hệ thống hoặc chuyển đổi thủ công</sub>
+
+</div>
 
 ---
 

@@ -1,10 +1,11 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { editorHighlight, editorHighlightCode, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
+import { editorHighlight, editorHighlightCode, findCount, findInput, findNextBtn, findReplaceAllBtn, findReplaceInput, findReplaceRow, findWidget, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
 import { isResizingPanes, setPanesResizing } from '../core/flags.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
+import { closeFindWidget, findMatches, openFindWidget, replaceAllMatches } from '../editor/find-replace.js';
 import {
     buildBlockFence,
     buildTableMarkdown,
@@ -849,6 +850,46 @@ export async function runSelfCheck() {
             assert('katex hỏng fallback thành text', brokenHost.textContent === 'fallback text' && !brokenHost.querySelector('span.katex'));
         });
         if (results.length === mark) skip('6 assert KaTeX -> MathML', 'katex chưa tải');
+
+        mark = results.length;
+        await section('widget tìm kiếm', async () => {
+            // Hàm thuần: tìm và thay trên chuỗi.
+            assert('tìm thấy mọi match', findMatches('aXbXc', 'X').length === 2);
+            assert('tìm không phân biệt hoa thường', findMatches('aXbxc', 'x').length === 2);
+            assert('bật match case thì phân biệt', findMatches('aXbxc', 'x', { matchCase: true }).length === 1);
+            assert('ký tự đặc biệt không bị hiểu là regex', findMatches('a.c axc', 'a.c').length === 1);
+            assert('regex hỏng trả null chứ không ném lỗi', findMatches('abc', '[', { useRegex: true }) === null);
+            assert('regex khớp rỗng không lặp vô hạn', findMatches('abc', 'x*', { useRegex: true }).length < 10);
+            assert('thay hết tính đúng số match', replaceAllMatches('aXbXc', 'X', '-').count === 2);
+            assert('thay hết không phân biệt hoa thường cũng thay đủ', replaceAllMatches('aXbxc', 'x', '-').text === 'a-b-c');
+            assert('thay theo nghĩa đen: $ không bị diễn giải', replaceAllMatches('x', 'x', '$&').text === '$&');
+            assert('thay trong regex dùng được nhóm $1', replaceAllMatches('a1 b2', '([a-z])([0-9])', '$2$1', { useRegex: true }).text === '1a 2b');
+
+            // Widget: Ctrl+F mở, đếm match, điều hướng, Ctrl+H mở hàng thay thế, thay hết.
+            const saved = markdownInput.value;
+            markdownInput.value = 'foo Foo food';
+            openFindWidget(false);
+            assert('mở widget tìm kiếm', findWidget.classList.contains('open'));
+
+            findInput.value = 'foo';
+            findInput.dispatchEvent(new Event('input'));
+            assert('đếm đúng số match', findCount.textContent === '1/3');
+
+            findNextBtn.click();
+            assert('nút next chọn match kế tiếp', markdownInput.selectionStart === 4 && markdownInput.selectionEnd === 7);
+
+            openFindWidget(true);
+            assert('Ctrl+H mở hàng thay thế', !findReplaceRow.classList.contains('hidden'));
+
+            findReplaceInput.value = 'bar';
+            findReplaceAllBtn.click();
+            assert('thay hết đổi đúng nội dung', markdownInput.value === 'bar bar bard');
+
+            closeFindWidget();
+            assert('đóng widget', !findWidget.classList.contains('open'));
+            markdownInput.value = saved;
+        });
+        if (results.length === mark) skip('16 assert widget tìm kiếm', 'widget không có trong DOM');
 
         mark = results.length;
         if (document.getElementById('btn-help')) await section('hộp thoại About', async () => {

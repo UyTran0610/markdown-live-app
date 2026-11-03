@@ -59,6 +59,11 @@ export function isValidViewMode(mode) {
     return mode === 'editor' || mode === 'split' || mode === 'preview';
 }
 
+// Bật lại chế độ Editor (dùng khi widget tìm kiếm mở trong lúc đang ở chế độ Preview).
+export function showEditorView() {
+    applyViewMode('editor');
+}
+
 function applyViewMode(mode, persist = true) {
     if (!isValidViewMode(mode)) return;
     document.body.classList.toggle('view-editor', mode === 'editor');

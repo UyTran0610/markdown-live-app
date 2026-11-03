@@ -231,6 +231,13 @@ function paint(from, to) {
     }
 }
 
+// Hook cho module tìm kiếm: lớp tô màu vẽ lại thì highlight của find phải vẽ lại theo.
+let repaintHooks = [];
+
+export function onEditorLayerRepaint(fn) {
+    repaintHooks.push(fn);
+}
+
 export function updateEditorHighlight(force = false) {
     const text = markdownInput.value;
     const width = markdownInput.clientWidth;
@@ -257,6 +264,8 @@ export function updateEditorHighlight(force = false) {
     // Thay nội dung làm lớp này mất vị trí cuộn; textarea là chân lý.
     editorHighlight.scrollTop = scrollTop;
     editorHighlight.scrollLeft = markdownInput.scrollLeft;
+
+    for (const hook of repaintHooks) hook();
 }
 
 // Gộp các lần gọi liên tiếp thành 1 lần tô màu mỗi khung hình, không chặn handler input.

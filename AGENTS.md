@@ -1,12 +1,12 @@
 # AGENTS.md — Markdown Live
 
-Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS. No framework, no bundler, no lint/typecheck. All logic is in JS; Rust only registers plugins.
+Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS. No framework, no bundler, no lint/typecheck. All logic is in JS; Rust only registers plugins (plus one Windows-only WebView2 setting for Ctrl+F).
 
 ## Map
 
-- `src/index.html` is the only HTML (`frontendDist` = `../src`). Load order is a hard constraint: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → preview → print`; vendor scripts all `defer`.
+- `src/index.html` is the only HTML (`frontendDist` = `../src`). Load order is a hard constraint: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → find → preview → print`; vendor scripts all `defer`.
 - `src/js/main.js` calls every `initXxx()` and owns the only `DOMContentLoaded`. Modules are grouped by role under `src/js/{core,editor,preview,export,io,ui,theme,dev}`.
-- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/sync.js` (`syncEditorAfterChange()`), `editor/highlight.js`, `preview/render.js`, `ui/view-mode.js`, `ui/window-controls.js`.
+- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/sync.js` (`syncEditorAfterChange()`), `editor/highlight.js`, `editor/find-replace.js` (Ctrl+F / Ctrl+H), `preview/render.js`, `ui/view-mode.js`, `ui/window-controls.js`.
 - `src/vendor/` holds local third-party libs. Must stay fully offline: never add CDN links.
 - `src-tauri/`: new plugin permissions go in `capabilities/default.json`, never in Rust.
 
@@ -48,12 +48,18 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 - `editorHighlightCode.textContent` must always equal `markdownInput.value + '\n'`; only the visible window is coloured, the rest is plain filler.
 - Don't read `scrollHeight` on every keystroke (forces full layout); see `TOP_REFRESH_CHARS`.
 
+**Find & replace**
+- Only scans the Editor textarea, never the Preview DOM. The widget lives inside `.editor-container` so it never covers the format bar.
+- Matches are painted with the CSS Custom Highlight API (`::highlight(md-find-all)`) on the highlight layer; re-apply after every layer repaint via `onEditorLayerRepaint()`.
+- WebView2 keeps Ctrl+F for its own find bar (Tauri exposes no switch), so the format-bar magnifier button is the entry point that always works.
+
 **Pane divider**
 - Write `--split-size` at most once per frame; measure the workspace rect once at `pointerdown`. Documents over 100k chars use the ghost bar and apply layout once on release.
 - `isResizingPanes()` (`core/flags.js`) is the single "dragging" signal. Bind `pointerup/cancel` on `window` too.
 
 **Tauri**
 - `single-instance` must be registered FIRST in `lib.rs`, or two windows overwrite the same session. Its callback must `unminimize()` + `show()` before `set_focus()`. First-launch argv is kept in `InitialPaths` and read via `take_initial_paths`.
+- Windows only: `release_browser_accelerator_keys()` in `lib.rs` turns off WebView2's browser accelerator keys, otherwise Ctrl+F is swallowed by the WebView2 find bar and never reaches the page. wry has `with_browser_accelerator_keys` but Tauri does not expose it (tauri#16306), so it calls the WebView2 COM API directly; the pinned versions must match wry's (`webview2-com` 0.38, `windows-core` 0.61).
 - Window has `decorations: false`; `data-tauri-drag-region` goes on `.titlebar-drag` only, never on `#tab-strip` or `.titlebar`.
 - CSP is `null`, so XSS defence is JS's job: fail-closed DOMPurify, Mermaid re-sanitize, external-URL allowlist.
 - Dialogs hide via `visibility` + `pointer-events`, never `display: none` (kills the transition).

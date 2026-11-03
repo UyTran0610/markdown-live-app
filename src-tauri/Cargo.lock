@@ -2138,6 +2138,8 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "tauri-plugin-snap-layout",
+ "webview2-com",
+ "windows-core 0.61.2",
 ]
 
 [[package]]

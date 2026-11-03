@@ -41,6 +41,8 @@
     --editor-caret: #24292f;
     --editor-placeholder: #9aa4af;
     --editor-selection: rgba(79, 70, 229, 0.3);
+    /* Tô match của widget tìm kiếm trên lớp cú pháp của Editor. */
+    --find-hit-bg: rgba(234, 179, 8, 0.32);
 
     --toast-bg: #24292f;
     --toast-text: #ffffff;
@@ -146,6 +148,7 @@
     --editor-caret: #c9d1d9;
     --editor-placeholder: #6e7681;
     --editor-selection: rgba(99, 102, 241, 0.35);
+    --find-hit-bg: rgba(234, 179, 8, 0.28);
 
     --toast-bg: #30363d;
     --toast-text: #f0f6fc;

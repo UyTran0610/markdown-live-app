@@ -30,6 +30,13 @@ tauri-plugin-snap-layout = "=1.0.9"
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = "2"
 
+# Windows: WebView2 giữ Ctrl+F cho trình tìm của trình duyệt và phím không xuống web.
+# Dùng thẳng COM của WebView2 để tắt công tắc đó (wry có sẵn nhưng Tauri chưa truyền qua).
+# Phiên bản phải khớp với wry: webview2-com 0.38 + windows-core 0.61.
+[target."cfg(windows)".dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"
+
 [package.metadata.winres]
 FileDescription = "Trình soạn thảo Markdown hai chiều thời gian thực"
 CompanyName = "Uy Tran"

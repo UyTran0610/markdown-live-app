@@ -44,6 +44,7 @@
     <link rel="stylesheet" href="css/toolbar.css?v=2.0.8">
     <link rel="stylesheet" href="css/tabs.css?v=2.0.8">
     <link rel="stylesheet" href="css/editor.css?v=2.0.8">
+    <link rel="stylesheet" href="css/find.css?v=2.0.8">
     <link rel="stylesheet" href="css/preview.css?v=2.0.8">
     <link rel="stylesheet" href="css/print.css?v=2.0.8">
     <!-- defer: parse/paint xong HTML rồi mới chạy, vẫn đúng thứ tự khai báo, trước DOMContentLoaded. -->
@@ -273,10 +274,44 @@
                 <button id="btn-mermaid" class="btn-icon" title="Mermaid diagram" aria-label="Mermaid diagram">
                     <i data-lucide="workflow"></i>
                 </button>
+                <button id="btn-find" class="btn-icon find-launch" title="Find and replace in editor (Ctrl+F / Ctrl+H)" aria-label="Find in editor">
+                    <i data-lucide="search"></i>
+                </button>
             </div>
             <div class="editor-container">
                 <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"><code id="editor-highlight-code"></code></pre>
                 <textarea id="markdown-input" spellcheck="false" placeholder="Type Markdown here..."></textarea>
+                <!-- Widget tìm kiếm / thay thế (Ctrl+F, Ctrl+H): chỉ quét nội dung Editor, không đụng Preview. -->
+                <div id="find-widget" class="find-widget" role="search" aria-label="Find in editor">
+                    <div class="find-row">
+                        <div class="find-field">
+                            <input type="text" id="find-input" class="find-input" placeholder="Find" aria-label="Find in editor" spellcheck="false" autocomplete="off">
+                            <span id="find-count" class="find-count" aria-live="polite"></span>
+                        </div>
+                        <button id="find-case" class="find-icon-btn" type="button" title="Match case" aria-label="Match case" aria-pressed="false">
+                            <i data-lucide="case-sensitive"></i>
+                        </button>
+                        <button id="find-regex" class="find-icon-btn" type="button" title="Regular expression" aria-label="Regular expression" aria-pressed="false">
+                            <i data-lucide="regex"></i>
+                        </button>
+                        <button id="find-prev" class="find-icon-btn" type="button" title="Previous match (Shift+Enter)" aria-label="Previous match">
+                            <i data-lucide="chevron-up"></i>
+                        </button>
+                        <button id="find-next" class="find-icon-btn" type="button" title="Next match (Enter)" aria-label="Next match">
+                            <i data-lucide="chevron-down"></i>
+                        </button>
+                        <button id="find-close" class="find-icon-btn" type="button" title="Close (Esc)" aria-label="Close find">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                    <div id="find-replace-row" class="find-row find-replace-row hidden">
+                        <div class="find-field">
+                            <input type="text" id="find-replace-input" class="find-input" placeholder="Replace" aria-label="Replace in editor" spellcheck="false" autocomplete="off">
+                        </div>
+                        <button id="find-replace" class="find-text-btn" type="button" title="Replace current match (Ctrl+Alt+Enter)">Replace</button>
+                        <button id="find-replace-all" class="find-text-btn" type="button" title="Replace all matches (Ctrl+Alt+Enter)">All</button>
+                    </div>
+                </div>
             </div>
         </section>
 

@@ -167,3 +167,30 @@ export const statusEol = document.getElementById('status-eol');
 export const statusPos = document.getElementById('status-pos');
 
 export const statusEncoding = document.getElementById('status-encoding');
+
+// Widget tìm kiếm / thay thế trong Editor (Ctrl+F, Ctrl+H).
+export const findWidget = document.getElementById('find-widget');
+
+export const findBtn = document.getElementById('btn-find');
+
+export const findInput = document.getElementById('find-input');
+
+export const findCount = document.getElementById('find-count');
+
+export const findCaseBtn = document.getElementById('find-case');
+
+export const findRegexBtn = document.getElementById('find-regex');
+
+export const findPrevBtn = document.getElementById('find-prev');
+
+export const findNextBtn = document.getElementById('find-next');
+
+export const findCloseBtn = document.getElementById('find-close');
+
+export const findReplaceRow = document.getElementById('find-replace-row');
+
+export const findReplaceInput = document.getElementById('find-replace-input');
+
+export const findReplaceBtn = document.getElementById('find-replace');
+
+export const findReplaceAllBtn = document.getElementById('find-replace-all');

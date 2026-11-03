@@ -25,6 +25,25 @@ fn take_initial_paths(state: State<'_, InitialPaths>) -> Vec<String> {
     std::mem::take(&mut *state.0.lock().unwrap())
 }
 
+// Windows: WebView2 tự xử lý phím trình duyệt (Ctrl+F mở thanh tìm của trình duyệt) và
+// phím KHÔNG xuống web, nên app không nhận được Ctrl+F. Tắt cờ đó để phím tắt tìm kiếm
+// của app hoạt động. wry có sẵn `with_browser_accelerator_keys` nhưng Tauri chưa truyền qua
+// (tauri#16306), nên gọi thẳng COM của WebView2.
+#[cfg(windows)]
+fn release_browser_accelerator_keys(window: &tauri::WebviewWindow) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+    use windows_core::Interface;
+
+    let _ = window.with_webview(move |webview| unsafe {
+        let settings = webview.controller().CoreWebView2().and_then(|core| core.Settings());
+        if let Ok(settings) = settings {
+            if let Ok(settings3) = settings.cast::<ICoreWebView2Settings3>() {
+                let _ = settings3.SetAreBrowserAcceleratorKeysEnabled(false);
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -56,6 +75,11 @@ pub fn run() {
             let paths = file_args(std::env::args());
             if !paths.is_empty() {
                 *app.state::<InitialPaths>().0.lock().unwrap() = paths;
+            }
+            // Nhả Ctrl+F cho web để widget tìm kiếm của app nhận được phím.
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                release_browser_accelerator_keys(&window);
             }
             Ok(())
         })

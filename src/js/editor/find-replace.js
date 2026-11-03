@@ -338,7 +338,7 @@ export function openFindWidget(withReplace = false) {
     }
     isOpen = true;
     findWidget.classList.add('open');
-    if (withReplace) setReplaceVisible(true);
+    setReplaceVisible(withReplace);
     refresh({ select: true, scroll: true });
     findInput.focus();
     findInput.select();
@@ -367,6 +367,14 @@ function onWidgetKeydown(e) {
     if (e.key === 'Escape') {
         e.preventDefault();
         closeFindWidget();
+        return;
+    }
+
+    if (isCtrl && key === 'f') {
+        e.preventDefault();
+        setReplaceVisible(false);
+        findInput.focus();
+        findInput.select();
         return;
     }
 

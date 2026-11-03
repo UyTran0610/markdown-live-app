@@ -881,6 +881,9 @@ export async function runSelfCheck() {
             openFindWidget(true);
             assert('Ctrl+H mở hàng thay thế', !findReplaceRow.classList.contains('hidden'));
 
+            openFindWidget(false);
+            assert('Ctrl+F ẩn hàng thay thế', findReplaceRow.classList.contains('hidden'));
+
             findReplaceInput.value = 'bar';
             findReplaceAllBtn.click();
             assert('thay hết đổi đúng nội dung', markdownInput.value === 'bar bar bard');

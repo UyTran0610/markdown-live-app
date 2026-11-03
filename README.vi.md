@@ -28,6 +28,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - [Ảnh chụp màn hình](#ảnh-chụp-màn-hình)
 - [Bắt đầu nhanh](#bắt-đầu-nhanh)
 - [Cách sử dụng](#cách-sử-dụng)
+- [Giới hạn & lưu ý khi mở file](#giới-hạn--lưu-ý-khi-mở-file)
 - [Hướng dẫn xuất file](#hướng-dẫn-xuất-file)
 - [Tổng quan kiến trúc](#tổng-quan-kiến-trúc)
 - [Công nghệ sử dụng](#công-nghệ-sử-dụng)
@@ -124,7 +125,7 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 | **View** | Chuyển đổi giữa chế độ **Editor**, **Split** và **Preview** |
 | **Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview (mặc định bật) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
-| **About** | Mở hộp thoại giới thiệu — phiên bản ứng dụng, License và Third-party Notices (nút tròn `?` ở cuối thanh công cụ) |
+| **About** | Mở hộp thoại giới thiệu — phiên bản ứng dụng, License, Privacy Statement và Third-party Notices (nút tròn `?` ở cuối thanh công cụ) |
 
 ### Chế độ xem & chia màn hình
 
@@ -141,7 +142,7 @@ Thanh công cụ định dạng nằm phía trên khung **EDITOR**. Bôi đen đ
 | Nút | Chức năng | Kết quả Markdown | Phím tắt |
 | :--- | :--- | :--- | :--- |
 | **Undo** / **Redo** | Lùi lại hoặc làm lại lịch sử chỉnh sửa | — | `Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y` |
-| **Clear** | Xóa toàn bộ nội dung khung soạn thảo (có xác nhận) | — | — |
+| **Clear** | Xóa ngay toàn bộ nội dung khung soạn thảo (không hỏi xác nhận) — nhấn `Ctrl`/`Cmd` + `Z` để khôi phục | — | — |
 | **Headings** | Chọn cấp độ tiêu đề từ danh sách | `# Heading 1` ... `###### Heading 6` | — |
 | **Lists** | Chọn loại danh sách: gạch đầu dòng, đánh số hoặc task list | `- item`, `1. item`, `- [ ] task` | — |
 | **B** (Bold) | In đậm đoạn văn bản đang chọn | `**text**` | `Ctrl`/`Cmd` + `B` |
@@ -179,7 +180,7 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 | `Tab` / `Shift` + `Tab` | Thụt lề / hủy thụt lề — dùng được cả khi bôi đen nhiều dòng |
 | `Enter` | Tự động giữ thụt lề, tiếp tục danh sách (`-`, `1.`, `>`, task list) hoặc thoát danh sách nếu dòng đang trống |
 | Gõ `(`, `[`, `{`, nháy đơn/kép, backtick, `*`, `_`, `~` hoặc `$` khi đang bôi đen | Tự động bao đoạn đang chọn bằng đúng ký hiệu vừa gõ |
-| Gõ `(`, `[`, `{`, nháy đơn/kép hoặc backtick khi không bôi đen | Tự động chèn luôn ký tự đóng; gõ lại ký tự đóng đó hoặc nhấn `Backspace` khi cặp đang rỗng sẽ nhảy qua / xoá cả cặp |
+| Gõ `(`, `[`, `{`, nháy đơn/kép hoặc backtick khi không bôi đen | Tự động chèn luôn ký tự đóng; gõ lại ký tự đóng đó hoặc nhấn `Backspace` khi cặp đang rỗng sẽ nhảy qua / xoá cả cặp. Nháy đơn gõ ngay sau chữ cái hoặc chữ số (như `don't`) được coi là dấu lược nên không tự đóng |
 
 ### Phím tắt Tab & File
 
@@ -198,6 +199,18 @@ Các phím tắt sau hoạt động ở mọi chế độ, kể cả **Preview**
 | `Ctrl`/`Cmd` + `PageDown` / `Ctrl`/`Cmd` + `PageUp` | Chuyển sang tab kế tiếp / tab trước |
 | `Ctrl`/`Cmd` + `1`...`9` | Nhảy tới tab theo vị trí |
 | `←` / `→`, `Home` / `End` (khi dải tab đang được focus) | Di chuyển focus giữa các tab; `Enter` / `Space` mở tab đang focus, `Delete` đóng tab đó |
+
+---
+
+## Giới hạn & lưu ý khi mở file
+
+- **Cách mở file:** nút **Open** (`Ctrl`/`Cmd` + `O`), menu **Recent**, kéo-thả file vào cửa sổ, hoặc nhấp đúp file trong Windows (bộ cài đăng ký sẵn `.md`, `.markdown`, `.mdown`, `.mkd` và `.txt`). Ứng dụng chỉ chạy một cửa sổ — mở thêm file khi app đang chạy sẽ đưa file đó vào cửa sổ hiện có dưới dạng tab mới.
+- **File được hỗ trợ:** `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdx`, `.rmd`, `.qmd`, `.txt`, `.text`, hoặc file không có đuôi (như `README`). Các loại khác (ảnh, file thực thi, …) sẽ bị từ chối.
+- **Dung lượng:** tối đa 5 MB mỗi file (tính theo số ký tự). File lớn hơn sẽ bị bỏ qua kèm thông báo.
+- **Mã hoá:** chỉ nhận UTF-8. File UTF-16 (ví dụ "Unicode" của Notepad) và các mã hoá khác bị từ chối thay vì mở ra lỗi chữ — hãy lưu lại thành UTF-8 trước. BOM UTF-8 và kiểu xuống dòng (LF/CRLF) của file được ghi nhớ và giữ nguyên khi lưu; bấm **LF**/**CRLF** trên thanh trạng thái để đổi.
+- **Thư mục:** bản này được cấu hình để đọc/ghi trong các thư mục Home, Documents, Desktop và Downloads (kể cả thư mục con). File ở nơi khác có thể bị từ chối — ứng dụng sẽ báo rõ, và **Save As** cho phép chọn vị trí khác.
+- **Mỗi file một tab:** file đã mở sẽ được chuyển tới thay vì mở thêm lần nữa.
+- **Thay đổi từ bên ngoài ứng dụng:** khi cửa sổ được focus lại (hoặc khi bạn chuyển sang một tab), ứng dụng kiểm tra file trên đĩa. Tab không có thay đổi chưa lưu sẽ tự tải lại; tab đang có thay đổi chưa lưu sẽ hỏi **Keep my version** (giữ bản của bạn) hay **Load from disk** (tải từ đĩa). Nếu file đã bị xóa, tab hiện dấu `!` và việc lưu sẽ đi qua **Save As**.
 
 ---
 
@@ -240,7 +253,7 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 
 | Phân hệ | Công nghệ / Thư viện | Vai trò |
 | :--- | :--- | :--- |
-| **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener, Dialog & FS Plugins |
+| **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener, Dialog & FS Plugins, Single-instance (chỉ một cửa sổ chạy, file mở sau được chuyển vào cửa sổ đó), Snap Layout (khung snap của Windows 11 trên nút Maximize tự vẽ) |
 | **Markdown Parser**| Marked.js + DOMPurify | Phân tích cú pháp Markdown và lọc XSS an toàn |
 | **Mathematics** | KaTeX + marked-katex-extension | Xử lý công thức Toán học TeX/LaTeX |
 | **Diagram Engine** | Mermaid.js | Render biểu đồ từ cú pháp khai báo |
@@ -281,6 +294,7 @@ markdown-live-app/
 │   │   └── dev/                # Tự kiểm tra (?selfcheck) + đo hiệu năng (?perf)
 │   ├── vendor/                 # Thư viện bên thứ 3 lưu cục bộ (marked, katex,
 │   │   └── fonts/              # mermaid...) + font web KaTeX
+│   ├── PRIVACY.md              # Tuyên bố quyền riêng tư hiển thị trong hộp thoại About
 │   ├── THIRD_PARTY_NOTICES.md  # Giấy phép của các thư viện trong vendor/
 │   └── LICENSE                 # Giấy phép MIT cho frontend
 ├── src-tauri/                  # Backend Rust + cấu hình Tauri

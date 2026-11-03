@@ -28,6 +28,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - [Screenshots](#screenshots)
 - [Quick Start](#quick-start)
 - [How to Use](#how-to-use)
+- [Limits & File-Opening Notes](#limits--file-opening-notes)
 - [Export Guide](#export-guide)
 - [Architecture Overview](#architecture-overview)
 - [Tech Stack](#tech-stack)
@@ -124,7 +125,7 @@ After launching the application, type or paste your Markdown content into the **
 | **View** | Switch between **Editor**, **Split**, and **Preview** modes |
 | **Scroll** | Toggle synchronized scrolling between Editor and Preview (on by default) |
 | **Theme** | Toggle between Light and Dark themes |
-| **About** | Open the About dialog — app version, License and Third-party Notices (the round `?` button at the far right) |
+| **About** | Open the About dialog — app version, License, Privacy Statement and Third-party Notices (the round `?` button at the far right) |
 
 ### View Modes & Resizing Panes
 
@@ -141,7 +142,7 @@ The formatting toolbar sits above the **EDITOR** pane. Select some text and clic
 | Button | Description | Markdown Output | Shortcut |
 | :--- | :--- | :--- | :--- |
 | **Undo** / **Redo** | Step backward or forward through your edit history | — | `Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y` |
-| **Clear** | Empty the entire editor (confirmation required) | — | — |
+| **Clear** | Empty the entire editor immediately (no confirmation) — press `Ctrl`/`Cmd` + `Z` to restore it | — | — |
 | **Headings** | Choose a heading level from the list | `# Heading 1` ... `###### Heading 6` | — |
 | **Lists** | Choose a list type: bullet, numbered, or task list | `- item`, `1. item`, `- [ ] task` | — |
 | **B** (Bold) | Make the selected text bold | `**text**` | `Ctrl`/`Cmd` + `B` |
@@ -179,7 +180,7 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 | `Tab` / `Shift` + `Tab` | Indent / Unindent — supports multi-line selections |
 | `Enter` | Preserves indentation, continues lists (`-`, `1.`, `>`, task lists), or exits the list if the line is empty |
 | Typing `(`, `[`, `{`, quotes, backtick, `*`, `_`, `~`, or `$` over selected text | Automatically encloses selection with the typed character pair |
-| Typing `(`, `[`, `{`, quotes or backtick with nothing selected | Inserts the closing character automatically; typing that character again or pressing `Backspace` on an empty pair skips over / removes it |
+| Typing `(`, `[`, `{`, quotes or backtick with nothing selected | Inserts the closing character automatically; typing that character again or pressing `Backspace` on an empty pair skips over / removes it. A single quote typed right after a letter or digit (as in `don't`) is treated as an apostrophe and is not auto-closed |
 
 ### Tab & File Shortcuts
 
@@ -198,6 +199,18 @@ These work anywhere in the app, including **Preview** mode:
 | `Ctrl`/`Cmd` + `PageDown` / `Ctrl`/`Cmd` + `PageUp` | Switch to the next / previous tab |
 | `Ctrl`/`Cmd` + `1`...`9` | Jump to the tab at that position |
 | `←` / `→`, `Home` / `End` (tab strip focused) | Move focus between tabs; `Enter` / `Space` opens the focused tab, `Delete` closes it |
+
+---
+
+## Limits & File-Opening Notes
+
+- **Ways to open files:** the **Open** button (`Ctrl`/`Cmd` + `O`), the **Recent** menu, dragging files onto the window, or double-clicking a file in Windows (the installer registers `.md`, `.markdown`, `.mdown`, `.mkd` and `.txt`). Only one window runs at a time — opening another file while the app is running sends it to the existing window as a new tab.
+- **Supported files:** `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdx`, `.rmd`, `.qmd`, `.txt`, `.text`, or files with no extension (such as `README`). Other types (images, executables, …) are refused.
+- **Size:** up to 5 MB per file (counted in characters). Larger files are skipped with a message.
+- **Encoding:** UTF-8 only. UTF-16 files (for example Notepad's "Unicode") and other encodings are refused instead of being opened garbled — re-save them as UTF-8 first. A UTF-8 BOM and the file's line endings (LF/CRLF) are remembered and written back unchanged; click **LF**/**CRLF** in the status bar to switch.
+- **Folders:** this build is configured to read and write inside your Home, Documents, Desktop and Downloads folders (including subfolders). Files elsewhere may be refused — the app shows a message, and **Save As** lets you pick another location.
+- **One tab per file:** a file that is already open is focused instead of being opened twice.
+- **Changes made outside the app:** when the window regains focus (or you switch to a tab), the app checks the file on disk. A tab with no unsaved edits is reloaded automatically; a tab with unsaved edits asks whether to **Keep my version** or **Load from disk**. If the file was deleted, the tab is marked with `!` and saving goes through **Save As**.
 
 ---
 
@@ -240,7 +253,7 @@ Markdown Live is engineered with memory efficiency and near-instant responsivene
 
 | Component | Technology / Library | Role |
 | :--- | :--- | :--- |
-| **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener, Dialog & FS Plugins |
+| **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener, Dialog & FS Plugins, Single-instance (one running window that receives files opened later), Snap Layout (Windows 11 snap flyout on the custom Maximize button) |
 | **Markdown Parser**| Marked.js + DOMPurify | Markdown parsing and secure XSS sanitization |
 | **Mathematics** | KaTeX + marked-katex-extension | TeX/LaTeX mathematical formula typesetting |
 | **Diagram Engine** | Mermaid.js | Declarative diagram rendering |
@@ -281,6 +294,7 @@ markdown-live-app/
 │   │   └── dev/                # Self-check (?selfcheck) + perf harness (?perf)
 │   ├── vendor/                 # Local 3rd-party bundles (marked, katex,
 │   │   └── fonts/              # mermaid...) + KaTeX web fonts
+│   ├── PRIVACY.md              # Privacy statement shown in the About dialog
 │   ├── THIRD_PARTY_NOTICES.md  # Licences of the bundled vendor libraries
 │   └── LICENSE                 # MIT licence for the frontend
 ├── src-tauri/                  # Rust backend + Tauri configuration

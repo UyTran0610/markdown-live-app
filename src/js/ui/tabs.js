@@ -42,6 +42,15 @@ function buildTab(tab, isActive, displayName, dupeCount) {
         el.append(mark);
     }
 
+    // File lớn mở read-only: dấu khoá để biết vì sao không gõ được.
+    if (tab.readOnly) {
+        const mark = document.createElement('span');
+        mark.className = 'tab-readonly';
+        mark.textContent = '\u{1F512}';
+        mark.title = 'Opened read-only (file too large to edit)';
+        el.append(mark);
+    }
+
     const close = document.createElement('span');
     close.className = 'tab-close';
     close.title = 'Close tab';

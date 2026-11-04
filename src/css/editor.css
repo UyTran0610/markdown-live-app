@@ -46,6 +46,11 @@
     color: var(--editor-placeholder);
 }
 
+/* Tab read-only (file lớn): viền báo hiệu trong Editor, không đổi nền để không che lớp tô màu. */
+.editor-container:has(#markdown-input[read-only]) {
+    box-shadow: inset 3px 0 0 var(--text-muted);
+}
+
 #markdown-input::selection {
     background-color: var(--editor-selection);
 }

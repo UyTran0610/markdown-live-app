@@ -2,14 +2,13 @@
 
 import { charCounter, markdownInput } from '../core/dom.js';
 import { debounce } from '../core/utils.js';
-import { cacheActivePreview, saveSession, updateActiveContent } from '../io/documents.js';
+import { cacheActivePreview, renderPreviewGuarded, saveSession, updateActiveContent } from '../io/documents.js';
 import { scheduleEditorHighlight } from './highlight.js';
-import { renderMarkdown } from '../preview/render.js';
 
 // Editor ẩn preview nên bỏ render; view-mode gọi renderActivePreview() khi chuyển sang có preview.
 function renderAndCache() {
     if (document.body.classList.contains('view-editor')) return;
-    renderMarkdown();
+    renderPreviewGuarded();
     cacheActivePreview();
 }
 

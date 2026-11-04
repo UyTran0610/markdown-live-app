@@ -1,9 +1,8 @@
 // js/theme/theme.js — Theme Sáng / Tối: áp dụng, lưu lựa chọn, theo theme hệ thống.
 
 import { btnTheme, themeCssLinks } from '../core/dom.js';
-import { invalidatePreviewCaches } from '../io/documents.js';
+import { invalidatePreviewCaches, renderActivePreview } from '../io/documents.js';
 import { clearMermaidCache } from '../preview/mermaid-cache.js';
-import { renderMarkdown } from '../preview/render.js';
 
 const THEME_STORAGE_KEY = 'markdown-live-theme';
 
@@ -64,7 +63,8 @@ export function initTheme() {
             // xong mới chụp sẽ đứng cả trang) nhưng PHẢI sau applyTheme.
             clearMermaidCache();
             invalidatePreviewCaches();
-            if (typeof renderMarkdown === 'function') renderMarkdown();
+            // renderActivePreview tôn trọng chặn cỡ: file lớn không chạy marked/KaTeX/Mermaid.
+            renderActivePreview();
         });
     }
 
@@ -80,7 +80,7 @@ export function initTheme() {
                 switchTheme(event.matches ? 'dark' : 'light', false);
                 clearMermaidCache();
                 invalidatePreviewCaches();
-                if (typeof renderMarkdown === 'function') renderMarkdown();
+                renderActivePreview();
             }
         });
     }

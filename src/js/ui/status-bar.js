@@ -19,8 +19,8 @@ export function updateStatusBar() {
     statusEol.textContent = tab ? EOL_LABEL[tab.eol] : 'LF';
     const { line, column } = caretPosition();
     statusPos.textContent = `Ln ${line}, Col ${column}`;
-    // readTextFile từ chối file không phải UTF-8 nên tab đang mở luôn là UTF-8.
-    statusEncoding.textContent = 'UTF-8';
+    // Tab có thể đã được chuyển từ UTF-16/Windows-125x lúc đọc.
+    statusEncoding.textContent = tab?.encoding || 'UTF-8';
 }
 
 export function initStatusBar() {

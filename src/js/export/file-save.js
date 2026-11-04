@@ -120,7 +120,7 @@ export function hashText(text) {
 }
 
 // Đọc BYTES rồi tự giải mã: readTextFile không-fatal sẽ biến byte lạ thành U+FFFD và lần lưu
-// sau ghi hỏng file. Ở đây file lạ bị TỪ CHỐI.
+// sau ghi hỏng file. Ở đây file lạ được CHUYỂN sang UTF-8, chỉ từ chối file nhị phân thật.
 export async function readTextFile(path) {
     let bytes;
     try {
@@ -137,21 +137,138 @@ export async function readTextFile(path) {
         return null;
     }
 
-    // Notepad Unicode (UTF-16) hay gặp trên Windows: đoán theo BOM rồi từ chối kèm hướng dẫn.
-    if (bytes.length >= 2
-        && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) {
-        showToast('That file is UTF-16, not UTF-8 - opening it here would corrupt it. Re-save it as UTF-8 first.');
-        return null;
+    const decoded = decodeTextBytes(bytes);
+    if (!decoded) {
+        // File nhị phân thật: không có cách dịch an toàn, từ chối như cũ.
+        showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
+    }
+    return decoded;
+}
+
+// Giải mã bytes thành { text, encoding, converted }. Trả null nếu không dịch an toàn.
+// Hàm thuần (không báo toast) để self-check gọi được.
+export function decodeTextBytes(bytes) {
+    if (!bytes || bytes.length === 0) return { text: '', encoding: 'UTF-8', converted: false };
+
+    // BOM UTF-8: giữ U+FEFF cho tầng trên nhận biết bom (giữ hành vi cũ).
+    if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+        let body = null;
+        try {
+            body = decodeUtf8Strict(bytes.slice(3));
+        } catch {
+            // BOM mà thân không phải UTF-8 hợp lệ: giải mã thân bằng heuristic, vẫn giữ BOM để ghi lại.
+        }
+        if (body !== null && !hasNulChar(body)) {
+            return { text: '\uFEFF' + body, encoding: 'UTF-8', converted: false };
+        }
+        // Thân có NUL = file nhị phân: đi nhánh heuristic trên thân (giữ BOM để ghi lại).
+        const rest = decodeTextBytes(bytes.slice(3));
+        return rest ? { ...rest, text: '\uFEFF' + rest.text } : null;
     }
 
-    try {
-        // ignoreBOM: true để U+FEFF sống sót; mặc định TextDecoder nuốt BOM và lần lưu sau làm mất BOM.
-        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-    } catch (err) {
-        console.error('Decode failed:', err);
-        showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
-        return null;
+    // BOM UTF-16LE/BE (Notepad Unicode): decode thay vì từ chối. File nhị phân rác cũng có
+    // thể bắt đầu bằng FF FE, nên phải qua cùng bộ lọc với nhánh không BOM; thất bại thì
+    // bỏ BOM rồi rơi xuống nhánh Windows-125x.
+    let body = bytes;
+    let utf16 = null;
+    if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+        body = bytes.slice(2);
+        utf16 = 'utf-16le';
+    } else if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+        body = bytes.slice(2);
+        utf16 = 'utf-16be';
     }
+
+    if (utf16) {
+        const text = new TextDecoder(utf16).decode(body);
+        if (isPlausibleText(text)) {
+            return { text, encoding: utf16 === 'utf-16le' ? 'UTF-16LE' : 'UTF-16BE', converted: true };
+        }
+    } else {
+        // UTF-8 strict trước: file UTF-8 hợp lệ không bao giờ bị dịch sai.
+        try {
+            // ignoreBOM: true để U+FEFF sống sót; mặc định TextDecoder nuốt BOM và lần lưu sau làm mất BOM.
+            const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+            // NUL là byte hợp lệ của UTF-8 nhưng không có trong text: đó là file nhị phân
+            // (ví dụ toàn 0x00), không phải tài liệu. Rơi xuống các nhánh heuristic.
+            if (!hasNulChar(text)) return { text, encoding: 'UTF-8', converted: false };
+        } catch {
+            // Xuống dưới: chuột không - decode nhận dạng heuristic.
+        }
+
+        // UTF-16LE không BOM: byte lẻ thường 0x00 và decode cho ký tự không có U+FFFD.
+        if (bytes.length >= 4 && bytes.length % 2 === 0 && looksLikeUtf16Le(bytes)) {
+            const text = new TextDecoder('utf-16le').decode(bytes);
+            if (isPlausibleText(text)) return { text, encoding: 'UTF-16LE', converted: true };
+        }
+    }
+
+    // Single-byte Windows cũ: thử windows-1258 rồi windows-1252, chọn bản ít U+FFFD nhất.
+    let best = null;
+    for (const label of ['windows-1258', 'windows-1252']) {
+        try {
+            const text = new TextDecoder(label, { fatal: false }).decode(body);
+            const bad = countReplacementChars(text);
+            if (!best || bad < best.bad) best = { text, bad, label };
+            if (bad === 0) break;
+        } catch {
+            // TextDecoder không hỗ trợ label này: thử tiếp.
+        }
+    }
+    // Ký-tự điều khiển còn sót = decode sai: file toàn 0x00 hay 0x7F không được mở.
+    if (best && best.bad <= Math.max(4, Math.floor(body.length / 200)) && !hasControlChars(best.text)) {
+        return { text: best.text, encoding: best.label === 'windows-1258' ? 'Windows-1258' : 'Windows-1252', converted: true };
+    }
+
+    // File nhị phân thật: không có cách dịch an toàn, từ chối (readTextFile báo lỗi).
+    return null;
+}
+
+function decodeUtf8Strict(bytes) {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+}
+
+function looksLikeUtf16Le(bytes) {
+    const sample = Math.min(bytes.length, 4096);
+    let zeroOdd = 0;
+    for (let i = 1; i < sample; i += 2) {
+        if (bytes[i] === 0) zeroOdd++;
+    }
+    // File nhỏ: mọi byte cao phải là 0x00, threshold 25% quá lỏng.
+    if (sample < 100) return zeroOdd === Math.floor(sample / 2);
+    return zeroOdd >= Math.max(2, Math.floor(sample / 4));
+}
+
+function countReplacementChars(text) {
+    let n = 0;
+    for (let i = 0; i < text.length; i++) {
+        if (text.charCodeAt(i) === 0xfffd) n++;
+    }
+    return n;
+}
+
+function hasManyReplacementChars(text) {
+    return countReplacementChars(text) > Math.max(4, Math.floor(text.length / 200));
+}
+
+// Text giải mã được phải sạch: không U+FFFD hàng loạt, không ký-tự điều khiển lạ.
+function isPlausibleText(text) {
+    return !hasManyReplacementChars(text) && !hasControlChars(text);
+}
+
+// NUL không có trong text thật: byte 0x00 là dấu hiệu file nhị phân.
+function hasNulChar(text) {
+    return text.indexOf('\u0000') !== -1;
+}
+
+// Ký-tự điều khiển ngoài \t\n\r (kể cả DEL 0x7F): dấu hiệu decode heuristic sai.
+function hasControlChars(text) {
+    for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c === 0x7f) return true;
+        if (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d) return true;
+    }
+    return false;
 }
 
 // Trả null thay vì ném: cả file bị xoá và ngoài ACL đều chỉ cần biết không có mtime.

@@ -22,7 +22,7 @@ import { highlightMarkdown } from '../editor/syntax/block.js';
 import { renderDelayFor, syncEditorAfterChange } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { applyEol, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
+import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
@@ -210,6 +210,10 @@ export async function runSelfCheck() {
             const bomBack = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, 'C:\\a.md', 'a.md', '# A', '# A', '\n', true)] }));
             assert('session giữ cờ BOM', bomBack.tabs[0].bom === true);
             assert('session thiếu bom -> mặc định không BOM', back.tabs[0].bom === false);
+            // Encoding cũng phải sống cùng session, nếu không status bar báo sai sau khi mở lại.
+            const encBack = deserializeSession(JSON.stringify({ activeId: 1, tabs: [{ ...wire(1, 'C:\\a.md', 'a.md', '# A', '# A'), encoding: 'UTF-16LE' }] }));
+            assert('session giữ encoding', encBack.tabs[0].encoding === 'UTF-16LE');
+            assert('session thiếu encoding -> mặc định UTF-8', back.tabs[0].encoding === 'UTF-8');
 
             // Session cũ còn BOM trong content: bỏ BOM ở cả content và savedContent để tab vẫn sạch.
             const legacyBom = deserializeSession(JSON.stringify({ activeId: 1, tabs: [wire(1, '/a.md', 'a.md', '\uFEFF# A', '\uFEFF# A')] }));
@@ -363,6 +367,55 @@ export async function runSelfCheck() {
             assert('serialize session trả về shape đúng',
                 typeof live.activeId === 'number' && Array.isArray(live.tabs)
                 && live.tabs.every((t) => 'dirty' in t && (t.eol === '\n' || t.eol === '\r\n')));
+        });
+
+        // Giải mã file: đây là chỗ quyết định file nhị phân bị từ chối hay mở ra mojibake.
+        await section('giải mã file', async () => {
+            const bytes = (...arr) => Uint8Array.from(arr);
+
+            // UTF-16LE có BOM (Notepad Unicode): mở được, đánh dấu đã chuyển.
+            const utf16 = decodeTextBytes(bytes(0xff, 0xfe, 0x48, 0x00, 0x69, 0x00));
+            assert('file UTF-16LE có BOM -> giải mã đúng chữ', utf16 && utf16.text === 'Hi');
+            assert('file UTF-16LE có BOM -> báo đã chuyển', utf16 && utf16.converted === true && utf16.encoding === 'UTF-16LE');
+
+            const utf16be = decodeTextBytes(bytes(0xfe, 0xff, 0x00, 0x48, 0x00, 0x69));
+            assert('file UTF-16BE có BOM -> giải mã đúng chữ', utf16be && utf16be.text === 'Hi' && utf16be.encoding === 'UTF-16BE');
+
+            // File nhị phân: phải bị từ chối (null), không mở ra tab toàn ký tự lạ.
+            assert('file toàn 0x00 -> bị từ chối', decodeTextBytes(new Uint8Array(2048)) === null);
+            const mixed = new Uint8Array(512);
+            for (let i = 0; i < mixed.length; i++) mixed[i] = i % 2 ? 0x7f : 0x00;
+            assert('file xen 0x00/0x7F -> bị từ chối', decodeTextBytes(mixed) === null);
+            // File toàn 0x7F là UTF-8 hợp lệ, nhưng không được mở như file Windows-125x.
+            const dels = decodeTextBytes(new Uint8Array(512).fill(0x7f));
+            assert('file toàn 0x7F -> không mở như Windows-125x',
+                !dels || (dels.encoding !== 'Windows-1252' && dels.encoding !== 'Windows-1258'));
+
+            // Windows-125x cũ: giữ đúng chữ, không U+FFFD.
+            const win1252 = decodeTextBytes(bytes(0x63, 0x61, 0x66, 0xe9, 0x0a));
+            assert('file windows-1252 -> giữ dấu é', !!win1252 && win1252.text.indexOf('\u00e9') !== -1);
+            assert('file windows-1252 -> không ký tự U+FFFD', !!win1252 && win1252.text.indexOf('\ufffd') === -1);
+            assert('file windows-1252 -> báo đã chuyển', !!win1252 && win1252.converted === true);
+
+            // UTF-8 BOM phải còn nguyên BOM để lần lưu sau ghi lại đúng file gốc.
+            const utf8Bom = decodeTextBytes(bytes(0xef, 0xbb, 0xbf, 0x23, 0x20, 0x41));
+            assert('file UTF-8 có BOM -> giữ nguyên BOM', !!utf8Bom && utf8Bom.text.charCodeAt(0) === 0xfeff);
+            assert('file UTF-8 có BOM -> không báo chuyển', !!utf8Bom && utf8Bom.converted === false && utf8Bom.encoding === 'UTF-8');
+
+            const plain = decodeTextBytes(bytes(0x23, 0x20, 0x41));
+            assert('file UTF-8 thường -> giữ nguyên chữ', !!plain && plain.text === '# A' && plain.converted === false);
+        });
+
+        // readOnly phải sống cùng session, nếu không mỗi lần khởi động lại mở khoá gõ.
+        await section('session giữ cờ read-only', async () => {
+            const ro = deserializeSession(JSON.stringify({
+                activeId: 1, tabs: [{ id: 1, path: 'C:\\big.md', name: 'big.md', content: 'x', dirty: false, eol: '\n', bom: false, readOnly: true }]
+            }));
+            assert('session giữ read-only của tab lớn', ro.tabs[0].readOnly === true);
+            const normal = deserializeSession(JSON.stringify({
+                activeId: 1, tabs: [{ id: 1, path: 'C:\\a.md', name: 'a.md', content: 'x', dirty: false, eol: '\n', bom: false }]
+            }));
+            assert('session thiếu read-only -> mặc định gõ được', normal.tabs[0].readOnly === false);
         });
 
         // Handler auto-close gắn thẳng vào textarea nên KeyboardEvent giả là đủ.

@@ -1,6 +1,6 @@
 // js/io/documents.js — Store tab: nội dung, đọc/ghi file, session (một textarea chung).
 
-import { btnImport, btnSave, btnSaveAll, btnSaveAs, editorHighlight, markdownInput, previewOutput } from '../core/dom.js';
+import { btnImport, btnSave, btnSaveAll, btnSaveAs, charCounter, editorHighlight, markdownInput, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { updateEditorHighlight } from '../editor/highlight.js';
 import { editorHistory, pruneAllHistories } from '../editor/history.js';
@@ -17,7 +17,8 @@ const LEGACY_KEY = 'markdown-live-content';
 // Đuôi văn bản — ranh giới DUY NHẤT chặn file nhị phân, đừng nới thêm.
 const MARKDOWN_EXTS = ['md', 'markdown', 'mdown', 'mkd', 'mdx', 'rmd', 'qmd', 'txt', 'text'];
 
-const MAX_FILE_CHARS = 5 * 1024 * 1024;
+export const MAX_FILE_CHARS = 20 * 1024 * 1024;
+export const LARGE_FILE_CHARS = 5 * 1024 * 1024;
 
 const UNTITLED = 'Untitled';
 
@@ -84,7 +85,7 @@ export function untitledName(existing) {
 }
 
 // `= {}` bắt buộc: restoreSession gọi createTab() không tham số.
-function createTab({ path = null, name = null, content = '', savedContent = content, eol = defaultEol, bom = false, status = 'ok', diskMtime = null, pinned = false } = {}) {
+function createTab({ path = null, name = null, content = '', savedContent = content, eol = defaultEol, bom = false, encoding = 'UTF-8', readOnly = false, status = 'ok', diskMtime = null, pinned = false } = {}) {
     const tab = {
         id: nextId++,
         path,
@@ -93,6 +94,8 @@ function createTab({ path = null, name = null, content = '', savedContent = cont
         savedContent,
         eol,
         bom,
+        encoding,
+        readOnly: readOnly === true,
         status,
         diskMtime,
         pinned,
@@ -158,7 +161,8 @@ function captureActive() {
     if (restoring) return;
     const tab = getActiveTab();
     if (!tab) return;
-    tab.content = markdownInput.value;
+    // Tab readOnly: gõ không đổi được gì, capture content chỉ kéo rác vào tab.
+    if (!tab.readOnly) tab.content = markdownInput.value;
     tab.selStart = markdownInput.selectionStart;
     tab.selEnd = markdownInput.selectionEnd;
     tab.scrollTop = markdownInput.scrollTop;
@@ -172,6 +176,8 @@ function restoreTabIntoEditor(tab) {
     clearTimeout(editorHistory.typingTimer);
     editorHistory.typingTimer = null;
     markdownInput.value = tab.content;
+    // Tab file lớn: khoá gõ, nếu không updateActiveContent nuốt mất chỗ gõ.
+    markdownInput.readOnly = tab.readOnly === true;
     if (tab.history) {
         editorHistory.stack = tab.history.stack;
         editorHistory.index = tab.history.index;
@@ -187,7 +193,7 @@ function restoreTabIntoEditor(tab) {
     // renderMarkdown giữ scrollTop cũ nên phải zero trước khi render tab mới.
     previewOutput.scrollTop = 0;
     if (tab.preview && tab.preview.content === tab.content) renderCachedHtml(tab.preview.html, tab.preview.scroll);
-    else renderMarkdown();
+    else renderPreviewGuarded();
     markdownInput.setSelectionRange(tab.selStart, tab.selEnd);
     markdownInput.focus();
 }
@@ -210,9 +216,34 @@ export function renderActivePreview() {
     if (!tab) return;
     if (tab.preview && tab.preview.content === tab.content) renderCachedHtml(tab.preview.html, tab.preview.scroll);
     else {
-        renderMarkdown();
+        renderPreviewGuarded();
         cacheActivePreview();
     }
+}
+
+// marked + DOMPurify + KaTeX + Mermaid trên hàng chục MB làm treo cửa sổ ("not
+// responding"). Tài liệu lớn thì thay preview bằng lời nhắc, bản gốc vẫn đọc ở Editor.
+export function renderPreviewGuarded() {
+    const chars = markdownInput.value.length;
+    if (chars > LARGE_FILE_CHARS) {
+        renderTooLargeNotice(chars);
+        return false;
+    }
+    renderMarkdown();
+    return true;
+}
+
+// Lời nhắc trong khung preview; dùng textContent vì tên file là dữ liệu người dùng.
+function renderTooLargeNotice(chars) {
+    const mb = (chars / (1024 * 1024)).toFixed(1);
+    previewOutput.textContent = '';
+    const box = document.createElement('div');
+    box.className = 'preview-too-large';
+    const line = document.createElement('p');
+    line.textContent = `Too large to preview (${mb} MB) - switch to Editor view to read the source.`;
+    box.appendChild(line);
+    previewOutput.appendChild(box);
+    charCounter.textContent = `${chars} characters`;
 }
 
 onPreviewChanged(invalidatePreviewCaches);
@@ -254,7 +285,8 @@ function rememberClosedTab(tab) {
     closedTabs.push({
         path: tab.path, name: tab.name, content: tab.content, savedContent: tab.savedContent,
         savedHash: tab.savedHash, savedLen: tab.savedLen,
-        eol: tab.eol, bom: tab.bom, status: tab.status, diskMtime: tab.diskMtime, pinned: tab.pinned
+        eol: tab.eol, bom: tab.bom, encoding: tab.encoding, readOnly: tab.readOnly,
+        status: tab.status, diskMtime: tab.diskMtime, pinned: tab.pinned
     });
     if (closedTabs.length > CLOSED_TAB_LIMIT) closedTabs.shift();
 }
@@ -309,6 +341,9 @@ export async function closeTab(id, { force = false, remember = true } = {}) {
 export function updateActiveContent(text) {
     const tab = getActiveTab();
     if (!tab) return;
+    // Chỉ tab readOnly mới không theo dõi nội dung. Tab lỗi (status !== 'ok') vẫn gõ
+    // được và phải lưu được: bỏ qua status ở đây là mất bản nháp khi Ctrl+S.
+    if (tab.readOnly) return;
     const wasDirty = isTabDirty(tab);
     tab.content = text;
     if (isTabDirty(tab) !== wasDirty) emit();
@@ -346,6 +381,8 @@ export async function openPaths(paths) {
     let failed = 0;
     const created = [];
     let reused = null;
+    // Thông báo của từng file gom lại: toast chỉ có một ô, mở nhiều file thì chỉ thấy câu cuối.
+    const notes = [];
 
     for (const path of paths) {
         const existing = tabs.find((tab) => sameFilePath(tab.path, path));
@@ -353,29 +390,16 @@ export async function openPaths(paths) {
             reused = existing;
             continue;
         }
-        const raw = await readTextFile(path);
-        if (raw === null) {
+        const decoded = await readTextFile(path);
+        const tab = createTab({ path, name: baseName(path) });
+        // Đọc xong mới tạo tab; lỗi thì xoá tab vừa dựng, không để sót tab ma.
+        if (!applyDiskText(tab, decoded, { notes })) {
+            tabs.splice(tabs.indexOf(tab), 1);
             failed++;
             continue;
         }
-        if (raw.length > MAX_FILE_CHARS) {
-            showToast(`"${path.split(/[\\/]/).pop()}" is too large (5MB max).`);
-            failed++;
-            continue;
-        }
-        // Giữ EOL của file; nội dung tab luôn LF.
-        const eol = detectEol(raw);
-        const bom = detectBom(raw);
-        const text = toLf(stripBom(raw));
-        const tab = createTab({
-            path,
-            name: path.split(/[\\/]/).pop(),
-            content: text,
-            savedContent: text,
-            eol,
-            bom,
-            diskMtime: mtimeOf(await statFile(path))
-        });
+        tab.diskMtime = mtimeOf(await statFile(path));
+        tab.diskIgnoredMtime = null;
         noteRecentPath(path);
         created.push(tab);
     }
@@ -386,7 +410,9 @@ export async function openPaths(paths) {
 
     emit();
     saveSession();
-    if (failed) showToast(`Could not open ${failed} of ${paths.length} file${paths.length === 1 ? '' : 's'}.`);
+    const failedNote = failed ? `Could not open ${failed} of ${paths.length} file${paths.length === 1 ? '' : 's'}.` : '';
+    const summary = [...notes.filter(Boolean), failedNote].filter(Boolean).join(' ');
+    if (summary) showToast(summary);
 }
 
 const baseName = (path) => String(path || '').split(/[\\/]/).pop();
@@ -423,6 +449,9 @@ export async function saveActiveDoc(options = {}) {
 // 'busy' = đang có lần lưu khác; 'discard' = người dùng bỏ bản nháp ở hộp thoại File is gone.
 export async function saveTab(tab, options = {}) {
     if (!tab || saving) return 'busy';
+    // Chụp nội dung textarea TRƯỚC mọi thứ: tab lỗi (status !== 'ok') không ghi đè path
+    // cũ nhưng vẫn gõ được, tab.content có thể cũ hơn màn hình nếu chưa đồng bộ.
+    if (tab.id === activeId) captureActive();
     // Tab sạch không cần ghi; ngoại lệ tab lỗi vẫn phải cho lưu.
     if (!isTabDirty(tab) && tab.status === 'ok' && !options.as) return 'saved';
     saving = true;
@@ -497,6 +526,9 @@ export async function saveTab(tab, options = {}) {
         tab.status = 'ok';
         tab.diskMtime = mtimeOf(await statFile(path));
         tab.savedContent = snapshot;
+        // writeTextFile luôn ghi UTF-8: file vừa lưu không còn là mã hoá cũ nữa,
+        // giữ mã hoá cũ thì status bar và session nói dối mãi.
+        tab.encoding = 'UTF-8';
         // savedContent đã là chuỗi: hash + len không còn cần.
         tab.savedHash = null;
         tab.savedLen = null;
@@ -536,26 +568,60 @@ export function diskRevision(stat, diskMtime) {
     return m === diskMtime ? 'same' : 'changed';
 }
 
+// Ghi đè text từ đĩa: trả true nếu ok, false nếu lỗi/quá giới hạn.
+// Toast chỉ có MỘT ô (lời sau xoá lời trước), nên mọi thông báo của một lần mở file
+// phải gộp thành một câu: lead (Reloaded/Recovered) + chuyển mã hoá + cảnh báo read-only.
+// notes: mảng gom thông báo của nhiều file, người gọi tự hiện một lần cuối.
+function applyDiskText(tab, decoded, { keepDraft = false, lead = '', notes = null } = {}) {
+    if (!decoded) return false;
+    const raw = decoded.text;
+    if (raw.length > MAX_FILE_CHARS) {
+        showToast(`"${tab.name}" is too large (20MB max).`);
+        return false;
+    }
+    const diskText = toLf(stripBom(raw));
+    tab.eol = detectEol(raw);
+    tab.bom = detectBom(raw);
+    tab.encoding = decoded.encoding || 'UTF-8';
+    tab.status = 'ok';
+    if (keepDraft && tab.content) {
+        tab.savedContent = diskText;
+    } else {
+        tab.content = diskText;
+        tab.savedContent = diskText;
+    }
+
+    // Cỡ nội dung TRONG editor mới quyết định gõ được không: bản nháp khôi phục có thể
+    // nhỏ dù file trên đĩa lớn, khoá nó là mất bản duy nhất người dùng còn.
+    tab.readOnly = tab.content.length > LARGE_FILE_CHARS;
+
+    const parts = [];
+    if (lead) parts.push(lead);
+    if (decoded.converted) parts.push(`"${tab.name}" was ${decoded.encoding}; it will be saved as UTF-8.`);
+    if (tab.readOnly) {
+        const mb = (tab.content.length / (1024 * 1024)).toFixed(1);
+        parts.push(`"${tab.name}" is too large (${mb} MB) to edit - opened read-only.`);
+    }
+    const note = parts.join(' ');
+    if (notes) notes.push(note);
+    else if (note) showToast(note);
+    return true;
+}
+
 async function reloadTabFromDisk(tab) {
-    const raw = await readTextFile(tab.path);
-    if (raw === null || raw.length > MAX_FILE_CHARS) {
+    const decoded = await readTextFile(tab.path);
+    if (!applyDiskText(tab, decoded, { lead: `Reloaded "${tab.name}" from disk.` })) {
         tab.status = 'unreadable';
         tab.diskMtime = null;
         emit();
         return false;
     }
-    tab.eol = detectEol(raw);
-    tab.bom = detectBom(raw);
-    tab.content = toLf(stripBom(raw));
-    tab.savedContent = tab.content;
-    tab.status = 'ok';
     tab.diskMtime = mtimeOf(await statFile(tab.path));
     tab.diskIgnoredMtime = null;
     // Lịch sử Undo cũ trỏ vào nội dung không còn trong tab: xoá để dựng stack mới.
     tab.history = null;
     if (tab.id === activeId) restoreTabIntoEditor(tab);
     // Tải lại âm thầm mà không nói gì thì tài liệu tự đổi trước mắt người dùng.
-    showToast(`Reloaded "${tab.name}" from disk.`);
     emit();
     return true;
 }
@@ -661,9 +727,13 @@ export function serializeSession({ discardUnsaved = false } = {}) {
                 name: tab.name,
                 // null = không lưu content, đọc lại từ đĩa (khác '' là tab rỗng thật).
                 content: keep ? tab.content : null,
-                // eol/bom phải sống cùng session, nếu không lần lưu sau đổi CRLF thành LF và mất BOM.
+                // eol/bom/encoding phải sống cùng session, nếu không lần lưu sau đổi CRLF thành LF, mất BOM, và status bar hiện sai mã hoá.
                 eol: tab.eol,
                 bom: tab.bom,
+                encoding: tab.encoding,
+                // readOnly: tab lớn phải khoá gõ sau mỗi lần khởi động, nếu không mỗi
+                // lần mở lại là một lần gõ lag trên file nhiều MB.
+                readOnly: tab.readOnly === true,
                 // status + diskMtime: 'unreadable' chặn Ctrl+S ghi đè file thật bằng bản rỗng.
                 status: tab.status,
                 diskMtime: tab.diskMtime,
@@ -713,6 +783,8 @@ export function deserializeSession(raw, fallbackId = 1) {
             savedLen: Number.isFinite(t.savedLen) ? t.savedLen : null,
             eol: t.eol === '\r\n' ? '\r\n' : '\n',
             bom: t.bom === true,
+            encoding: typeof t.encoding === 'string' && t.encoding ? t.encoding : 'UTF-8',
+            readOnly: t.readOnly === true,
             status: t.status === 'unreadable' || t.status === 'missing' ? t.status : 'ok',
             diskMtime: Number.isFinite(t.diskMtime) ? t.diskMtime : null,
             pinned: t.pinned === true,
@@ -780,6 +852,8 @@ export async function restoreSession() {
 
     try {
         let restored = null;
+        // Thông báo của các tab khôi phục gom lại: toast chỉ có một ô.
+        const notes = [];
         try {
             restored = await loadRestoredSession();
         } catch (e) {
@@ -799,22 +873,24 @@ export async function restoreSession() {
 
         // Đọc tab đang mở trước rồi mới tới tab nền: textarea rỗng suốt lúc chờ đĩa sẽ bị captureActive() đè.
         const active = getActiveTab();
-        await loadTabFromDisk(active);
+        await loadTabFromDisk(active, notes);
 
         restoring = false;
         restoreTabIntoEditor(active);
-        markdownInput.readOnly = false;
         emit();
         saveSession();
 
         // Tab nền đọc sau; emit() cuối để cập nhật dấu chưa-lưu / tên.
         for (const tab of tabs) {
-            if (tab !== active) await loadTabFromDisk(tab);
+            if (tab !== active) await loadTabFromDisk(tab, notes);
         }
         emit();
+        const summary = notes.filter(Boolean).join(' ');
+        if (summary) showToast(summary);
     } finally {
         restoring = false;
-        markdownInput.readOnly = false;
+        // restoreTabIntoEditor có thể không chạy (lỗi giữa chừng): cờ readOnly phải theo tab active.
+        markdownInput.readOnly = getActiveTab()?.readOnly === true;
     }
 
     // File association lần chạy đầu: hỏi SAU khi editor dựng xong, không thì bị restoreSession ghi đè.
@@ -823,34 +899,24 @@ export async function restoreSession() {
 
 // Đọc lại tab từ đĩa khi session không lưu content; lỗi/quá giới hạn -> status 'unreadable',
 // đây là chốt khiến saveActiveDoc buộc Save As thay vì ghi bản rỗng lên file thật.
-async function loadTabFromDisk(tab) {
+async function loadTabFromDisk(tab, notes = null) {
     if (!tab || !tab.reload) return;
     tab.reload = false;
-    const raw = await readTextFile(tab.path);
-    if (raw === null || raw.length > MAX_FILE_CHARS) {
+    const decoded = await readTextFile(tab.path);
+    const wasBroken = tab.status !== 'ok';
+    const hadDraft = !!tab.content;
+    // "Recovered" là phần đầu của một câu, không phải toast riêng: toast chỉ có một ô.
+    const lead = wasBroken ? `Recovered "${tab.name}" from disk.` : '';
+    if (!applyDiskText(tab, decoded, { keepDraft: wasBroken && hadDraft, lead, notes })) {
         tab.savedContent = null;
         tab.status = 'unreadable';
         tab.diskMtime = null;
         return;
     }
-    const wasBroken = tab.status !== 'ok';
-    const diskText = toLf(stripBom(raw));
-    // Tab lỗi nay đọc được: bản nháp là thứ duy nhất người dùng còn, không ghi đè bằng nội dung đĩa.
-    // Lấy nội dung đĩa làm savedContent -> tab dirty và Ctrl+S ghi bản nháp lên file thật.
-    if (wasBroken && tab.content) {
-        tab.savedContent = diskText;
-    } else {
-        tab.content = diskText;
-        tab.savedContent = diskText;
-    }
-    tab.eol = detectEol(raw);
-    tab.bom = detectBom(raw);
-    tab.status = 'ok';
     tab.diskMtime = mtimeOf(await statFile(tab.path));
     tab.diskIgnoredMtime = null;
     tab.savedHash = null;
     tab.savedLen = null;
-    if (wasBroken) showToast(`Recovered "${tab.name}" from disk.`);
 }
 
 // Chạy một lần: dựng tab từ nháp single-document cũ rồi xoá key cũ.

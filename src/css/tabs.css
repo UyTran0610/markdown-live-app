@@ -130,6 +130,20 @@
     line-height: 1;
 }
 
+/* Tab read-only (file quá lớn): dấu khoá, cùng kiểu với dấu ! của tab lỗi. */
+.tab-readonly {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    font-size: 10px;
+    line-height: 1;
+    filter: grayscale(1);
+    opacity: 0.8;
+}
+
 /* Tab ghim: đánh dấu góc phải, không chiếm chiều ngang nên không đẩy layout khi bật/tắt. */
 .tab[data-pinned]::after {
     content: '';

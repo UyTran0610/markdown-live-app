@@ -5,7 +5,9 @@ import { editorHighlightCode, markdownInput, paneResizer, previewOutput, viewIte
 import { showToast } from '../core/toast.js';
 import { cancelScheduledEditorHighlight, updateEditorHighlight } from '../editor/highlight.js';
 import { renderDelayFor } from '../editor/sync.js';
-import { closeTab, getActiveTab, newTab, switchTab } from '../io/documents.js';
+import { closeTab, getActiveTab, newTab, switchTab, saveSession } from '../io/documents.js';
+import { whenSessionWritten } from '../io/session-store.js';
+import { editorHistory } from '../editor/history.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
 // 400k vượt ngưỡng 300k nên đo luôn nhánh preview lớn (bỏ hljs). Sửa danh sách để đo mức khác.
@@ -78,7 +80,7 @@ function measureFrame(work) {
 }
 
 // Một phím gõ thật: native (setRangeText + ép layout), handler app (chỉ 'input'),
-// tô màu trong rAF, rồi style + layout + paint của khung. Trả tổng độ trễ.
+// tô màu trong rAF, rồi style + layout + paint của khung. Trả breakdown để in từng cột riêng.
 async function measureKeystroke(pos) {
     markdownInput.setSelectionRange(pos, pos);
     const scrollable = Math.max(markdownInput.scrollHeight - markdownInput.clientHeight, 0);
@@ -96,6 +98,10 @@ async function measureKeystroke(pos) {
     t = performance.now();
     markdownInput.dispatchEvent(new InputEvent('input', { data: 'x', inputType: 'insertText', bubbles: true }));
     const handlerMs = performance.now() - t;
+    // Nội dung đã đổi (setRangeText vừa chèn 'x') nên push chạy nhánh thật, không rơi nhánh dedup.
+    t = performance.now();
+    editorHistory.saveCurrentState(markdownInput);
+    const historyMs = performance.now() - t;
     // Handler vừa xếp rAF tô màu của app; hủy để tự chạy updateEditorHighlight trong rAF.
     cancelScheduledEditorHighlight();
     let highlightMs = 0;
@@ -106,7 +112,7 @@ async function measureKeystroke(pos) {
         // Scroll event của bước đặt scrollTop xếp thêm một rAF tô màu trùng; bỏ để tail chỉ còn layout/paint.
         cancelScheduledEditorHighlight();
     });
-    return nativeMs + handlerMs + highlightMs + tailMs;
+    return { total: nativeMs + handlerMs + highlightMs + tailMs, handlerMs, historyMs };
 }
 
 let dragSkippedWarned = false;
@@ -206,8 +212,13 @@ export async function runPerfCheck() {
 
             // Gõ: sửa giữa tài liệu (lệt vùng tô màu phải nối lô) là ca nhất.
             const typeTimes = [];
+            const handlerTimes = [];
+            const historyTimes = [];
             for (let run = 0; run < RUNS; run++) {
-                typeTimes.push(await measureKeystroke(Math.floor(markdownInput.value.length / 2)));
+                const keystroke = await measureKeystroke(Math.floor(markdownInput.value.length / 2));
+                typeTimes.push(keystroke.total);
+                handlerTimes.push(keystroke.handlerMs);
+                historyTimes.push(keystroke.historyMs);
                 await settle(50); // đủ cho rAF tô màu thừa của phím trước
             }
 
@@ -217,12 +228,25 @@ export async function runPerfCheck() {
 
             const frames = await measureDividerDrag();
 
+            // saveSession: content giữ nguyên nên lượt 2+ bỏ qua ghi IDB, chỉ còn hash + fingerprint — đúng trạng thái gõ bình thường.
+            await whenSessionWritten();
+            const saveTimes = [];
+            for (let run = 0; run < RUNS; run++) {
+                const start = performance.now();
+                await saveSession();
+                saveTimes.push(performance.now() - start);
+                await settle(0);
+            }
+
             rows.push({
                 chars: markdownInput.value.length,
                 'render (ms)': round1(avg(renderTimes)),
                 'highlight (ms)': round1(avg(highlightTimes)),
                 'scroll (ms)': round1(avg(scrollTimes)),
                 'typing (ms)': round1(avg(typeTimes)),
+                'handler (ms)': round1(avg(handlerTimes)),
+                'history (ms)': round1(avg(historyTimes)),
+                'saveSession (ms)': round1(avg(saveTimes)),
                 'drag frame (ms)': frames ? round1(avg(frames)) : 'skipped'
             });
         }
@@ -243,7 +267,7 @@ export async function runPerfCheck() {
 
     // Số trung bình để đánh giá cơ bản; không đặt ngưỡng PASS/FAIL vì ms phụ thuộc máy.
     console.log(`Perf check: ${DOC_SIZES.length} document sizes, ${RUNS} runs each (trung bình).`);
-    console.log('typing = độ trễ một phím gõ (native + handler + tô màu + layout/paint); drag frame = đầu khung rAF -> sau paint.');
+    console.log('typing = độ trễ một phím gõ (native + handler + tô màu + layout/paint); handler = chỉ handler input (không render); history = editorHistory.saveCurrentState; saveSession = saveSession kể cả hash; drag frame = đầu khung rAF -> sau paint.');
     console.table(rows);
     showToast(`Perf: ${DOC_SIZES.length} sizes × ${RUNS} runs (see console.table)`);
 }

@@ -1,6 +1,7 @@
 // js/ui/scroll-sync.js — Cuộn đồng bộ giữa editor và preview + nút bật / tắt.
 
-import { btnSync, editorHighlight, markdownInput, previewOutput } from '../core/dom.js';
+import { btnSync, previewOutput } from '../core/dom.js';
+import { getView } from '../editor/cm.js';
 import { notifyPreviewScrolled } from '../preview/render.js';
 
 let isSyncScrollEnabled = true;
@@ -24,36 +25,38 @@ let editorScrollTicking = false;
 let previewScrollTicking = false;
 
 export function initScrollSync() {
-    markdownInput.addEventListener('mouseenter', () => activeScrollSource = markdownInput);
+    const v = getView();
+    if (!v) return;
+    // CodeMirror cuộn trong .cm-scroller; sự kiện chuột/bàn phím bám trên .cm-editor.
+    const editor = v.dom;
+    const scroller = v.scrollDOM;
 
-    previewOutput.addEventListener('mouseenter', () => activeScrollSource = previewOutput);
+    editor.addEventListener('mouseenter', () => { activeScrollSource = scroller; });
 
-    markdownInput.addEventListener('focus', () => activeScrollSource = markdownInput);
+    previewOutput.addEventListener('mouseenter', () => { activeScrollSource = previewOutput; });
 
-    previewOutput.addEventListener('focus', () => activeScrollSource = previewOutput);
+    editor.addEventListener('focus', () => { activeScrollSource = scroller; });
 
-    markdownInput.addEventListener('wheel', () => activeScrollSource = markdownInput, { passive: true });
+    previewOutput.addEventListener('focus', () => { activeScrollSource = previewOutput; });
 
-    previewOutput.addEventListener('wheel', () => activeScrollSource = previewOutput, { passive: true });
+    editor.addEventListener('wheel', () => { activeScrollSource = scroller; }, { passive: true });
 
-    markdownInput.addEventListener('keydown', () => activeScrollSource = markdownInput);
+    previewOutput.addEventListener('wheel', () => { activeScrollSource = previewOutput; }, { passive: true });
 
-    previewOutput.addEventListener('keydown', () => activeScrollSource = previewOutput);
+    editor.addEventListener('keydown', () => { activeScrollSource = scroller; });
 
-    markdownInput.addEventListener('touchstart', () => activeScrollSource = markdownInput, { passive: true });
+    previewOutput.addEventListener('keydown', () => { activeScrollSource = previewOutput; });
 
-    previewOutput.addEventListener('touchstart', () => activeScrollSource = previewOutput, { passive: true });
+    editor.addEventListener('touchstart', () => { activeScrollSource = scroller; }, { passive: true });
 
-    markdownInput.addEventListener('scroll', () => {
-        // Lớp tô màu phải bám tuyệt đối theo pixel nên đồng bộ ngay, không qua rAF.
-        editorHighlight.scrollTop = markdownInput.scrollTop;
-        editorHighlight.scrollLeft = markdownInput.scrollLeft;
+    previewOutput.addEventListener('touchstart', () => { activeScrollSource = previewOutput; }, { passive: true });
 
+    scroller.addEventListener('scroll', () => {
         if (editorScrollTicking) return;
         editorScrollTicking = true;
         requestAnimationFrame(() => {
             editorScrollTicking = false;
-            handleScroll(markdownInput, previewOutput);
+            handleScroll(scroller, previewOutput);
         });
     });
 
@@ -63,7 +66,7 @@ export function initScrollSync() {
         previewScrollTicking = true;
         requestAnimationFrame(() => {
             previewScrollTicking = false;
-            handleScroll(previewOutput, markdownInput);
+            handleScroll(previewOutput, scroller);
         });
     });
 

@@ -1,13 +1,13 @@
 # AGENTS.md — Markdown Live
 
-Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS. No framework, no bundler, no lint/typecheck. All logic is in JS; Rust only registers plugins (plus one Windows-only WebView2 setting for Ctrl+F).
+Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS. No framework, no bundler, no lint/typecheck. All logic is in JS; Rust only registers plugins (plus one Windows-only WebView2 setting for Ctrl+F). The editor itself is CodeMirror 6, bundled by hand into `src/vendor/codemirror.bundle.js` (global `CodeMirror`).
 
 ## Map
 
-- `src/index.html` is the only HTML (`frontendDist` = `../src`). Load order is a hard constraint: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → find → preview → print`; vendor scripts all `defer`.
+- `src/index.html` is the only HTML (`frontendDist` = `../src`). Load order is a hard constraint: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → preview → print`; vendor scripts all `defer` (`codemirror.bundle.js` must stay before `js/main.js`).
 - `src/js/main.js` calls every `initXxx()` and owns the only `DOMContentLoaded`. Modules are grouped by role under `src/js/{core,editor,preview,export,io,ui,theme,dev}`.
-- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/sync.js` (`syncEditorAfterChange()`), `editor/highlight.js`, `editor/find-replace.js` (Ctrl+F / Ctrl+H), `preview/render.js`, `ui/view-mode.js`, `ui/window-controls.js`.
-- `src/vendor/` holds local third-party libs. Must stay fully offline: never add CDN links.
+- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/cm.js` (the whole CodeMirror 6 wrapper: view, keymap, theme, search panel), `editor/sync.js` (`initEditorSync()`), `preview/render.js`, `ui/view-mode.js`, `ui/window-controls.js`.
+- `src/vendor/` holds local third-party libs. Must stay fully offline: never add CDN links. CodeMirror 6 is a hand-built esbuild bundle; rebuild recipe lives in `scripts/vendor-update.js` (`scripts/vendor/codemirror.entry.js` → global `CodeMirror`).
 - `src-tauri/`: new plugin permissions go in `capabilities/default.json`, never in Rust.
 
 ## Commands
@@ -24,10 +24,10 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 - `initTabs()` before `restoreSession()`, which runs last in a `finally`, after `mermaid.initialize()`, `marked.use(katex)` and `lucide.createIcons()`.
 
 **Tabs**
-- One shared textarea; switching tabs sets `markdownInput.value`. No per-tab DOM.
+- One shared `EditorView` (`#cm-editor`); every tab keeps its own `tab.state` (`EditorState`) so undo history never mixes across tabs. Switching tabs = `view.setState(tab.state)`.
 - `activateTab()` is the only way to change `activeId`; `switchTab/newTab/closeTab/openPaths` all go through it.
-- Editor behaviour that must react to changes goes in `syncEditorAfterChange()`.
-- Shortcuts are on `window`, not the textarea (Preview hides the editor). Ctrl+Alt+S must be matched before Ctrl+S.
+- Editor behaviour that must react to changes goes in `handleEditorChange()` (`editor/sync.js`), registered through `setChangeHandler()`.
+- Shortcuts are on `window` (capture phase), not on the editor DOM (Preview hides the editor). Ctrl+Alt+S must be matched before Ctrl+S.
 - `tabs` array order is the visual and persisted order; reorder via `moveTab()`.
 
 **Data safety**
@@ -41,16 +41,18 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 - IndexedDB only, never localStorage (quota is below one allowed file). Never delete on write failure.
 - `writeSession()` resolves only on `tx.oncomplete` and must propagate errors to the caller.
 - Quit path: `onCloseRequested` → `preventDefault()` → `await flushSession()` → `destroy()` only on success. No `beforeunload`.
-- `restoreSession()` loads the active tab first, with `restoring` set and the textarea `readOnly`.
-- Clear `editorHistory.typingTimer` before swapping undo stacks. Invalidate `tab.preview` on theme change and when Mermaid finishes late.
+- `restoreSession()` loads the active tab first, with `restoring` set and the editor read-only (`EditorState.readOnly` + `EditorView.editable.of(false)`).
+- Invalidate `tab.preview` on theme change and when Mermaid finishes late.
 
-**Editor highlight**
-- `editorHighlightCode.textContent` must always equal `markdownInput.value + '\n'`; only the visible window is coloured, the rest is plain filler.
-- Don't read `scrollHeight` on every keystroke (forces full layout); see `TOP_REFRESH_CHARS`.
+**CodeMirror editor** (`editor/cm.js`)
+- One `EditorView` for all tabs; never create a second view. `view.setState()` is illegal while an update is in progress.
+- `EditorState.readOnly` blocks DOM input but NOT `view.dispatch({changes})`; pair it with `EditorView.editable.of(false)` for read-only tabs.
+- All app CSS overrides live under the `#cm-editor` ID prefix (CM6's own class selectors would otherwise win) and map `.cm-md-*` token classes onto the existing `--md-*` tokens.
+- Undo grouping is per word via `history({joinToEvent})`; CM6 has no `tr.annotate`.
 
 **Find & replace**
-- Only scans the Editor textarea, never the Preview DOM. The widget lives inside `.editor-container` so it never covers the format bar.
-- Matches are painted with the CSS Custom Highlight API (`::highlight(md-find-all)`) on the highlight layer; re-apply after every layer repaint via `onEditorLayerRepaint()`.
+- Use the built-in `@codemirror/search` panel (`openSearchPanel`); it renders inside `.editor-container` so it never covers the format bar.
+- Only scans the Editor document, never the Preview DOM.
 - WebView2 keeps Ctrl+F for its own find bar (Tauri exposes no switch), so the format-bar magnifier button is the entry point that always works.
 
 **Pane divider**

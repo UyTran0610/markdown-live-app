@@ -1,9 +1,9 @@
-// js/editor/sync.js — Đồng bộ sau mỗi thay đổi editor: đếm ký tự, tô màu, render preview, ghi vào store, lưu phiên.
+// js/editor/sync.js — Đồng bộ sau mỗi thay đổi editor: đếm ký tự, render preview, ghi vào store, lưu phiên.
 
-import { charCounter, markdownInput } from '../core/dom.js';
+import { charCounter } from '../core/dom.js';
 import { debounce } from '../core/utils.js';
 import { cacheActivePreview, renderPreviewGuarded, saveSession, updateActiveContent } from '../io/documents.js';
-import { scheduleEditorHighlight } from './highlight.js';
+import { getDocLength, setChangeHandler } from './cm.js';
 
 // Editor ẩn preview nên bỏ render; view-mode gọi renderActivePreview() khi chuyển sang có preview.
 function renderAndCache() {
@@ -26,7 +26,7 @@ export function renderDelayFor(chars) {
     );
 }
 
-const debouncedRender = debounce(renderAndCache, () => renderDelayFor(markdownInput.value.length));
+const debouncedRender = debounce(renderAndCache, () => renderDelayFor(getDocLength()));
 
 // Giãn nhịp lưu session theo kích thước (400ms + 200ms/250k, tối đa 1.5s): 5MB ghi lại ở 400ms là quá đắt.
 const SESSION_BASE_DELAY = 400;
@@ -36,18 +36,22 @@ let sessionSaveTimer = null;
 
 function scheduleSessionSave() {
     const delay = Math.min(
-        SESSION_BASE_DELAY + Math.floor(markdownInput.value.length / SESSION_SIZE_STEP) * 200,
+        SESSION_BASE_DELAY + Math.floor(getDocLength() / SESSION_SIZE_STEP) * 200,
         SESSION_MAX_DELAY
     );
     clearTimeout(sessionSaveTimer);
     sessionSaveTimer = setTimeout(() => { sessionSaveTimer = null; saveSession(); }, delay);
 }
 
-// Mọi đường sửa đều qua đây nên lưu nháp ngay, không chỉ nhờ 'input'; crash là mất.
-export function syncEditorAfterChange() {
-    charCounter.textContent = `${markdownInput.value.length} characters`;
-    scheduleEditorHighlight();
-    updateActiveContent(markdownInput.value);
+// Mọi đường sửa đều đi qua updateListener của CodeMirror nên lưu nháp ngay, không chỉ nhờ phím gõ.
+export function handleEditorChange(update) {
+    const text = update.state.doc.toString();
+    charCounter.textContent = `${text.length} characters`;
+    updateActiveContent(text, update.state);
     debouncedRender();
     scheduleSessionSave();
+}
+
+export function initEditorSync() {
+    setChangeHandler(handleEditorChange);
 }

@@ -21,12 +21,11 @@ import {
     htmlMenu,
     linkDialog,
     listMenu,
-    markdownInput,
     tableDialog,
     tableMenu
 } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { applyEditorChange, wrapOrToggleFormat } from '../editor/edit.js';
+import { focusEditor, getDocText, getView, redo, replaceRange, undo, wrapOrToggleFormat } from '../editor/cm.js';
 import {
     applyHeadingLevel,
     applyListStyle,
@@ -34,7 +33,6 @@ import {
     insertTableBlock
 } from '../editor/format-actions.js';
 import { wrapHtmlTag } from '../editor/format-helpers.js';
-import { editorHistory } from '../editor/history.js';
 import { saveSession } from '../io/documents.js';
 import { closeDialogs, openTableDialog } from './dialogs.js';
 
@@ -83,45 +81,48 @@ function highlightTableCells(grid, cols, rows) {
 }
 
 export function initFormatToolbar() {
-    btnBold.addEventListener('click', () => { wrapOrToggleFormat('**'); markdownInput.focus(); });
+    btnBold.addEventListener('click', () => { wrapOrToggleFormat('**'); focusEditor(); });
 
-    btnItalic.addEventListener('click', () => { wrapOrToggleFormat('*'); markdownInput.focus(); });
+    btnItalic.addEventListener('click', () => { wrapOrToggleFormat('*'); focusEditor(); });
 
-    btnStrike.addEventListener('click', () => { wrapOrToggleFormat('~~'); markdownInput.focus(); });
+    btnStrike.addEventListener('click', () => { wrapOrToggleFormat('~~'); focusEditor(); });
 
-    btnCodeInline.addEventListener('click', () => { wrapOrToggleFormat('`', 'code'); markdownInput.focus(); });
+    btnCodeInline.addEventListener('click', () => { wrapOrToggleFormat('`', 'code'); focusEditor(); });
 
-    btnMathInline.addEventListener('click', () => { wrapOrToggleFormat('$', 'E = mc^2'); markdownInput.focus(); });
+    btnMathInline.addEventListener('click', () => { wrapOrToggleFormat('$', 'E = mc^2'); focusEditor(); });
 
     btnHtml.addEventListener('click', () => toggleFormatMenu(formatMenus[3]));
 
     htmlMenu.querySelectorAll('.format-item').forEach((item) => {
         item.addEventListener('click', () => {
             closeFormatMenus();
-            markdownInput.focus();
-            const r = wrapHtmlTag(markdownInput.value, markdownInput.selectionStart, markdownInput.selectionEnd, item.dataset.html);
-            if (r) applyEditorChange(r.text, r.selStart, r.selEnd);
+            focusEditor();
+            const v = getView();
+            const sel = v.state.selection.main;
+            const r = wrapHtmlTag(getDocText(), sel.from, sel.to, item.dataset.html);
+            if (r) replaceRange(r.from, r.to, r.insert, r.selStart, r.selEnd);
         });
     });
 
-    btnCodeBlock.addEventListener('click', () => { insertBlockFence('code'); markdownInput.focus(); });
+    btnCodeBlock.addEventListener('click', () => { insertBlockFence('code'); focusEditor(); });
 
-    btnMathBlock.addEventListener('click', () => { insertBlockFence('math'); markdownInput.focus(); });
+    btnMathBlock.addEventListener('click', () => { insertBlockFence('math'); focusEditor(); });
 
-    btnMermaid.addEventListener('click', () => { insertBlockFence('mermaid'); markdownInput.focus(); });
+    btnMermaid.addEventListener('click', () => { insertBlockFence('mermaid'); focusEditor(); });
 
-    btnQuote.addEventListener('click', () => { applyListStyle('quote'); markdownInput.focus(); });
+    btnQuote.addEventListener('click', () => { applyListStyle('quote'); focusEditor(); });
 
-    btnUndo.addEventListener('click', () => { editorHistory.undo(markdownInput); markdownInput.focus(); });
+    btnUndo.addEventListener('click', () => { undo(getView()); focusEditor(); });
 
-    btnRedo.addEventListener('click', () => { editorHistory.redo(markdownInput); markdownInput.focus(); });
+    btnRedo.addEventListener('click', () => { redo(getView()); focusEditor(); });
 
     btnClear.addEventListener('click', () => {
-        if (!markdownInput.value) {
-            markdownInput.focus();
+        const v = getView();
+        if (!v.state.doc.length) {
+            focusEditor();
             return;
         }
-        applyEditorChange('', 0, 0);
+        replaceRange(0, v.state.doc.length, '', 0, 0);
         saveSession();
         showToast('Editor cleared. Press Ctrl+Z to undo.');
     });
@@ -131,7 +132,7 @@ export function initFormatToolbar() {
     headingMenu.querySelectorAll('.format-item').forEach((item) => {
         item.addEventListener('click', () => {
             closeFormatMenus();
-            markdownInput.focus();
+            focusEditor();
             applyHeadingLevel(parseInt(item.dataset.heading, 10) || 0);
         });
     });
@@ -141,7 +142,7 @@ export function initFormatToolbar() {
     listMenu.querySelectorAll('.format-item').forEach((item) => {
         item.addEventListener('click', () => {
             closeFormatMenus();
-            markdownInput.focus();
+            focusEditor();
             applyListStyle(item.dataset.list);
         });
     });
@@ -161,7 +162,7 @@ export function initFormatToolbar() {
             cell.addEventListener('mouseenter', () => highlightTableCells(grid, cols, rows));
             cell.addEventListener('click', () => {
                 closeFormatMenus();
-                markdownInput.focus();
+                focusEditor();
                 insertTableBlock(cols, rows);
             });
             grid.appendChild(cell);

@@ -1,6 +1,7 @@
 // js/export/doc.js — Xuất file Word (.doc) từ HTML của preview.
 
-import { markdownInput, previewOutput } from '../core/dom.js';
+import { previewOutput } from '../core/dom.js';
+import { getDocText } from '../editor/cm.js';
 import { showToast } from '../core/toast.js';
 import { convertQuotesForDoc, stripUnusedHeadingIds, styleDataTablesForDoc } from './doc-transform.js';
 import { deriveExportBaseName, saveTextFile } from './file-save.js';
@@ -46,7 +47,7 @@ export function buildWordHtml(bodyHtml) {
 
 // Ảnh URL remote giữ nguyên <img src>, Word tự tải.
 export async function exportDoc() {
-    const text = markdownInput.value;
+    const text = getDocText();
     if (!text.trim()) {
         showToast("Content is empty, nothing to export.");
         return;

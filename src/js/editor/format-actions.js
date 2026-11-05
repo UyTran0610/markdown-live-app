@@ -1,7 +1,9 @@
 // js/editor/format-actions.js — Hành động của thanh định dạng tác động lên editor (heading, list, bảng, khối code).
+//
+// Mọi hành động sửa đúng đoạn cần đổi rồi gửi MỘT transaction của CodeMirror,
+// không dựng lại cả văn bản (doc có thể vài MB).
 
-import { markdownInput } from '../core/dom.js';
-import { applyEditorChange } from './edit.js';
+import { getView, replaceRange } from './cm.js';
 import {
     buildBlockFence,
     buildTableMarkdown,
@@ -11,13 +13,12 @@ import {
 } from './format-helpers.js';
 
 export function applyHeadingLevel(level) {
-    const val = markdownInput.value;
-    const selStart = markdownInput.selectionStart;
-    const selEnd = markdownInput.selectionEnd;
-    const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
-    let lineEnd = val.indexOf('\n', selEnd);
-    if (lineEnd === -1) lineEnd = val.length;
-    const original = val.substring(lineStart, lineEnd);
+    const v = getView();
+    const { state } = v;
+    const sel = state.selection.main;
+    const lineStart = state.doc.lineAt(sel.from).from;
+    const lineEnd = state.doc.lineAt(sel.to).to;
+    const original = state.doc.sliceString(lineStart, lineEnd);
     const lines = original.split('\n');
 
     const allSame = lines.every((line) => getHeadingLevel(line) === level);
@@ -33,23 +34,21 @@ export function applyHeadingLevel(level) {
     // So sánh TEXT chứ không so tổng delta: delta có dấu nên dòng cộng/bớt cùng độ dài triệt tiêu nhau.
     if (replacedText === original) return;
 
-    const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
-    applyEditorChange(newText, lineStart, Math.max(lineStart, selEnd + delta));
+    replaceRange(lineStart, lineEnd, replacedText, lineStart, Math.max(lineStart, sel.to + delta));
 }
 
 export function applyListStyle(style) {
-    const val = markdownInput.value;
-    const selStart = markdownInput.selectionStart;
-    const selEnd = markdownInput.selectionEnd;
-    const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
-    let lineEnd = val.indexOf('\n', selEnd);
-    if (lineEnd === -1) lineEnd = val.length;
-    const original = val.substring(lineStart, lineEnd);
+    const v = getView();
+    const { state } = v;
+    const sel = state.selection.main;
+    const lineStart = state.doc.lineAt(sel.from).from;
+    const lineEnd = state.doc.lineAt(sel.to).to;
+    const original = state.doc.sliceString(lineStart, lineEnd);
     const lines = original.split('\n');
 
     let delta = 0;
     let num = 0;
-    const newLines = lines.map((line, i) => {
+    const newLines = lines.map((line) => {
         const parsed = parseListLine(line);
         // Dòng thường: lấy phần thụt lề đầu dòng.
         const indent = parsed ? parsed.indent : (line.match(/^[ \t]*/) || [''])[0];
@@ -82,51 +81,53 @@ export function applyListStyle(style) {
 
     // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi có dòng trống;
     // nâng cấp sau: restart về 1 khi gặp đoạn văn mới.
-    const newText = val.substring(0, lineStart) + replacedText + val.substring(lineEnd);
 
     // Giữ vùng bôi đen: marker ở ĐẦU dòng nên selection mới dịch theo delta độ dài từng dòng.
     const firstLineDelta = newLines[0].length - lines[0].length;
-    const newSelStart = selStart > lineStart
-        ? Math.max(lineStart, selStart + firstLineDelta)
+    const newSelStart = sel.from > lineStart
+        ? Math.max(lineStart, sel.from + firstLineDelta)
         : lineStart;
-    const newSelEnd = Math.max(newSelStart, selEnd + delta);
+    const newSelEnd = Math.max(newSelStart, sel.to + delta);
 
-    applyEditorChange(newText, newSelStart, newSelEnd);
+    replaceRange(lineStart, lineEnd, replacedText, newSelStart, newSelEnd);
 }
 
 export function insertTableBlock(cols, rows) {
-    const val = markdownInput.value;
-    const selEnd = markdownInput.selectionEnd;
+    const v = getView();
+    const { state } = v;
+    const selEnd = state.selection.main.to;
     // rows là số dòng THỰC SỰ của bảng, tính cả dòng tiêu đề buildTableMarkdown() tự sinh.
     // ponytail: luôn giữ tối thiểu 1 dòng thân (bảng không có dòng thân thì không còn ô để gõ);
     // nâng cấp sau: đặt caret vào ô tiêu đề.
     const bodyRows = Math.max(1, rows - 1);
     const table = buildTableMarkdown(bodyRows, cols);
     // Chèn SAU vùng chọn (bôi đen abc rồi chèn bảng phải còn abc); caret ở cuối bảng.
-    const needTop = selEnd > 0 && val[selEnd - 1] !== '\n';
-    const needBottom = selEnd < val.length && val[selEnd] !== '\n';
+    const needTop = selEnd > 0 && state.doc.sliceString(selEnd - 1, selEnd) !== '\n';
+    const needBottom = selEnd < state.doc.length && state.doc.sliceString(selEnd, selEnd + 1) !== '\n';
     const insert = (needTop ? '\n' : '') + table + (needBottom ? '\n' : '');
     const caret = selEnd + insert.length;
-    applyEditorChange(val.substring(0, selEnd) + insert + val.substring(selEnd), caret, caret);
+    replaceRange(selEnd, selEnd, insert, caret, caret);
 }
 
 // Có vùng chọn: nội dung khối là vùng chọn; không có: chèn placeholder và đặt caret vào dòng nội dung.
 export function insertBlockFence(kind) {
-    const val = markdownInput.value;
-    const selStart = markdownInput.selectionStart;
-    const selEnd = markdownInput.selectionEnd;
-    const selected = selStart !== selEnd ? val.substring(selStart, selEnd) : '';
+    const v = getView();
+    const { state } = v;
+    const sel = state.selection.main;
+    const selStart = sel.from;
+    const selEnd = sel.to;
+    const selected = selStart !== selEnd ? state.sliceDoc(selStart, selEnd) : '';
     const hasBody = selected.trim() !== '';
     const block = buildBlockFence(kind, hasBody
         ? (kind === 'code' ? selected.split('\n').map((l) => (l.trim() ? '    ' + l : l)).join('\n') : selected)
         : '');
 
-    const needTop = selStart > 0 && val[selStart - 1] !== '\n';
-    const needBottom = selEnd < val.length && val[selEnd] !== '\n';
+    const needTop = selStart > 0 && state.doc.sliceString(selStart - 1, selStart) !== '\n';
+    const needBottom = selEnd < state.doc.length && state.doc.sliceString(selEnd, selEnd + 1) !== '\n';
     const insert = (needTop ? '\n' : '') + block + (needBottom ? '\n' : '');
     const blockStart = selStart + (needTop ? 1 : 0);
     const caret = hasBody ? selStart + insert.length : blockStart + (kind === 'math' ? 3 : langPrefixLen(kind));
-    applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), caret, caret);
+    replaceRange(selStart, selEnd, insert, caret, caret);
 }
 
 // Độ dài của ```js hoặc ```mermaid dùng để tính vị trí caret.

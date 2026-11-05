@@ -1,11 +1,12 @@
 // js/editor/content.js — Nút Copy.
 
-import { btnCopy, markdownInput } from '../core/dom.js';
+import { btnCopy } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
+import { getDocText } from './cm.js';
 
 export function initContentActions() {
     btnCopy.addEventListener('click', () => {
-        const textToCopy = markdownInput.value;
+        const textToCopy = getDocText();
         const copyPromise = (window.__TAURI__ && window.__TAURI__.clipboardManager)
             ? window.__TAURI__.clipboardManager.writeText(textToCopy)
             : navigator.clipboard.writeText(textToCopy);

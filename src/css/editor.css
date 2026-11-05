@@ -1,5 +1,7 @@
-/* css/editor.css — Vùng soạn thảo và lớp tô màu cú pháp Markdown. */
+/* css/editor.css — Vùng soạn thảo (CodeMirror 6) + màu cú pháp Markdown. */
 
+/* Mọi rule của CodeMirror đều bị ghi đè bằng tiền tố #cm-editor: class của CM6
+   có độ ưu tiên cao hơn, thêm ID để rule của app luôn thắng. */
 .editor-container {
     position: relative;
     flex: 1;
@@ -8,15 +10,20 @@
     transition: background-color 0.2s;
 }
 
-#markdown-input,
-#editor-highlight {
+#cm-editor {
     position: absolute;
     inset: 0;
-    margin: 0;
-    width: 100%;
     height: 100%;
-    padding: 20px;
-    border: none;
+}
+
+#cm-editor .cm-editor {
+    height: 100%;
+    background-color: var(--editor-bg);
+    color: var(--text-primary);
+    outline: none;
+}
+
+#cm-editor .cm-scroller {
     font-family: ui-monospace, "Cascadia Mono", "Consolas", "Liberation Mono", "SFMono-Regular", Menlo, monospace;
     font-size: 16px;
     line-height: 26px;
@@ -25,163 +32,143 @@
     letter-spacing: normal;
     tab-size: 4;
     -moz-tab-size: 4;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-
-#markdown-input {
-    z-index: 2;
-    resize: none;
-    outline: none;
-    color: transparent;
-    caret-color: var(--editor-caret);
-    background-color: transparent;
     overflow-y: scroll;
     scrollbar-gutter: stable;
-    overflow-anchor: none;
 }
 
-#markdown-input::placeholder {
+#cm-editor .cm-content {
+    padding: 20px;
+}
+
+#cm-editor .cm-line {
+    padding: 0;
+}
+
+#cm-editor .cm-placeholder {
     color: var(--editor-placeholder);
 }
 
-/* Tab read-only (file lớn): viền báo hiệu trong Editor, không đổi nền để không che lớp tô màu. */
-.editor-container:has(#markdown-input[read-only]) {
-    box-shadow: inset 3px 0 0 var(--text-muted);
+/* Con trỏ do CodeMirror tự vẽ, không phải caret của trình duyệt. */
+#cm-editor .cm-cursor,
+#cm-editor .cm-dropCursor {
+    border-left-color: var(--editor-caret);
+    border-left-width: 2px;
 }
 
-#markdown-input::selection {
+#cm-editor .cm-selectionBackground {
     background-color: var(--editor-selection);
 }
 
-#markdown-input::-webkit-scrollbar,
-#editor-highlight::-webkit-scrollbar {
+/* Tab read-only (file lớn): viền báo hiệu trong Editor. */
+.editor-container:has(.cm-content[contenteditable="false"]) {
+    box-shadow: inset 3px 0 0 var(--text-muted);
+}
+
+#cm-editor .cm-scroller::-webkit-scrollbar {
     width: 10px;
     height: 10px;
 }
 
-#markdown-input::-webkit-scrollbar-track,
-#editor-highlight::-webkit-scrollbar-track {
+#cm-editor .cm-scroller::-webkit-scrollbar-track {
     background: transparent;
 }
 
-#markdown-input::-webkit-scrollbar-thumb {
+#cm-editor .cm-scroller::-webkit-scrollbar-thumb {
     background: var(--text-muted);
     border-radius: 5px;
 }
 
-#markdown-input::-webkit-scrollbar-thumb:hover {
+#cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
 }
 
-#editor-highlight {
-    z-index: 1;
-    overflow-y: scroll;
-    scrollbar-gutter: stable;
-    pointer-events: none;
-    user-select: none;
-    color: var(--text-primary);
-    overflow-anchor: none;
-}
+/* Màu cú pháp: class do HighlightStyle gán, màu lấy từ --md-* trong tokens.css. */
+.cm-md-h1 { color: var(--md-header-1); font-weight: 700; }
+.cm-md-h2 { color: var(--md-header-2); font-weight: 700; }
+.cm-md-h3 { color: var(--md-header-3); font-weight: 700; }
+.cm-md-h4 { color: var(--md-header-4); font-weight: 700; }
+.cm-md-h5 { color: var(--md-header-5); font-weight: 700; }
+.cm-md-h6 { color: var(--md-header-6); font-weight: 700; }
 
-#editor-highlight::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
+.cm-md-strong { color: var(--md-bold); font-weight: 700; }
+.cm-md-em { color: var(--md-italic); font-style: italic; }
+.cm-md-strike { color: var(--md-strikethrough); text-decoration: line-through; }
 
-#editor-highlight::-webkit-scrollbar-track,
-#editor-highlight::-webkit-scrollbar-thumb {
-    background: transparent;
-}
-
-#editor-highlight code {
-    display: block;
-    margin: 0;
-    padding: 0;
-    font: inherit;
-    white-space: inherit;
-    word-wrap: inherit;
-    overflow-wrap: inherit;
-    background: none;
-}
-
-/* Mỗi lô là một block độc lập: đổi cửa sổ tô màu chỉ layout lại lô đó, không phải cả tài liệu. */
-#editor-highlight-code > span {
-    display: block;
-}
-
-.md-header-marker { color: var(--md-header-marker); font-weight: 600; }
-.md-header { font-weight: 700; }
-.md-header-1 { color: var(--md-header-1); }
-.md-header-2 { color: var(--md-header-2); }
-.md-header-3 { color: var(--md-header-3); }
-.md-header-4 { color: var(--md-header-4); }
-.md-header-5 { color: var(--md-header-5); }
-.md-header-6 { color: var(--md-header-6); }
-
-.md-bold { color: var(--md-bold); font-weight: 700; }
-.md-italic { color: var(--md-italic); font-style: italic; }
-.md-bolditalic { color: var(--md-bolditalic); font-weight: 700; font-style: italic; }
-.md-strikethrough { color: var(--md-strikethrough); text-decoration: line-through; }
-
-.md-code-inline {
+.cm-md-code {
     color: var(--md-code-inline-text);
     background-color: var(--md-code-inline-bg);
     border-radius: 3px;
 }
 
-.md-fence-marker { color: var(--md-fence-marker); font-weight: 600; }
-.md-fence-lang { color: var(--md-fence-lang); font-weight: 600; }
-.md-code-block { color: var(--md-code-block); }
+.cm-md-link { color: var(--md-link-text); }
+.cm-md-url { color: var(--md-link-url); text-decoration: underline; }
+.cm-md-quote { color: var(--md-quote-text); font-style: italic; }
+.cm-md-list { color: var(--md-list-marker); font-weight: 700; }
+.cm-md-escape { color: var(--md-escape); font-weight: 600; }
+.cm-md-comment { color: var(--md-code-block); font-style: italic; }
+.cm-md-label { color: var(--md-ref-id); font-weight: 600; }
 
-.md-quote-marker { color: var(--md-quote-marker); font-weight: 700; }
-.md-quote-text { color: var(--md-quote-text); font-style: italic; }
-.md-alert-tag { font-weight: 700; font-style: normal; }
-
-.md-list-marker { color: var(--md-list-marker); font-weight: 700; }
-
-.md-link-marker { color: var(--md-link-marker); }
-.md-link-text { color: var(--md-link-text); }
-.md-link-url { color: var(--md-link-url); text-decoration: underline; }
-
-.md-hr { color: var(--md-hr); font-weight: 700; }
-.md-table-pipe { color: var(--md-table-pipe); }
-.md-math { color: var(--md-math); }
-
-.md-escape { color: var(--md-escape); font-weight: 600; }
-.md-ref-id { color: var(--md-ref-id); font-weight: 600; }
-.md-ref-title { color: var(--md-ref-title); font-style: italic; }
-.md-autolink { color: var(--md-autolink); text-decoration: underline; }
-.md-task-checkbox { font-weight: 700; }
-.md-task-checked { color: var(--md-task-checked); }
-.md-task-unchecked { color: var(--md-task-unchecked); }
-.md-footnote-marker, .md-footnote-id { color: var(--md-footnote); font-weight: 600; }
-.md-footnote-ref { color: var(--md-footnote); }
-
-.md-kbd-marker { color: var(--md-kbd); opacity: 0.7; }
-.md-kbd {
-    color: var(--md-kbd);
-    background-color: var(--md-kbd-bg);
-    border-radius: 3px;
-    box-shadow: 0 0 0 0.25em var(--md-kbd-bg);
+/* Panel tìm kiếm / thay thế của @codemirror/search nằm trong editor pane. */
+#cm-editor .cm-panels {
+    background-color: var(--pane-header-bg);
+    color: var(--text-primary);
 }
 
-.md-mark-marker { color: var(--md-mark-text); opacity: 0.7; }
-.md-mark {
-    background-color: var(--md-mark-bg);
-    color: var(--md-mark-text);
-    border-radius: 2px;
-    box-shadow: 0 0 0 0.15em var(--md-mark-bg);
+#cm-editor .cm-panel.cm-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--pane-header-bg);
+    color: var(--text-primary);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    font-size: 13px;
 }
 
-.md-sup-marker, .md-sub-marker { color: var(--md-sup); opacity: 0.7; }
-.md-sup, .md-sub { color: var(--md-sup); }
+#cm-editor .cm-search .cm-textfield {
+    padding: 3px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--pane-bg);
+    color: var(--text-primary);
+    font: inherit;
+    min-width: 140px;
+}
 
-.md-details-marker { color: var(--md-details); font-weight: 600; }
-.md-summary-marker { color: var(--md-summary); font-weight: 600; }
-.md-table-separator { color: var(--md-table-separator); font-weight: 600; }
-.md-html-void { color: var(--md-html-void); font-weight: 600; }
-.md-html-tag-marker { color: var(--md-html-tag-marker); }
-.md-html-tag-content { color: var(--md-html-tag-content); }
-.md-html-comment { color: var(--md-html-comment); font-style: italic; }
+/* appearance: none + background-image: none: CodeMirror vẽ nút bằng gradient,
+   nếu không tắt thì gradient đè lên màu nền của app. */
+#cm-editor .cm-search button {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 3px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--pane-bg);
+    background-image: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+}
+
+#cm-editor .cm-search button:hover {
+    background-color: var(--btn-bg-hover);
+}
+
+#cm-editor .cm-search label {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+#cm-editor .cm-searchMatch {
+    background-color: var(--find-hit-bg);
+}
+
+#cm-editor .cm-searchMatch.cm-searchMatch-selected {
+    background-color: var(--find-hit-bg);
+    outline: 1px solid var(--text-muted);
+}

@@ -1,17 +1,19 @@
 // js/ui/status-bar.js — EOL (bấm để đổi), vị trí con trỏ và mã hoá.
 // EOL cần thiết vì Save As mặc định ra LF, còn Windows thường muốn CRLF.
 
-import { markdownInput, statusEncoding, statusEol, statusPos } from '../core/dom.js';
+import { statusEncoding, statusEol, statusPos } from '../core/dom.js';
+import { getView, setSelectionHandler } from '../editor/cm.js';
 import { getActiveTab, setActiveEol, subscribe } from '../io/documents.js';
 
 const EOL_LABEL = { '\n': 'LF', '\r\n': 'CRLF' };
 
 function caretPosition() {
-    const upto = markdownInput.value.slice(0, markdownInput.selectionStart);
-    // Đếm dòng bằng số ký tự xuống dòng trước con trỏ; nội dung tab luôn là LF.
-    const line = upto.split('\n').length;
-    const column = upto.length - (upto.lastIndexOf('\n') + 1) + 1;
-    return { line, column };
+    const v = getView();
+    if (!v) return { line: 1, column: 1 };
+    const { head } = v.state.selection.main;
+    // Nội dung tab luôn là LF nên số dòng của CodeMirror là số dòng thật.
+    const line = v.state.doc.lineAt(head);
+    return { line: line.number, column: head - line.from + 1 };
 }
 
 export function updateStatusBar() {
@@ -26,11 +28,8 @@ export function updateStatusBar() {
 export function initStatusBar() {
     subscribe(updateStatusBar);
 
-    // selectionchange bắt được cả khi chuột chọn trong textarea, không chỉ khi gõ.
-    document.addEventListener('selectionchange', () => {
-        if (document.activeElement === markdownInput) updateStatusBar();
-    });
-    markdownInput.addEventListener('click', updateStatusBar);
+    // Con trỏ nhảy trong CodeMirror báo qua updateListener, không có selectionchange của DOM.
+    setSelectionHandler(updateStatusBar);
 
     statusEol.addEventListener('click', () => {
         const tab = getActiveTab();

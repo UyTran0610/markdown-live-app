@@ -15,6 +15,14 @@
 //   npx esbuild node_modules/highlight.js/lib/index.js --bundle --minify --format=iife --global-name=hljs --outfile=src/vendor/highlight.min.js
 //   node -e "globalThis.window=globalThis;eval(require('fs').readFileSync('src/vendor/highlight.min.js','utf8'));console.log(hljs.versionString, hljs.listLanguages().length)"
 // Lệnh cuối phải in version mới + 193 ngôn ngữ thì bundle mới đúng (dùng để bắt build hỏng).
+//
+// CodeMirror 6 cũng vắng: npm không có bản UMD/IIFE sẵn (chỉ có ESM theo từng package), nên app bundle
+// tay thành global `CodeMirror`. Công thức:
+//   npm i --no-save esbuild codemirror@6 @codemirror/lang-markdown@6 @codemirror/language@6 \
+//     @codemirror/search@6 @codemirror/commands@6 @codemirror/state@6 @codemirror/view@6 \
+//     @codemirror/autocomplete@6 @lezer/highlight@1 @lezer/markdown@1
+//   npx esbuild scripts/vendor/codemirror.entry.js --bundle --minify --format=iife \
+//     --global-name=CodeMirror --outfile=src/vendor/codemirror.bundle.js
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,6 +89,10 @@ const MANUAL_PACKAGES = [
   {
     name: 'highlight.js', npm: 'highlight.js', repo: 'https://github.com/highlightjs/highlight.js',
     files: [['highlight.min.js', 'highlight.min.js']],
+  },
+  {
+    name: 'CodeMirror', npm: 'codemirror', repo: 'https://github.com/codemirror/view',
+    files: [['codemirror.bundle.js', 'codemirror.bundle.js']],
   },
 ];
 

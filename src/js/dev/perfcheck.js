@@ -1,13 +1,12 @@
-// js/dev/perfcheck.js — Số đo hiệu năng cơ bản: render preview, tô màu editor, cuộn, gõ phím,
+// js/dev/perfcheck.js — Số đo hiệu năng cơ bản: render preview, cập nhật editor, cuộn, gõ phím,
 // kéo divider. Một bảng số trung bình theo kích thước tài liệu, mở app với ?perf.
 
-import { editorHighlightCode, markdownInput, paneResizer, previewOutput, viewItems, workspace } from '../core/dom.js';
+import { paneResizer, previewOutput, viewItems, workspace } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { cancelScheduledEditorHighlight, updateEditorHighlight } from '../editor/highlight.js';
-import { renderDelayFor } from '../editor/sync.js';
-import { closeTab, getActiveTab, newTab, switchTab, saveSession } from '../io/documents.js';
+import { getView } from '../editor/cm.js';
+import { handleEditorChange, renderDelayFor } from '../editor/sync.js';
+import { closeTab, getActiveTab, newTab, setTabReadOnly, switchTab, saveSession } from '../io/documents.js';
 import { whenSessionWritten } from '../io/session-store.js';
-import { editorHistory } from '../editor/history.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
 // 400k vượt ngưỡng 300k nên đo luôn nhánh preview lớn (bỏ hljs). Sửa danh sách để đo mức khác.
@@ -79,46 +78,27 @@ function measureFrame(work) {
     });
 }
 
-// Một phím gõ thật: native (setRangeText + ép layout), handler app (chỉ 'input'),
-// tô màu trong rAF, rồi style + layout + paint của khung. Trả breakdown để in từng cột riêng.
+// Một phím gõ tương đương: transaction của CodeMirror (parse + tô màu + lịch sử) rồi
+// style + layout + paint của khung. Trả breakdown để in từng cột riêng.
 async function measureKeystroke(pos) {
-    markdownInput.setSelectionRange(pos, pos);
-    const scrollable = Math.max(markdownInput.scrollHeight - markdownInput.clientHeight, 0);
-    markdownInput.scrollTop = pos >= markdownInput.value.length
+    const v = getView();
+    v.dispatch({ selection: { anchor: pos, head: pos }, scrollIntoView: false });
+    const scrollable = Math.max(v.scrollDOM.scrollHeight - v.scrollDOM.clientHeight, 0);
+    v.scrollDOM.scrollTop = pos >= v.state.doc.length
         ? scrollable
-        : Math.round((pos / markdownInput.value.length) * scrollable);
-    // Hủy rAF tô màu đang treo (scroll/RO của lượt trước) rồi tô đồng bộ: giờ đo bắt đầu không còn rAF pending.
-    cancelScheduledEditorHighlight();
-    updateEditorHighlight();
-    void editorHighlightCode.offsetHeight; // trả nợ layout của prep trước khi đo
+        : Math.round((pos / v.state.doc.length) * scrollable);
     let t = performance.now();
-    markdownInput.setRangeText('x', pos, pos, 'end');
-    void markdownInput.offsetHeight; // ép layout ngay, không để khung sau trả nợ
-    const nativeMs = performance.now() - t;
-    t = performance.now();
-    markdownInput.dispatchEvent(new InputEvent('input', { data: 'x', inputType: 'insertText', bubbles: true }));
-    const handlerMs = performance.now() - t;
-    // Nội dung đã đổi (setRangeText vừa chèn 'x') nên push chạy nhánh thật, không rơi nhánh dedup.
-    t = performance.now();
-    editorHistory.saveCurrentState(markdownInput);
-    const historyMs = performance.now() - t;
-    // Handler vừa xếp rAF tô màu của app; hủy để tự chạy updateEditorHighlight trong rAF.
-    cancelScheduledEditorHighlight();
-    let highlightMs = 0;
-    const { tailMs } = await measureFrame(() => {
-        const t1 = performance.now();
-        updateEditorHighlight();
-        highlightMs = performance.now() - t1;
-        // Scroll event của bước đặt scrollTop xếp thêm một rAF tô màu trùng; bỏ để tail chỉ còn layout/paint.
-        cancelScheduledEditorHighlight();
-    });
-    return { total: nativeMs + handlerMs + highlightMs + tailMs, handlerMs, historyMs };
+    v.dispatch({ changes: { from: pos, insert: 'x' }, userEvent: 'input.type' });
+    void v.contentDOM.offsetHeight; // ép layout ngay, không để khung sau trả nợ
+    const editMs = performance.now() - t;
+    const { tailMs } = await measureFrame(null);
+    return { total: editMs + tailMs, editMs };
 }
 
 let dragSkippedWarned = false;
 
-// Kéo divider bằng PointerEvent như người dùng. Mỗi pointermove đổi --split-size; ResizeObserver
-// xếp tô màu cho khung KẾ, nên frameMs của khung đó gồm highlight + layout + paint của lượt trước.
+// Kéo divider bằng PointerEvent như người dùng. Mỗi pointermove đổi --split-size;
+// khung đo gồm reflow của hai pane.
 async function measureDividerDrag() {
     if (window.matchMedia(VERTICAL_LAYOUT_MQ).matches) {
         if (!dragSkippedWarned) {
@@ -130,7 +110,6 @@ async function measureDividerDrag() {
     const rect = workspace.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    cancelScheduledEditorHighlight();
     paneResizer.dispatchEvent(new PointerEvent('pointerdown', { clientX: centerX, clientY: centerY, pointerId: 1, bubbles: true }));
     await nextFrame();
     const frames = [];
@@ -147,7 +126,6 @@ async function measureDividerDrag() {
         frames.push(frameMs);
     }
     paneResizer.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
-    // Khung cuối chạy nốt highlight mà RO xếp cho pointermove cuối (đường tăng dần).
     frames.push((await measureFrame(null)).frameMs);
     return frames;
 }
@@ -159,7 +137,9 @@ export async function runPerfCheck() {
 
     // Tab tạm: nội dung đo không bao giờ chạm tab thật, không cần snapshot/restore.
     const temp = newTab();
-    markdownInput.readOnly = true;
+    // readOnly: nội dung đo không được ghi vào tab/phiên (updateActiveContent bỏ qua tab readOnly).
+    setTabReadOnly(temp, true);
+    const v = getView();
 
     try {
         // Pane ẩn thì mọi phép đo layout = 0; ép Split để số liệu của mọi lần chạy giống nhau.
@@ -170,17 +150,16 @@ export async function runPerfCheck() {
         await whenMermaidIdle();
 
         for (const size of DOC_SIZES) {
-            markdownInput.value = buildDoc(size);
+            const text = buildDoc(size);
+            v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: text } });
 
             // Warm-up không tính: lượt đầu còn cấp phát DOM và bộ nhớ đệm của engine.
             renderMarkdown();
-            updateEditorHighlight();
-            // Ép layout cho cả hai lớp, nếu không lượt đo đầu tiên phải trả nợ layout của warm-up.
             void previewOutput.offsetHeight;
-            void editorHighlightCode.offsetHeight;
+            void v.contentDOM.offsetHeight;
 
             const renderTimes = [];
-            const highlightTimes = [];
+            const editorTimes = [];
             for (let run = 0; run < RUNS; run++) {
                 let start = performance.now();
                 renderMarkdown();
@@ -188,43 +167,42 @@ export async function runPerfCheck() {
                 renderTimes.push(performance.now() - start);
 
                 start = performance.now();
-                // force: nội dung không đổi nên lượt sau sẽ bỏ qua nếu không ép dựng lại.
-                updateEditorHighlight(true);
-                void editorHighlightCode.offsetHeight;
-                highlightTimes.push(performance.now() - start);
+                // Sửa ở giữa tài liệu: đo đúng đường sửa + tô màu lại + lịch sử của CodeMirror.
+                const mid = Math.floor(v.state.doc.length / 2);
+                v.dispatch({ changes: { from: mid, insert: 'x' }, userEvent: 'input.type' });
+                void v.contentDOM.offsetHeight;
+                editorTimes.push(performance.now() - start);
 
                 // Nhường một nhịp cho frame và GC, tránh dồn mọi lượt đo vào một khung hình.
                 await settle(0);
             }
 
-            // Cuộn: đo đúng đường cuộn thật — chỉ lô ở hai mép được tô lại.
-            // Không force: force dựng lại cả lớp nên con số sẽ là đường sửa văn bản, không phải đường cuộn.
-            const scrollable = markdownInput.scrollHeight - markdownInput.clientHeight;
+            // Cuộn: đo đúng đường cuộn thật — CodeMirror chỉ vẽ lại phần vừa lọt vào khung nhìn.
+            const scrollable = v.scrollDOM.scrollHeight - v.scrollDOM.clientHeight;
             const scrollTimes = [];
             for (let run = 0; run < RUNS; run++) {
                 const start = performance.now();
-                markdownInput.scrollTop = Math.round(scrollable * (run % 2 === 0 ? 0.85 : 0.15));
-                updateEditorHighlight();
-                void editorHighlightCode.offsetHeight;
+                v.scrollDOM.scrollTop = Math.round(scrollable * (run % 2 === 0 ? 0.85 : 0.15));
+                void v.contentDOM.offsetHeight;
                 scrollTimes.push(performance.now() - start);
                 await settle(0);
             }
 
-            // Gõ: sửa giữa tài liệu (lệt vùng tô màu phải nối lô) là ca nhất.
+            // Gõ: sửa giữa tài liệu là ca nhất.
             const typeTimes = [];
             const handlerTimes = [];
-            const historyTimes = [];
             for (let run = 0; run < RUNS; run++) {
-                const keystroke = await measureKeystroke(Math.floor(markdownInput.value.length / 2));
+                const keystroke = await measureKeystroke(Math.floor(v.state.doc.length / 2));
                 typeTimes.push(keystroke.total);
-                handlerTimes.push(keystroke.handlerMs);
-                historyTimes.push(keystroke.historyMs);
-                await settle(50); // đủ cho rAF tô màu thừa của phím trước
+                const handlerStart = performance.now();
+                handleEditorChange({ state: v.state });
+                handlerTimes.push(performance.now() - handlerStart);
+                await settle(50); // đủ cho rAF dư của phím trước
             }
 
             // Mỗi phím gõ xếp render preview theo debounce và lưu phiên; phần nền đó cướy main
             // thread nên phải xong trước khi đo kéo divider, nếu không số khung bị nhiễu.
-            await settle(renderDelayFor(markdownInput.value.length) + avg(renderTimes) + 500);
+            await settle(renderDelayFor(v.state.doc.length) + avg(renderTimes) + 500);
 
             const frames = await measureDividerDrag();
 
@@ -239,13 +217,12 @@ export async function runPerfCheck() {
             }
 
             rows.push({
-                chars: markdownInput.value.length,
+                chars: v.state.doc.length,
                 'render (ms)': round1(avg(renderTimes)),
-                'highlight (ms)': round1(avg(highlightTimes)),
+                'editor (ms)': round1(avg(editorTimes)),
                 'scroll (ms)': round1(avg(scrollTimes)),
                 'typing (ms)': round1(avg(typeTimes)),
                 'handler (ms)': round1(avg(handlerTimes)),
-                'history (ms)': round1(avg(historyTimes)),
                 'saveSession (ms)': round1(avg(saveTimes)),
                 'drag frame (ms)': frames ? round1(avg(frames)) : 'skipped'
             });
@@ -255,7 +232,7 @@ export async function runPerfCheck() {
         showToast(`Perf check failed: ${err && err.message ? err.message : err}`);
         return;
     } finally {
-        markdownInput.readOnly = false;
+        setTabReadOnly(temp, false);
         // remember: false để tab đo không lọt vào Ctrl+Shift+T.
         await closeTab(temp.id, { force: true, remember: false });
         if (activeBefore) switchTab(activeBefore.id);
@@ -267,7 +244,7 @@ export async function runPerfCheck() {
 
     // Số trung bình để đánh giá cơ bản; không đặt ngưỡng PASS/FAIL vì ms phụ thuộc máy.
     console.log(`Perf check: ${DOC_SIZES.length} document sizes, ${RUNS} runs each (trung bình).`);
-    console.log('typing = độ trễ một phím gõ (native + handler + tô màu + layout/paint); handler = chỉ handler input (không render); history = editorHistory.saveCurrentState; saveSession = saveSession kể cả hash; drag frame = đầu khung rAF -> sau paint.');
+    console.log('typing = độ trễ một phím gõ (transaction CodeMirror + layout/paint); editor = sửa giữa tài liệu kèm tô màu lại; handler = phần việc của app sau mỗi lần gõ; saveSession = ghi phiên kể cả hash; drag frame = đầu khung rAF -> sau paint.');
     console.table(rows);
     showToast(`Perf: ${DOC_SIZES.length} sizes × ${RUNS} runs (see console.table)`);
 }

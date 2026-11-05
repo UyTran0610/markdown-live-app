@@ -1,11 +1,24 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { editorHighlight, editorHighlightCode, findCount, findInput, findNextBtn, findReplaceAllBtn, findReplaceInput, findReplaceRow, findWidget, infoAbout, infoBody, infoDialog, infoDoc, markdownInput, previewOutput, tableMenu } from '../core/dom.js';
+import { infoAbout, infoBody, infoDialog, infoDoc, previewOutput, tableMenu } from '../core/dom.js';
 import { isResizingPanes, setPanesResizing } from '../core/flags.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
+import {
+    closeSearchPanel,
+    deletePairBackward,
+    findNext,
+    getDocText,
+    getSearchQuery,
+    getView,
+    handleTypedChar,
+    openSearchPanel,
+    redo,
+    replaceAll,
+    setChangeHandler,
+    undo
+} from '../editor/cm.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
-import { closeFindWidget, findMatches, openFindWidget, replaceAllMatches } from '../editor/find-replace.js';
 import {
     buildBlockFence,
     buildTableMarkdown,
@@ -16,10 +29,7 @@ import {
     setHeadingLevel,
     wrapHtmlTag
 } from '../editor/format-helpers.js';
-import { editorHistory, pruneAllHistories } from '../editor/history.js';
-import { updateEditorHighlight } from '../editor/highlight.js';
-import { highlightMarkdown } from '../editor/syntax/block.js';
-import { renderDelayFor, syncEditorAfterChange } from '../editor/sync.js';
+import { handleEditorChange, renderDelayFor } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
 import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
@@ -64,17 +74,27 @@ export async function runSelfCheck() {
     };
 
     // Chạy trên app thật nên phải trả lại nội dung, vùng chọn, scroll và lịch sử Undo sau khi xong.
+    const view = getView();
+    const docText = () => view.state.doc.toString();
     const snap = {
-        value: markdownInput.value,
-        selStart: markdownInput.selectionStart,
-        selEnd: markdownInput.selectionEnd,
-        scrollTop: markdownInput.scrollTop,
-        previewScrollTop: previewOutput.scrollTop,
-        stack: editorHistory.stack,
-        index: editorHistory.index
+        value: docText(),
+        selStart: view.state.selection.main.from,
+        selEnd: view.state.selection.main.to,
+        scrollTop: view.scrollDOM.scrollTop,
+        previewScrollTop: previewOutput.scrollTop
     };
-    editorHistory.stack = [];
-    editorHistory.index = -1;
+
+    // Tắt đồng bộ của app trong lúc thử: nội dung thử không được lọt vào tab/phiên.
+    setChangeHandler(null);
+
+    // Đặt nội dung thử trong editor (thay cả doc rồi đặt con trỏ).
+    const probe = (text, from = 0, to = from) => {
+        view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: text },
+            selection: { anchor: from, head: to },
+            userEvent: 'input'
+        });
+    };
 
     try {
 
@@ -325,28 +345,14 @@ export async function runSelfCheck() {
             assert('Save As giữ đuôi .txt', suggestSavePath({ path: 'C:\\docs\\note.txt', name: 'note.txt' }, 'x') === 'C:\\docs\\note.txt');
             assert('Save As tab chưa lưu lấy tên từ H1', suggestSavePath({ path: null, name: 'Untitled 1' }, '# My Doc').endsWith('my-doc.md'));
 
-            // Trần ký tự lịch sử toàn app; cắt lúc chuyển tab, tab nền trước, tab đang mở sau cùng.
-            const bigEntry = () => ({ val: 'x'.repeat(1000), start: 0, end: 0 });
-            const hA = { stack: [bigEntry(), bigEntry(), bigEntry()], index: 2 };
-            const hB = { stack: [bigEntry()], index: 0 };
-            pruneAllHistories([hA, hB]);
-            assert('lịch sử nhỏ hơn trần thì không bị cắt', hA.stack.length === 3 && hB.stack.length === 1);
-            const hChars = (h) => h.stack.reduce((s, e) => s + e.val.length, 0);
-            const hBig = { stack: Array.from({ length: 12 }, bigEntry), index: 11 };
-            pruneAllHistories([hBig], 2500);
-            assert('vượt trần bị cắt, và sau khi cắt không còn vượt trần', hChars(hBig) <= 2500 && hBig.stack.length < 12);
-            assert('index hợp lệ sau khi cắt', hBig.index >= -1 && hBig.index <= hBig.stack.length - 1);
-            const hMid = { stack: Array.from({ length: 12 }, bigEntry), index: 11 };
-            pruneAllHistories([hMid], 5000);
-            assert('cắt một phần, không cắt quá tay', hChars(hMid) <= 5000 && hMid.stack.length > 0);
-            const hBgA = { stack: Array.from({ length: 10 }, bigEntry), index: 9 };
-            const hBgB = { stack: Array.from({ length: 10 }, bigEntry), index: 9 };
-            pruneAllHistories([hBgA, hBgB], 5000);
-            assert('tổng lịch sử mọi tab không vượt trần', hChars(hBgA) + hChars(hBgB) <= 5000);
-            assert('tab nền bị cắt trước tab đang mở', hChars(hBgB) > hChars(hBgA));
-            const hBack = { stack: Array.from({ length: 5 }, bigEntry), index: 2 };
-            pruneAllHistories([hBack], 500);
-            assert('cắt hết stack -> index về -1, không âm', hBack.stack.length === 0 && hBack.index === -1);
+            // Lịch sử Undo nằm trong EditorState của CodeMirror: mỗi tab một state riêng.
+            // Ở đây chỉ kiểm cơ chế undo/redo, phần tách theo tab do editor/cm.js đảm nhiệm.
+            const undoBefore = docText();
+            probe('nội dung thử');
+            assert('có thể undo', undo(view) === true);
+            assert('undo trả về nội dung trước', docText() === undoBefore);
+            assert('có thể redo', redo(view) === true);
+            assert('redo trả lại nội dung sau', docText() === 'nội dung thử');
 
             // Tên trùng phải phân biệt, không trùng thì giữ nguyên.
             const dupes = [
@@ -418,15 +424,12 @@ export async function runSelfCheck() {
             assert('session thiếu read-only -> mặc định gõ được', normal.tabs[0].readOnly === false);
         });
 
-        // Handler auto-close gắn thẳng vào textarea nên KeyboardEvent giả là đủ.
-        // Event giả không tự chèn ký tự: nhánh để trình duyệt chèn phải assert prevented === false.
+        // Handler gõ của CodeMirror nằm trong inputHandler nên gọi trực tiếp để kiểm.
         await section('auto-close', async () => {
             const press = (key, value, caret) => {
-                markdownInput.value = value;
-                markdownInput.setSelectionRange(caret, caret);
-                const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
-                markdownInput.dispatchEvent(e);
-                return { value: markdownInput.value, caret: markdownInput.selectionStart, prevented: e.defaultPrevented };
+                probe(value, caret, caret);
+                const handled = handleTypedChar(view, caret, caret, key);
+                return { value: docText(), caret: view.state.selection.main.head, handled };
             };
 
             const quoteOpen = press('"', '', 0);
@@ -440,17 +443,21 @@ export async function runSelfCheck() {
             assert("gõ lại ' nhảy qua dấu đóng", singleSkip.value === "'a'" && singleSkip.caret === 3);
             // Caret ở CUỐI don't, nếu không nhánh nhảy qua bắt trước và không kiểm được guard nháy đơn.
             const apostrophe = press("'", "don't", 5);
-            assert("' sau chữ là dấu nháy đơn, không tự đóng", !apostrophe.prevented);
+            assert("' sau chữ là dấu nháy đơn, không tự đóng", !apostrophe.handled);
 
             const parenOpen = press('(', '', 0);
             assert('gõ ( vẫn mở cặp', parenOpen.value === '()' && parenOpen.caret === 1);
             const parenSkip = press(')', '(x)', 2);
             assert('gõ ) vẫn nhảy qua (không bị đổi thứ tự)', parenSkip.value === '(x)' && parenSkip.caret === 3);
 
-            markdownInput.value = '""';
-            markdownInput.setSelectionRange(1, 1);
-            markdownInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }));
-            assert('Backspace giữa cặp xoá cả hai dấu', markdownInput.value === '');
+            // Bọc vùng chọn: gõ dấu mở khi đang bôi đen.
+            probe('abc', 0, 3);
+            handleTypedChar(view, 0, 3, '*');
+            assert('gõ * khi đang bôi đen thì bọc vùng chọn', docText() === '*abc*');
+
+            probe('""', 1, 1);
+            deletePairBackward();
+            assert('Backspace giữa cặp xoá cả hai dấu', docText() === '');
         });
 
         await section('khối #4', async () => {
@@ -514,15 +521,15 @@ export async function runSelfCheck() {
         assert('heading tạo mới trên dòng thường', setHeadingLevel('văn bản', 2).line === '## văn bản');
         assert('heading dòng thường + gỡ là no-op', setHeadingLevel('văn bản', 0) === null);
 
-        assert('html bọc vùng chọn', wrapHtmlTag('ab', 0, 2, 'sup').text === '<sup>ab</sup>');
+        assert('html bọc vùng chọn', wrapHtmlTag('ab', 0, 2, 'sup').insert === '<sup>ab</sup>');
         assert('html bọc giữ vùng chọn', (() => { const r = wrapHtmlTag('ab', 0, 2, 'sub'); return r.selStart === 5 && r.selEnd === 7; })());
-        assert('html placeholder khi không chọn', (() => { const r = wrapHtmlTag('', 0, 0, 'kbd'); return r.text === '<kbd>text</kbd>' && r.selStart === 5 && r.selEnd === 9; })());
-        assert('html gỡ thẻ khi bọc trọn cặp', wrapHtmlTag('<sup>ab</sup>', 0, 13, 'sup').text === 'ab');
-        assert('html gỡ thẻ nằm ngoài vùng chọn', (() => { const r = wrapHtmlTag('<mark>ab</mark>', 6, 8, 'mark'); return r.text === 'ab' && r.selStart === 0 && r.selEnd === 2; })());
+        assert('html placeholder khi không chọn', (() => { const r = wrapHtmlTag('', 0, 0, 'kbd'); return r.insert === '<kbd>text</kbd>' && r.selStart === 5 && r.selEnd === 9; })());
+        assert('html gỡ thẻ khi bọc trọn cặp', wrapHtmlTag('<sup>ab</sup>', 0, 13, 'sup').insert === 'ab');
+        assert('html gỡ thẻ nằm ngoài vùng chọn', (() => { const r = wrapHtmlTag('<mark>ab</mark>', 6, 8, 'mark'); return r.insert === 'ab' && r.selStart === 0 && r.selEnd === 2 && r.from === 0 && r.to === 15; })());
         assert('html bọc lại sau khi gỡ (toggle về ban đầu)', (() => {
             const a = wrapHtmlTag('ab', 0, 2, 'mark');
-            const b = wrapHtmlTag(a.text, a.selStart, a.selEnd, 'mark');
-            return b.text === 'ab';
+            const b = wrapHtmlTag(a.insert, a.selStart, a.selEnd, 'mark');
+            return b.insert === 'ab';
         })());
         assert('heading giữ # trong nội dung', setHeadingLevel('#hashtag', 1).line === '# #hashtag');
         assert('list parse task', parseListLine('- [x] việc').kind === 'task' && parseListLine('- [x] việc').rest === 'việc');
@@ -549,79 +556,49 @@ export async function runSelfCheck() {
         assert('fence giữ nội dung có sẵn', buildBlockFence('code', 'a\nb') === '```js\na\nb\n```');
 
         await section('khối #6', async () => {
-            const saved = markdownInput.value;
-            const sel = [markdownInput.selectionStart, markdownInput.selectionEnd];
             const run = (text, fn) => {
-                markdownInput.value = text;
-                markdownInput.setSelectionRange(0, text.length);
+                probe(text, 0, text.length);
                 fn();
-                return markdownInput.value;
+                return docText();
             };
             assert('heading delta 0 vẫn áp dụng', run('### a\nbbbb', () => applyHeadingLevel(1)) === '# a\n# bbbb');
             assert('bullet delta 0 vẫn áp dụng', run('- aaa\nbbb', () => applyListStyle('bullet')) === 'aaa\n- bbb');
             assert('numbered delta 0 vẫn áp dụng', run('1. a\nbbb', () => applyListStyle('numbered')) === 'a\n1. bbb');
-            markdownInput.value = 'abc def';
-            markdownInput.setSelectionRange(0, 3);
+            probe('abc def', 0, 3);
             insertTableBlock(2, 2);
-            assert('chèn bảng giữ nguyên vùng chọn', markdownInput.value.startsWith('abc') && markdownInput.value.includes('| Head |'));
+            assert('chèn bảng giữ nguyên vùng chọn', docText().startsWith('abc') && docText().includes('| Head |'));
             // Số dòng tính cả tiêu đề: 3x2 = tiêu đề + 1 dòng thân.
-            markdownInput.value = '';
-            markdownInput.setSelectionRange(0, 0);
+            probe('', 0, 0);
             insertTableBlock(3, 2);
             assert('bảng 3x2 ra đúng 2 dòng (tiêu đề + 1 dòng thân)',
-                markdownInput.value === '| Head | Head | Head |\n| --- | --- | --- |\n|  |  |  |');
-            markdownInput.value = '';
-            markdownInput.setSelectionRange(0, 0);
+                docText() === '| Head | Head | Head |\n| --- | --- | --- |\n|  |  |  |');
+            probe('', 0, 0);
             insertTableBlock(1, 1);
-            assert('bảng 1x1 vẫn giữ dòng thân để gõ', markdownInput.value === '| Head |\n| --- |\n|  |');
-            markdownInput.value = saved;
-            markdownInput.setSelectionRange(sel[0], sel[1]);
+            assert('bảng 1x1 vẫn giữ dòng thân để gõ', docText() === '| Head |\n| --- |\n|  |');
         });
 
         await section('khối #7', async () => {
-            // textarea rời: syncEditorAfterChange() đọc markdownInput thật nên không đụng nội dung người dùng.
-            const probe = document.createElement('textarea');
-            const savedStack = editorHistory.stack;
-            const savedIndex = editorHistory.index;
-            editorHistory.stack = [];
-            editorHistory.index = -1;
-            editorHistory.saveCurrentState(probe);
-            probe.value = 'hi';
-            editorHistory.undo(probe);
-            assert('undo đầu tiên sau khi load có tác dụng', probe.value === '');
-            editorHistory.redo(probe);
-            assert('redo quay lại nội dung vừa gõ', probe.value === 'hi');
-            editorHistory.stack = savedStack;
-            editorHistory.index = savedIndex;
+            // Undo sau khi nạp phải có tác dụng: CodeMirror giữ mốc ban đầu trong state.
+            const before = docText();
+            probe('hi');
+            assert('undo đầu tiên sau khi load có tác dụng', undo(view) === true && docText() === before);
+            assert('redo quay lại nội dung vừa gõ', redo(view) === true && docText() === 'hi');
         });
 
         await section('khối #8', async () => {
             // Dấu cách phải tạo mốc lịch sử riêng, nếu không Undo lùi hết cả cụm.
-            const saved = markdownInput.value;
-            const sel = [markdownInput.selectionStart, markdownInput.selectionEnd];
-            const savedStack = editorHistory.stack;
-            const savedIndex = editorHistory.index;
-            editorHistory.stack = [];
-            editorHistory.index = -1;
-            markdownInput.value = 'hello';
-            editorHistory.saveCurrentState(markdownInput);
-            markdownInput.value = 'hello ';
-            markdownInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ' ' }));
-            markdownInput.value = 'hello world';
-            markdownInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'w' }));
-            editorHistory.undo(markdownInput);
-            assert('undo lùi từng từ ở dấu cách', markdownInput.value === 'hello ');
-            editorHistory.stack = savedStack;
-            editorHistory.index = savedIndex;
-            markdownInput.value = saved;
-            markdownInput.setSelectionRange(sel[0], sel[1]);
+            probe('hello');
+            view.dispatch({ changes: { from: 5, insert: ' ' }, userEvent: 'input.type' });
+            view.dispatch({ changes: { from: 6, insert: 'world' }, userEvent: 'input.type' });
+            undo(view);
+            assert('undo lùi từng từ ở dấu cách', docText() === 'hello ');
         });
 
         await section('khối #9', async () => {
             // marked.parse ném lỗi: preview phải rơi về văn bản thô, không đụng innerHTML.
-            const savedValue = markdownInput.value;
+            const savedValue = docText();
             const savedMarked = window.marked;
-            markdownInput.value = '# probe render';
+            probe('# probe render');
             if (savedMarked) {
                 // marked.parse là getter không configurable: thay cả object marked rồi trả lại reference cũ.
                 window.marked = { ...savedMarked, parse: () => { throw new Error('probe'); } };
@@ -635,7 +612,7 @@ export async function runSelfCheck() {
                 skip('render lỗi -> preview hiện văn bản thô', 'marked chưa tải');
             }
             // Trả editor về nội dung thật TRƯỚC rồi render lại, không thì preview kẹt ở đoạn probe.
-            markdownInput.value = savedValue;
+            probe(savedValue);
             renderMarkdown();
         });
 
@@ -702,33 +679,26 @@ export async function runSelfCheck() {
             && katexFontKey('"KaTeX_Math"', 'italic', '400') === 'KaTeX_Math|italic|400');
 
         await section('tô màu editor', async () => {
-            const longDoc = '# Tiêu đề\n\n' + 'đoạn **đậm** và `code` cùng [link](https://example.com)\n\n'.repeat(800);
-            markdownInput.value = longDoc;
-            markdownInput.scrollTop = 0;
-            updateEditorHighlight();
-            // Pane ẩn (chế độ Preview) thì highlight chủ động bỏ qua vì mọi số đo bằng 0.
-            if (!markdownInput.clientWidth) {
+            // CodeMirror tự dựng cây cú pháp (Lezer) và gắn class CSS cho từng loại token.
+            const text = '# Tiêu đề\n\nđoạn **đậm** và `code` cùng [link](https://example.com)\n';
+            probe(text);
+            // Pane ẩn (chế độ Preview) thì editor không render nên không có class để kiểm.
+            if (!view.dom.clientWidth) {
                 skip('tô màu editor', 'pane đang ẩn');
                 return;
             }
-            // Ngoài cửa sổ là text thô; toàn bộ chữ vẫn phải khớp textarea, lệch là caret trôi khỏi chữ.
-            assert('highlight giữ đúng toàn bộ chữ của textarea', editorHighlightCode.textContent === longDoc + '\n');
-            // Chia lô không được thêm/bớt dòng ở ranh giới: lớp tô màu phải cao đúng bằng textarea.
-            assert('lớp tô màu cao bằng textarea', Math.abs(editorHighlight.scrollHeight - markdownInput.scrollHeight) <= 2);
-            markdownInput.scrollTop = markdownInput.scrollHeight;
-            updateEditorHighlight();
-            assert('cuộn xuống đáy vẫn giữ đúng chữ', editorHighlightCode.textContent === longDoc + '\n');
-            // Chỉ cửa sổ được tô: lô đầu đang ngoài cửa sổ là text thô, nếu tô cả file thì nó có span con.
-            assert('chỉ tô cửa sổ, phần ngoài là text thô', !editorHighlightCode.firstElementChild.querySelector('span'));
+            assert('nội dung không đổi sau khi tô màu', docText() === text);
+            assert('heading được gắn class riêng', view.dom.querySelectorAll('.cm-md-h1').length >= 1);
+            assert('chữ đậm được gắn class riêng', view.dom.querySelectorAll('.cm-md-strong').length >= 1);
+            assert('code inline được gắn class riêng', view.dom.querySelectorAll('.cm-md-code').length >= 1);
+            assert('link được gắn class riêng', view.dom.querySelectorAll('.cm-md-link').length >= 1);
         });
 
         await section('tô màu tăng dần', async () => {
-            if (!markdownInput.clientWidth) {
+            if (!view.dom.clientWidth) {
                 skip('tô màu tăng dần', 'pane đang ẩn');
                 return;
             }
-            const saved = markdownInput.value;
-            const savedScroll = markdownInput.scrollTop;
             const doc = [];
             for (let n = 0; n < 300; n++) {
                 doc.push(`## Mục ${n}`, '', `đoạn **đậm** và \`code\` cùng [link](https://example.com/${n})`);
@@ -741,133 +711,35 @@ export async function runSelfCheck() {
                 seed = (seed * 1103515245 + 12345) & 0x7fffffff;
                 return seed % n;
             };
-            const lineOffset = (text, n) => {
-                let at = 0;
-                for (let i = 0; i < n; i++) {
-                    const nl = text.indexOf('\n', at);
-                    if (nl < 0) return text.length;
-                    at = nl + 1;
-                }
-                return at;
-            };
             // Chèn/xoá ở đầu, cuối, giữa dòng, biên lô, dán nhiều dòng và ký hiệu khối.
             const edits = [
-                (v) => v + 'x',
-                (v) => 'x' + v,
-                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + 'chữ' + v.slice(at); },
-                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '\n- mục mới\n' + v.slice(at); },
-                (v) => { const at = rand(v.length); return v.slice(0, at) + v.slice(at + 1 + rand(Math.min(40, v.length - at))); },
-                (v) => { const at = lineOffset(v, 128 * (1 + rand(3))); return v.slice(0, at) + 'biên\n' + v.slice(at); },
-                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '```\n' + v.slice(at); },
-                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '$$' + v.slice(at); },
-                (v) => { const at = rand(v.length + 1); return v.slice(0, at) + '<!--' + v.slice(at); }
+                (cur) => ({ from: cur.length, to: cur.length, insert: 'x' }),
+                (cur) => ({ from: 0, to: 0, insert: 'x' }),
+                (cur) => { const at = rand(cur.length + 1); return { from: at, to: at, insert: 'chữ' }; },
+                (cur) => { const at = rand(cur.length + 1); return { from: at, to: at, insert: '\n- mục mới\n' }; },
+                (cur) => { const at = rand(cur.length); return { from: at, to: Math.min(at + 1 + rand(40), cur.length), insert: '' }; },
+                (cur) => { const at = rand(cur.length + 1); return { from: at, to: at, insert: '```\n' }; },
+                (cur) => { const at = rand(cur.length + 1); return { from: at, to: at, insert: '$$' }; },
+                (cur) => { const at = rand(cur.length + 1); return { from: at, to: at, insert: '<!--' }; }
             ];
+            const applyTo = (cur, change) => cur.slice(0, change.from) + change.insert + cur.slice(change.to);
 
-            // Oracle: mỗi lô đã tô phải khớp highlight dựng mới, state quét lại từ đầu tài liệu.
-            const BLOCK_MARK = /^[ \t]{0,3}(`{3,}|~{3,})|(<!--)|(-->)|^[ \t]*(\$\$)[ \t]*$/gm;
-            const stateBefore = (text, offset) => {
-                const state = { inFence: false, inHtmlComment: false, inMathBlock: false };
-                BLOCK_MARK.lastIndex = 0;
-                let mark;
-                while ((mark = BLOCK_MARK.exec(text)) !== null && mark.index < offset) {
-                    if (mark[1]) {
-                        if (!state.inHtmlComment) state.inFence = !state.inFence;
-                    } else if (mark[2]) {
-                        if (!state.inFence && !state.inMathBlock) state.inHtmlComment = true;
-                    } else if (mark[3]) {
-                        state.inHtmlComment = false;
-                    } else if (!state.inFence && !state.inHtmlComment) {
-                        state.inMathBlock = !state.inMathBlock;
-                    }
-                }
-                return state;
-            };
-            const probe = document.createElement('div');
-            const paintedOk = () => {
-                const full = markdownInput.value + '\n';
-                let offset = 0;
-                for (const el of editorHighlightCode.children) {
-                    const body = el.textContent;
-                    const start = offset;
-                    // Lô chưa tô là text thô (không có span); lô đã tô phải khớp bản highlight mới.
-                    if (full.slice(start, start + body.length) !== body) return false;
-                    offset += body.length;
-                    if (!el.querySelector('span')) continue;
-                    probe.innerHTML = highlightMarkdown(body, stateBefore(full, start));
-                    if (probe.innerHTML !== el.innerHTML) return false;
-                }
-                return offset === full.length;
-            };
-
-            markdownInput.value = doc.join('\n');
-            markdownInput.scrollTop = 0;
-            updateEditorHighlight(true);
+            const base = doc.join('\n');
+            probe(base);
             let ok = true;
-            // Hồi quy: xoá vắt qua biên lô đầu -> vùng dựng lại gồm 2 lô cũ, phần sau phải tái dùng element.
-            const boundary = lineOffset(markdownInput.value, 128);
-            markdownInput.value = markdownInput.value.slice(0, boundary - 10) + markdownInput.value.slice(boundary + 190);
-            updateEditorHighlight();
-            if (editorHighlightCode.textContent !== markdownInput.value + '\n' || !paintedOk()) ok = false;
-            // Hồi quy: xoá đúng cuối lô (mất newline biên) -> dòng đầu lô sau nhập vào dòng cuối vùng.
-            markdownInput.value = doc.join('\n');
-            updateEditorHighlight(true);
-            const edge = lineOffset(markdownInput.value, 128);
-            markdownInput.value = markdownInput.value.slice(0, edge - 9) + markdownInput.value.slice(edge);
-            updateEditorHighlight();
-            if (editorHighlightCode.textContent !== markdownInput.value + '\n' || !paintedOk()) ok = false;
-            markdownInput.value = doc.join('\n');
-            markdownInput.scrollTop = 0;
-            updateEditorHighlight(true);
             for (let batch = 0; batch < 8; batch++) {
                 const steps = 5 + rand(10);
                 for (let step = 0; step < steps; step++) {
-                    markdownInput.value = edits[rand(edits.length)](markdownInput.value);
-                    const maxScroll = Math.max(markdownInput.scrollHeight - markdownInput.clientHeight, 0);
-                    markdownInput.scrollTop = rand(2) ? 0 : Math.round(maxScroll * (rand(100) / 100));
-                    updateEditorHighlight();
-                    if (editorHighlightCode.textContent !== markdownInput.value + '\n') ok = false;
-                }
-                // Ba vị trí: lô vừa tô, và lô được tô sau khi cuộn.
-                const maxScroll = Math.max(markdownInput.scrollHeight - markdownInput.clientHeight, 0);
-                for (const top of [0, markdownInput.scrollTop, maxScroll]) {
-                    markdownInput.scrollTop = top;
-                    updateEditorHighlight();
-                    if (!paintedOk()) ok = false;
+                    const cur = docText();
+                    const change = edits[rand(edits.length)](cur);
+                    view.dispatch({ changes: change });
+                    if (docText() !== applyTo(cur, change)) ok = false;
                 }
             }
-            assert('fuzz tô màu tăng dần: 8 batch khớp bản dựng mới', ok);
-            // Đếm số lần đọc scrollHeight: đọc là ép layout toàn textarea.
-            // Gõ tay (số dòng không đổi) phải KHÔNG đọc, còn dán lôi thì phải đọc lại,
-            // nếu không ước lượng wrap lệch xa và vùng nhìn thấy sẽ mất màu tô.
-            const reads = { n: 0 };
-            const scrollHeightDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
-            if (scrollHeightDesc && scrollHeightDesc.get && markdownInput.clientWidth > 0) {
-                Object.defineProperty(markdownInput, 'scrollHeight', {
-                    configurable: true,
-                    get() { reads.n++; return scrollHeightDesc.get.call(this); }
-                });
-                try {
-                    const base = 'a\nb\nc' + 'z'.repeat(20000);
-                    markdownInput.value = base;
-                    updateEditorHighlight(true);
-                    const afterBuild = reads.n;
-                    markdownInput.value = 'a\nb\ncX' + 'z'.repeat(20000);
-                    updateEditorHighlight();
-                    const afterTyping = reads.n;
-                    markdownInput.value = 'a\nb\nc' + 'y'.repeat(5000) + 'z'.repeat(20000);
-                    updateEditorHighlight();
-                    const afterPaste = reads.n;
-                    assert('gõ tay không đọc scrollHeight (không ép layout)', afterTyping === afterBuild);
-                    assert('dán lôi đo lại scrollHeight', afterPaste > afterTyping);
-                } finally {
-                    delete markdownInput.scrollHeight;
-                }
-            } else {
-                skip('đếm lần đọc scrollHeight', 'editor đang ẩn hoặc trình duyệt không có getter');
-            }
-            markdownInput.value = saved;
-            markdownInput.scrollTop = savedScroll;
-            updateEditorHighlight(true);
+            assert('fuzz sửa văn bản: nội dung luôn khớp', ok);
+            // Editor phải vẫn render được sau loạt sửa (không lỗi cú pháp cây).
+            assert('editor vẫn render sau fuzz', view.dom.querySelectorAll('.cm-line').length > 0);
+            probe(snap.value);
         });
 
         let mark = results.length;
@@ -905,64 +777,41 @@ export async function runSelfCheck() {
         if (results.length === mark) skip('6 assert KaTeX -> MathML', 'katex chưa tải');
 
         mark = results.length;
-        await section('widget tìm kiếm', async () => {
-            // Hàm thuần: tìm và thay trên chuỗi.
-            assert('tìm thấy mọi match', findMatches('aXbXc', 'X').length === 2);
-            assert('tìm không phân biệt hoa thường', findMatches('aXbxc', 'x').length === 2);
-            assert('bật match case thì phân biệt', findMatches('aXbxc', 'x', { matchCase: true }).length === 1);
-            assert('ký tự đặc biệt không bị hiểu là regex', findMatches('a.c axc', 'a.c').length === 1);
-            assert('regex hỏng trả null chứ không ném lỗi', findMatches('abc', '[', { useRegex: true }) === null);
-            assert('regex khớp rỗng không lặp vô hạn', findMatches('abc', 'x*', { useRegex: true }).length < 10);
-            assert('thay hết tính đúng số match', replaceAllMatches('aXbXc', 'X', '-').count === 2);
-            assert('thay hết không phân biệt hoa thường cũng thay đủ', replaceAllMatches('aXbxc', 'x', '-').text === 'a-b-c');
-            assert('thay theo nghĩa đen: $ không bị diễn giải', replaceAllMatches('x', 'x', '$&').text === '$&');
-            assert('thay trong regex dùng được nhóm $1', replaceAllMatches('a1 b2', '([a-z])([0-9])', '$2$1', { useRegex: true }).text === '1a 2b');
+        await section('panel tìm kiếm', async () => {
+            // Panel của @codemirror/search nằm trong editor pane, không che format bar.
+            const previewBefore = previewOutput.innerHTML;
+            probe('foo Foo food');
+            openSearchPanel(view);
+            const panel = view.dom.querySelector('.cm-search');
+            assert('mở panel tìm kiếm', !!panel);
+            assert('panel nằm trong editor pane', !!panel && !!panel.closest('.editor-container'));
 
-            // Widget: Ctrl+F mở, đếm match, điều hướng, Ctrl+H mở hàng thay thế, thay hết.
-            const saved = markdownInput.value;
-            markdownInput.value = 'foo Foo food';
-            openFindWidget(false);
-            assert('mở widget tìm kiếm', findWidget.classList.contains('open'));
+            const input = panel.querySelector('[name=search]');
+            input.value = 'foo';
+            // Panel của CodeMirror nghe onkeyup/onchange, không nghe 'input'.
+            input.dispatchEvent(new Event('keyup', { bubbles: true }));
+            assert('truy vấn tìm kiếm được ghi nhận', getSearchQuery(view.state).search === 'foo');
 
-            findInput.value = 'foo';
-            findInput.dispatchEvent(new Event('input'));
-            assert('đếm đúng số match', findCount.textContent === '1/3');
+            findNext(view);
+            assert('nút next chọn match đầu tiên',
+                view.state.selection.main.from === 0 && view.state.selection.main.to === 3);
+            findNext(view);
+            assert('nút next chọn match kế tiếp',
+                view.state.selection.main.from === 4 && view.state.selection.main.to === 7);
 
-            findNextBtn.click();
-            assert('nút next chọn match kế tiếp', markdownInput.selectionStart === 4 && markdownInput.selectionEnd === 7);
+            const replaceInput = panel.querySelector('[name=replace]');
+            assert('panel có ô thay thế', !!replaceInput);
+            replaceInput.value = 'bar';
+            replaceInput.dispatchEvent(new Event('keyup', { bubbles: true }));
+            replaceAll(view);
+            assert('thay hết đổi đúng nội dung', docText() === 'bar bar bard');
+            assert('tìm kiếm không đụng preview', previewOutput.innerHTML === previewBefore);
 
-            openFindWidget(true);
-            assert('Ctrl+H mở hàng thay thế', !findReplaceRow.classList.contains('hidden'));
-
-            openFindWidget(false);
-            assert('Ctrl+F ẩn hàng thay thế', findReplaceRow.classList.contains('hidden'));
-
-            findReplaceInput.value = 'bar';
-            findReplaceAllBtn.click();
-            assert('thay hết đổi đúng nội dung', markdownInput.value === 'bar bar bard');
-
-            // Cuộn xa làm lớp tô màu thay text node: highlight phải dựng lại Range chứ không
-            // tái dùng Range đã tụt về span chunk (vẫn isConnected nhưng rỗng).
-            const savedScroll = markdownInput.scrollTop;
-            markdownInput.value = 'từ khóa\n\n'.repeat(300);
-            updateEditorHighlight(true);
-            findInput.value = 'từ khóa';
-            findInput.dispatchEvent(new Event('input'));
-            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            markdownInput.scrollTop = markdownInput.scrollHeight;
-            updateEditorHighlight();
-            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            const findHighlight = CSS.highlights ? CSS.highlights.get('md-find-all') : null;
-            assert('highlight tìm kiếm còn đúng sau khi cuộn xa', !!findHighlight
-                && findHighlight.size > 0
-                && [...findHighlight].every((range) => range.startContainer.nodeType === Node.TEXT_NODE && !range.collapsed));
-            markdownInput.scrollTop = savedScroll;
-
-            closeFindWidget();
-            assert('đóng widget', !findWidget.classList.contains('open'));
-            markdownInput.value = saved;
+            closeSearchPanel(view);
+            assert('đóng panel tìm kiếm', !view.dom.querySelector('.cm-search'));
+            probe(snap.value);
         });
-        if (results.length === mark) skip('16 assert widget tìm kiếm', 'widget không có trong DOM');
+        if (results.length === mark) skip('assert panel tìm kiếm', 'panel không có trong DOM');
 
         mark = results.length;
         if (document.getElementById('btn-help')) await section('hộp thoại About', async () => {
@@ -1015,16 +864,17 @@ export async function runSelfCheck() {
         results.push(`FAIL - self-check bị ngắt giữa chừng: ${err && err.message ? err.message : err}`);
     } finally {
         if (isInfoDialogOpen()) document.getElementById('info-close').click();
-        clearTimeout(editorHistory.typingTimer);
-        editorHistory.typingTimer = null;
-        editorHistory.stack = snap.stack;
-        editorHistory.index = snap.index;
-        if (markdownInput.value !== snap.value) markdownInput.value = snap.value;
-        markdownInput.setSelectionRange(snap.selStart, snap.selEnd);
-        markdownInput.scrollTop = snap.scrollTop;
+        // Trả editor về đúng trạng thái trước khi thử rồi bật lại đồng bộ của app.
+        if (docText() !== snap.value) probe(snap.value, snap.selStart, snap.selEnd);
+        view.dispatch({
+            selection: { anchor: snap.selStart, head: snap.selEnd },
+            scrollIntoView: false
+        });
+        view.scrollDOM.scrollTop = snap.scrollTop;
         previewOutput.scrollTop = snap.previewScrollTop;
-        // Dựng lại char counter, highlight, preview, tab và nháp phiên từ nội dung thật.
-        syncEditorAfterChange();
+        setChangeHandler(handleEditorChange);
+        // Dựng lại char counter, preview, tab và nháp phiên từ nội dung thật.
+        handleEditorChange({ state: view.state });
     }
 
     // Đếm theo tiền tố dòng; tổng = results.length nên toast luôn khớp console.
@@ -1033,6 +883,9 @@ export async function runSelfCheck() {
     const passed = results.length - failed.length - skipped.length;
     const report = `${passed}/${results.length} PASS`;
     (failed.length ? console.error : console.log)('Self-check Import/Export:\n' + results.join('\n'));
+    // Từng dòng FAIL log riêng: báo cáo gộp bị console cắt bớt nên không thấy lỗi.
+    failed.forEach((line) => console.error(line));
+    console.log(`Self-check summary: ${report}, ${skipped.length} SKIP, ${failed.length} FAIL`);
     if (failed.length || skipped.length) {
         showToast(`Self-check: ${report}, ${skipped.length} SKIP, ${failed.length} FAIL (see console)`);
     } else {

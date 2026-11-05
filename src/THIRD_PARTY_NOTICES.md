@@ -17,12 +17,14 @@ Every vendored file was verified by SHA-256 against the published release on npm
 | [marked-katex-extension](https://github.com/UziTech/marked-katex-extension) | 5.1.13 | MIT | `marked-katex-extension.umd.js` |
 | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) | 5.9.0 | MIT | `github-markdown-light.css`, `github-markdown-dark.css` |
 | [@highlightjs/cdn-assets](https://github.com/highlightjs/cdn-assets) | 11.12.0 | BSD-3-Clause | `hljs-github.min.css`, `hljs-github-dark.min.css` |
+| [CodeMirror](https://github.com/codemirror/view) | 6.0.2 | MIT | `codemirror.bundle.js` |
 
 ## Notes
 
 - `src/vendor/fonts/` contains 60 files (20 typefaces in `.ttf`, `.woff` and `.woff2`). They ship as part of KaTeX 0.19.0 under the same MIT license.
 - `src/vendor/mermaid.min.js` is a bundled build that already contains DOMPurify 3.4.12 (Apache-2.0 or MPL-2.0) internally; that copy is not distributed separately. It handles KaTeX-style markup for its own math renderer but does not bundle KaTeX itself.
 - `src/vendor/highlight.min.js` is a custom 193-language bundle built with esbuild from the `lib/index.js` entry of the npm package; it carries no license banner, so the version is read from the `11.12.0` constant in the file itself. npm publishes no prebuilt browser bundle (only CommonJS/ESM sources), and `@highlightjs/cdn-assets/highlight.min.js` is the 37-language "common" build, so neither can replace it. Rebuild recipe lives in `scripts/vendor-update.js`.
+- `src/vendor/codemirror.bundle.js` is a custom CodeMirror 6 bundle built with esbuild from `scripts/vendor/codemirror.entry.js` and exposed as the global `CodeMirror`; npm publishes no browser bundle (only ESM per package), so it is built and vendored by hand. It embeds `codemirror` 6.0.2, `@codemirror/state` 6.7.6, `@codemirror/view` 6.43.15, `@codemirror/lang-markdown` 6.5.2, `@codemirror/search` 6.7.2, `@codemirror/commands` 6.11.1, `@codemirror/language` 6.13.1, `@codemirror/autocomplete` 6.20.4, `@lezer/highlight` 1.2.5 and `@lezer/markdown` 1.8.1 — all MIT. Rebuild recipe lives in `scripts/vendor-update.js`.
 ## marked
 
 - **Version:** 18.1.0
@@ -342,6 +344,43 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+</details>
+
+## CodeMirror
+
+- **Version:** 6.0.2
+- **Files:** `src/vendor/codemirror.bundle.js`
+- **Source:** npm: <https://www.npmjs.com/package/codemirror/v/6.0.2> &middot; GitHub: <https://github.com/codemirror/view/tree/6.43.15>
+- **License:** MIT
+- **License text retrieved from:** https://cdn.jsdelivr.net/npm/@codemirror/view@6.43.15/LICENSE
+
+<details>
+<summary>Full license text &mdash; CodeMirror 6.0.2</summary>
+
+```text
+MIT License
+
+Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 </details>

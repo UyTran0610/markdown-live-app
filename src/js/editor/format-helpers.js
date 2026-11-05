@@ -53,33 +53,43 @@ export function escapeLinkText(text) {
 
 // ponytail: toggle theo cặp thẻ trọn vẹn (như wrapOrToggleFormat với **), không xử lý thẻ lồng nhau;
 // nâng cấp sau: parse DOM thật nếu cần.
-export function wrapHtmlTag(val, selStart, selEnd, tag) {
+// Trả { from, to, insert, selStart, selEnd }: thay đoạn [from, to] bằng `insert` rồi chọn [selStart, selEnd].
+export function wrapHtmlTag(text, selStart, selEnd, tag) {
     const open = '<' + tag + '>';
     const close = '</' + tag + '>';
     const oLen = open.length;
     const cLen = close.length;
-    const selected = val.substring(selStart, selEnd);
+    const selected = text.substring(selStart, selEnd);
 
     if (selected.length >= oLen + cLen && selected.startsWith(open) && selected.endsWith(close)) {
         const unwrapped = selected.substring(oLen, selected.length - cLen);
-        return { text: val.substring(0, selStart) + unwrapped + val.substring(selEnd), selStart, selEnd: selStart + unwrapped.length };
+        return { from: selStart, to: selEnd, insert: unwrapped, selStart, selEnd: selStart + unwrapped.length };
     }
-    if (selStart >= oLen && selEnd + cLen <= val.length
-        && val.substring(selStart - oLen, selStart) === open
-        && val.substring(selEnd, selEnd + cLen) === close) {
+    if (selStart >= oLen && selEnd + cLen <= text.length
+        && text.substring(selStart - oLen, selStart) === open
+        && text.substring(selEnd, selEnd + cLen) === close) {
         return {
-            text: val.substring(0, selStart - oLen) + selected + val.substring(selEnd + cLen),
+            from: selStart - oLen,
+            to: selEnd + cLen,
+            insert: selected,
             selStart: selStart - oLen,
             selEnd: selEnd - oLen
         };
     }
     if (selStart === selEnd) {
         const placeholder = 'text';
-        const insert = open + placeholder + close;
-        return { text: val.substring(0, selStart) + insert + val.substring(selEnd), selStart: selStart + oLen, selEnd: selStart + oLen + placeholder.length };
+        return {
+            from: selStart,
+            to: selEnd,
+            insert: open + placeholder + close,
+            selStart: selStart + oLen,
+            selEnd: selStart + oLen + placeholder.length
+        };
     }
     return {
-        text: val.substring(0, selStart) + open + selected + close + val.substring(selEnd),
+        from: selStart,
+        to: selEnd,
+        insert: open + selected + close,
         selStart: selStart + oLen,
         selEnd: selEnd + oLen
     };

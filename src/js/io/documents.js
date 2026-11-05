@@ -1,9 +1,8 @@
-// js/io/documents.js — Store tab: nội dung, đọc/ghi file, session (một textarea chung).
+// js/io/documents.js — Store tab: nội dung, đọc/ghi file, session (một editor chung).
 
-import { btnImport, btnSave, btnSaveAll, btnSaveAs, charCounter, editorHighlight, markdownInput, previewOutput } from '../core/dom.js';
+import { btnImport, btnSave, btnSaveAll, btnSaveAs, charCounter, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { updateEditorHighlight } from '../editor/highlight.js';
-import { editorHistory, pruneAllHistories } from '../editor/history.js';
+import { createEditorState, getDocLength, getView, setEditorState } from '../editor/cm.js';
 import { chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { currentPreviewHtml, onPreviewChanged, renderCachedHtml, renderMarkdown } from '../preview/render.js';
 import { confirmAction } from '../ui/confirm-dialog.js';
@@ -25,12 +24,13 @@ const UNTITLED = 'Untitled';
 // tab: { id, path, name, content, savedContent, eol, bom, status, diskMtime, savedHash, savedLen, reload }
 // content luôn LF; eol/bom nhớ bản đĩa. savedContent === null = chưa từng ghi đĩa.
 // status !== 'ok' cấm ghi đè path cũ (phải Save As).
+// state = EditorState của CodeMirror, mỗi tab một state riêng nên undo không trộn tab.
 const tabs = [];
 let activeId = null;
 const listeners = [];
 let nextId = 1;
 
-// Đang khôi phục session: gán textarea vào tab active sẽ xoá bản nháp đọc từ đĩa.
+// Đang khôi phục session: gán nội dung vào tab active sẽ xoá bản nháp đọc từ đĩa.
 let restoring = false;
 
 // Cửa sổ đang đóng: chỉ flushSession được ghi, nếu không visibilitychange/debounce gõ
@@ -103,7 +103,7 @@ function createTab({ path = null, name = null, content = '', savedContent = cont
         selStart: 0,
         selEnd: 0,
         preview: null,
-        history: null
+        state: null
     };
     tabs.push(tab);
     return tab;
@@ -129,14 +129,13 @@ export function setActiveEol(eol) {
     saveSession();
 }
 
-// Điểm vào DUY NHẤT để đổi activeId: capture -> load -> render -> prune -> emit -> saveSession.
+// Điểm vào DUY NHẤT để đổi activeId: capture -> load -> render -> emit -> saveSession.
 // switchTab/newTab/closeTab/openPaths/reopenClosedTab/restoreSession đều đi qua đây.
 export function activateTab(tab) {
     if (!tab) return null;
     captureActive();
     activeId = tab.id;
     restoreTabIntoEditor(tab);
-    pruneHistories();
     emit();
     saveSession();
     // Kiểm luôn tab vừa mở vì chuyển tab cũng là lúc file ngoài dễ bị sửa.
@@ -144,58 +143,44 @@ export function activateTab(tab) {
     return tab;
 }
 
-// Cắt lịch sử lúc chuyển tab (không phải mỗi lần gõ); tab active đặt cuối nên bị cắt sau cùng.
-function pruneHistories() {
-    const active = getActiveTab();
-    const histories = tabs
-        .filter((tab) => tab !== active && tab.history)
-        .map((tab) => tab.history);
-    histories.push(editorHistory);
-    pruneAllHistories(histories);
-    // index có thể đã dịch sau khi cắt: ghi lại để lần sau khôi phục đúng vị trí undo.
-    if (active) active.history = { stack: editorHistory.stack, index: editorHistory.index };
-}
-
 // Nhét trạng thái editor vào tab đang mở; phải gọi TRƯỚC khi đổi activeId.
 function captureActive() {
     if (restoring) return;
     const tab = getActiveTab();
     if (!tab) return;
+    const v = getView();
+    if (!v) return;
     // Tab readOnly: gõ không đổi được gì, capture content chỉ kéo rác vào tab.
-    if (!tab.readOnly) tab.content = markdownInput.value;
-    tab.selStart = markdownInput.selectionStart;
-    tab.selEnd = markdownInput.selectionEnd;
-    tab.scrollTop = markdownInput.scrollTop;
+    if (!tab.readOnly) tab.content = v.state.doc.toString();
+    const sel = v.state.selection.main;
+    tab.selStart = sel.from;
+    tab.selEnd = sel.to;
+    tab.scrollTop = v.scrollDOM.scrollTop;
+    // EditorState của tab giữ luôn lịch sử undo riêng (mỗi tab một state).
+    tab.state = v.state;
     // Preview scroll thuộc về tab, không nhớ thì đổi tab là mất chỗ đang đọc.
     if (tab.preview && tab.preview.content === tab.content) tab.preview.scroll = previewOutput.scrollTop;
-    tab.history = { stack: editorHistory.stack, index: editorHistory.index };
 }
 
-// Timer gom lịch sử đang treo sẽ đẩy text tab mới vào stack tab vừa rời.
+// Đổi nội dung editor theo tab. State đi kèm nên lịch sử undo của tab được giữ nguyên.
 function restoreTabIntoEditor(tab) {
-    clearTimeout(editorHistory.typingTimer);
-    editorHistory.typingTimer = null;
-    markdownInput.value = tab.content;
-    // Tab file lớn: khoá gõ, nếu không updateActiveContent nuốt mất chỗ gõ.
-    markdownInput.readOnly = tab.readOnly === true;
-    if (tab.history) {
-        editorHistory.stack = tab.history.stack;
-        editorHistory.index = tab.history.index;
-    } else {
-        editorHistory.stack = [];
-        editorHistory.index = -1;
-        editorHistory.saveCurrentState(markdownInput);
-    }
-    markdownInput.scrollTop = tab.scrollTop;
-    updateEditorHighlight();
-    // Đặt SAU updateEditorHighlight: hàm đó thay innerHTML nên reset scrollTop về 0.
-    editorHighlight.scrollTop = tab.scrollTop;
+    const v = getView();
+    if (!v) return;
+    // Chưa có state (tab mới, hoặc vừa nạp lại từ đĩa) thì dựng state mới.
+    if (!tab.state) tab.state = createEditorState(tab.content, { readOnly: tab.readOnly === true });
+    setEditorState(tab.state);
+    v.scrollDOM.scrollTop = tab.scrollTop;
     // renderMarkdown giữ scrollTop cũ nên phải zero trước khi render tab mới.
     previewOutput.scrollTop = 0;
     if (tab.preview && tab.preview.content === tab.content) renderCachedHtml(tab.preview.html, tab.preview.scroll);
     else renderPreviewGuarded();
-    markdownInput.setSelectionRange(tab.selStart, tab.selEnd);
-    markdownInput.focus();
+    // Con trỏ về đúng chỗ đã lưu của tab (bị kẹp trong độ dài doc hiện tại).
+    const max = tab.state.doc.length;
+    v.dispatch({
+        selection: { anchor: Math.min(tab.selStart, max), head: Math.min(tab.selEnd, max) },
+        scrollIntoView: false
+    });
+    v.focus();
 }
 
 // Cache preview theo tab (key = content) để đổi tab không chạy lại marked/sanitize/KaTeX/Mermaid.
@@ -224,7 +209,7 @@ export function renderActivePreview() {
 // marked + DOMPurify + KaTeX + Mermaid trên hàng chục MB làm treo cửa sổ ("not
 // responding"). Tài liệu lớn thì thay preview bằng lời nhắc, bản gốc vẫn đọc ở Editor.
 export function renderPreviewGuarded() {
-    const chars = markdownInput.value.length;
+    const chars = getDocLength();
     if (chars > LARGE_FILE_CHARS) {
         renderTooLargeNotice(chars);
         return false;
@@ -337,8 +322,17 @@ export async function closeTab(id, { force = false, remember = true } = {}) {
     saveSession();
 }
 
-// Nội dung tab vừa đổi (mọi đường ghi qua syncEditorAfterChange); chỉ emit khi cờ dirty lật.
-export function updateActiveContent(text) {
+// Đổi chế độ chỉ đọc của tab: readOnly nằm trong cấu hình EditorState nên phải dựng lại state.
+export function setTabReadOnly(tab, readOnly) {
+    if (!tab) return;
+    tab.readOnly = readOnly === true;
+    tab.state = null;
+    if (tab.id === activeId) restoreTabIntoEditor(tab);
+}
+
+// Nội dung tab vừa đổi (mọi đường ghi đều qua updateListener của CodeMirror);
+// chỉ emit khi cờ dirty lật. state = EditorState mới của tab để giữ lịch sử undo.
+export function updateActiveContent(text, state = null) {
     const tab = getActiveTab();
     if (!tab) return;
     // Chỉ tab readOnly mới không theo dõi nội dung. Tab lỗi (status !== 'ok') vẫn gõ
@@ -346,6 +340,7 @@ export function updateActiveContent(text) {
     if (tab.readOnly) return;
     const wasDirty = isTabDirty(tab);
     tab.content = text;
+    if (state) tab.state = state;
     if (isTabDirty(tab) !== wasDirty) emit();
 }
 
@@ -618,8 +613,8 @@ async function reloadTabFromDisk(tab) {
     }
     tab.diskMtime = mtimeOf(await statFile(tab.path));
     tab.diskIgnoredMtime = null;
-    // Lịch sử Undo cũ trỏ vào nội dung không còn trong tab: xoá để dựng stack mới.
-    tab.history = null;
+    // Lịch sử Undo cũ trỏ vào nội dung không còn trong tab: xoá state để dựng lại.
+    tab.state = null;
     if (tab.id === activeId) restoreTabIntoEditor(tab);
     // Tải lại âm thầm mà không nói gì thì tài liệu tự đổi trước mắt người dùng.
     emit();
@@ -843,8 +838,6 @@ async function loadRestoredSession() {
 
 export async function restoreSession() {
     restoring = true;
-    // Khoá editor tới khi tab active nạp xong, nếu không gõ vào sẽ bị ghi đè.
-    markdownInput.readOnly = true;
     tabs.length = 0;
     activeId = null;
     nextId = 1;
@@ -889,8 +882,6 @@ export async function restoreSession() {
         if (summary) showToast(summary);
     } finally {
         restoring = false;
-        // restoreTabIntoEditor có thể không chạy (lỗi giữa chừng): cờ readOnly phải theo tab active.
-        markdownInput.readOnly = getActiveTab()?.readOnly === true;
     }
 
     // File association lần chạy đầu: hỏi SAU khi editor dựng xong, không thì bị restoreSession ghi đè.

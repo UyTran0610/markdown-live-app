@@ -2,10 +2,10 @@
 
 import { runPerfCheck } from './dev/perfcheck.js';
 import { runSelfCheck } from './dev/selfcheck.js';
+import { initEditorView } from './editor/cm.js';
 import { initContentActions } from './editor/content.js';
 import { initEditorEvents } from './editor/events.js';
-import { initFindReplace } from './editor/find-replace.js';
-import { initEditorHighlight } from './editor/highlight.js';
+import { initEditorSync } from './editor/sync.js';
 import { initExportMenu } from './export/menu.js';
 import { initDocuments, restoreSession } from './io/documents.js';
 import { initPreviewLinks } from './preview/links.js';
@@ -30,10 +30,11 @@ initPopupMenu();
 initTabMenu();
 initStatusBar();
 initConfirmDialog();
+// Editor phải có trước mọi thứ đụng tới nó (events, scroll-sync, toolbar).
+initEditorView();
 initEditorEvents();
-initFindReplace();
+initEditorSync();
 initScrollSync();
-initEditorHighlight();
 initPreviewLinks();
 initViewMode();
 initWindowControls();

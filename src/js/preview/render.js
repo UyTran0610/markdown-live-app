@@ -1,6 +1,7 @@
 // js/preview/render.js — Render Markdown -> HTML (marked + DOMPurify + hljs + Mermaid + KaTeX), gán id heading và giữ vị trí cuộn.
 
-import { charCounter, markdownInput, previewOutput } from '../core/dom.js';
+import { charCounter, previewOutput } from '../core/dom.js';
+import { getDocText } from '../editor/cm.js';
 import { slugifyText } from '../core/utils.js';
 import { processGFMAlerts } from './alerts.js';
 import { cacheMermaidResult, mermaidCache } from './mermaid-cache.js';
@@ -45,7 +46,7 @@ let renderVersion = 0;
 export function renderMarkdown() {
     const myRenderVersion = ++renderVersion;
 
-    const rawText = markdownInput.value;
+    const rawText = getDocText();
 
     const previousPreviewScrollTop = previewOutput.scrollTop;
 
@@ -191,7 +192,7 @@ export function renderCachedHtml(html, scrollTop) {
         pendingMermaidJobs--;
     }
     previewOutput.innerHTML = html;
-    charCounter.textContent = `${markdownInput.value.length} characters`;
+    charCounter.textContent = `${getDocText().length} characters`;
     restorePreviewScrollTop(scrollTop);
 }
 

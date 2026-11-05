@@ -1,8 +1,8 @@
 // js/ui/view-mode.js — Chế độ xem Editor / Split / Preview và thanh kéo chia pane.
 
-import { btnView, markdownInput, paneResizer, paneResizerGhost, viewItems, viewMenu, viewWrap, workspace } from '../core/dom.js';
+import { btnView, paneResizer, paneResizerGhost, viewItems, viewMenu, viewWrap, workspace } from '../core/dom.js';
 import { setPanesResizing } from '../core/flags.js';
-import { scheduleEditorHighlight } from '../editor/highlight.js';
+import { getDocLength } from '../editor/cm.js';
 import { renderActivePreview } from '../io/documents.js';
 
 const VIEW_STORAGE_KEY = 'markdown-live-view';
@@ -184,8 +184,7 @@ function endResizerDrag() {
     } else {
         flushSplit();
     }
-    // Bề rộng editor đã đổi: tô màu lại đúng một lần sau khi kéo xong.
-    scheduleEditorHighlight();
+    // Bề rộng editor đã đổi: CodeMirror tự reflow nên không cần tô màu lại.
 }
 
 export function initViewMode() {
@@ -223,7 +222,7 @@ export function initViewMode() {
         dragAxis = window.matchMedia(VERTICAL_LAYOUT_MQ).matches ? 'y' : 'x';
         pendingSplit = currentSplitPercent();
         pendingViewMode = 'split';
-        dragMode = usesGhostDrag(markdownInput.value.length) ? 'ghost' : 'live';
+        dragMode = usesGhostDrag(getDocLength()) ? 'ghost' : 'live';
         if (dragMode === 'ghost') showGhost();
         // setPointerCapture có thể ném NotFoundError với pointer giả (automation).
         try {

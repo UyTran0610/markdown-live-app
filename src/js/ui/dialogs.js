@@ -7,14 +7,13 @@ import {
     linkInsertBtn,
     linkTextInput,
     linkUrlInput,
-    markdownInput,
     tableCancelBtn,
     tableColsInput,
     tableDialog,
     tableInsertBtn,
     tableRowsInput
 } from '../core/dom.js';
-import { applyEditorChange } from '../editor/edit.js';
+import { focusEditor, getDocText, getView, replaceRange } from '../editor/cm.js';
 import { insertTableBlock } from '../editor/format-actions.js';
 import { escapeLinkText, normalizeLinkUrl } from '../editor/format-helpers.js';
 
@@ -38,9 +37,9 @@ export function closeDialogs() {
 }
 
 function openLinkDialog() {
-    const selStart = markdownInput.selectionStart;
-    const selEnd = markdownInput.selectionEnd;
-    const selected = selStart !== selEnd ? markdownInput.value.substring(selStart, selEnd) : '';
+    const v = getView();
+    const sel = v.state.selection.main;
+    const selected = sel.from !== sel.to ? v.state.sliceDoc(sel.from, sel.to) : '';
     linkTextInput.value = '';
     linkUrlInput.value = '';
     linkInsertBtn.disabled = true;
@@ -59,23 +58,23 @@ function insertLinkFromDialog() {
     const url = normalizeLinkUrl(linkUrlInput.value);
     if (!url) return;
     const text = linkTextInput.value.trim();
-    const val = markdownInput.value;
-    const selStart = markdownInput.selectionStart;
-    const selEnd = markdownInput.selectionEnd;
-    const label = text || (selStart !== selEnd ? val.substring(selStart, selEnd) : url);
+    const v = getView();
+    const sel = v.state.selection.main;
+    const label = text || (sel.from !== sel.to ? v.state.sliceDoc(sel.from, sel.to) : url);
     // URL chứa khoảng trắng phải bọc trong < > theo cú pháp GFM.
     const urlPart = /\s/.test(url) ? '<' + url + '>' : url;
     const insert = '[' + escapeLinkText(label) + '](' + urlPart + ')';
-    applyEditorChange(val.substring(0, selStart) + insert + val.substring(selEnd), selStart + insert.length, selStart + insert.length);
+    const caret = sel.from + insert.length;
+    replaceRange(sel.from, sel.to, insert, caret, caret);
     closeDialogs();
-    markdownInput.focus();
+    focusEditor();
 }
 
 function insertTableFromDialog() {
     const cols = Math.max(1, Math.min(99, parseInt(tableColsInput.value, 10) || 3));
     const rows = Math.max(1, Math.min(99, parseInt(tableRowsInput.value, 10) || 3));
     closeDialogs();
-    markdownInput.focus();
+    focusEditor();
     insertTableBlock(cols, rows);
 }
 

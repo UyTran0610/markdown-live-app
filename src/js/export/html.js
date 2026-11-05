@@ -1,6 +1,7 @@
 // js/export/html.js — Xuất file .html độc lập.
 
-import { markdownInput, previewOutput } from '../core/dom.js';
+import { previewOutput } from '../core/dom.js';
+import { getDocText } from '../editor/cm.js';
 import { showToast } from '../core/toast.js';
 import { deriveDocumentTitle, deriveExportBaseName, saveTextFile } from './file-save.js';
 import { convertKatexForDoc } from './math-mathml.js';
@@ -55,7 +56,7 @@ function stripLucideIcons(container) {
 }
 
 export async function exportHtml() {
-    const text = markdownInput.value;
+    const text = getDocText();
     if (!text.trim()) {
         showToast("Content is empty, nothing to export.");
         return;

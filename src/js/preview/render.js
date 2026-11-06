@@ -299,7 +299,7 @@ export function flushLazyRenders() {
 
 // Fix mọi đường render: marked.lexer + băm block vẫn O(doc) trên main thread, dù khối không đổi.
 // Trên ngưỡng này chỉ Editor view khả thi; export ép render đầy đủ qua force.
-export const PREVIEW_MAX_CHARS = 5 * 1024 * 1024;
+export const PREVIEW_MAX_CHARS = 1_000_000;
 
 // Lời nhắc trong khung preview; dùng textContent vì tên file là dữ liệu người dùng.
 // Còn sửa được, chỉ preview là nhường chỗ — dùng Editor view để đọc nguồn.
@@ -310,8 +310,8 @@ function showTooLargeNotice(chars) {
     const box = document.createElement('div');
     box.className = 'preview-too-large';
     const line = document.createElement('p');
-    const mb = (chars / (1024 * 1024)).toFixed(1);
-    line.textContent = `Too large to preview (${mb} MB) - switch to Editor view to read the source.`;
+    const charsFormatted = chars.toLocaleString('en-US');
+    line.textContent = `Too large to preview (${charsFormatted} characters) - switch to Editor view to read the source.`;
     box.appendChild(line);
     previewOutput.appendChild(box);
 }

@@ -9,7 +9,7 @@ import { initEditorSync } from './editor/sync.js';
 import { initExportMenu } from './export/menu.js';
 import { initDocuments, restoreSession } from './io/documents.js';
 import { initPreviewLinks } from './preview/links.js';
-import { renderMarkdown } from './preview/render.js';
+import { renderMarkdown, createLazyMathExtension } from './preview/render.js';
 import { initSanitizer } from './preview/sanitize.js';
 import { getCurrentTheme, initTheme } from './theme/theme.js';
 import { initAbout } from './ui/about.js';
@@ -56,11 +56,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             mermaid.initialize({ startOnLoad: false, theme: getCurrentTheme() === 'dark' ? 'dark' : 'default' });
         }
 
-        if (typeof markedKatex !== 'undefined' && typeof marked !== 'undefined') {
-            const katexExt = typeof markedKatex === 'function' ? markedKatex : markedKatex.markedKatex;
-            if (katexExt) {
-                marked.use(katexExt({ throwOnError: false }));
-            }
+        if (typeof marked !== 'undefined') {
+            marked.use(createLazyMathExtension());
         }
 
         // lucide lỗi thì bỏ qua vẽ icon, không để exception làm hỏng khởi tạo.
@@ -68,7 +65,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
         }
     } finally {
-        // Nạp nội dung CUỐI: mermaid.initialize() và marked.use(katex) phải xong trước lần render đầu.
+        // Nạp nội dung CUỐI: mermaid.initialize() và marked.use(lazy math) phải xong trước lần render đầu.
         // Đặt trong finally để editor vẫn có nội dung dù khối init trên ném lỗi.
         ready = restoreSession();
         await ready;

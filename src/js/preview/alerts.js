@@ -24,8 +24,9 @@ function getAlertTitle(type) {
     }
 }
 
-export function processGFMAlerts() {
-    previewOutput.querySelectorAll('blockquote').forEach((bq) => {
+// root: DocumentFragment lúc dựng cache block (sau sanitize) hoặc previewOutput khi gọi trực tiếp.
+export function processGFMAlerts(root = previewOutput) {
+    root.querySelectorAll('blockquote').forEach((bq) => {
         const firstP = bq.querySelector('p');
         if (firstP) {
             const htmlContent = firstP.innerHTML.trim();

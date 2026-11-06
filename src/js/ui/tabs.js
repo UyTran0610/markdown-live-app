@@ -42,12 +42,12 @@ function buildTab(tab, isActive, displayName, dupeCount) {
         el.append(mark);
     }
 
-    // File lớn mở read-only: dấu khoá để biết vì sao không gõ được.
+    // Tab mở read-only: dấu khoá để biết vì sao không gõ được.
     if (tab.readOnly) {
         const mark = document.createElement('span');
         mark.className = 'tab-readonly';
         mark.textContent = '\u{1F512}';
-        mark.title = 'Opened read-only (file too large to edit)';
+        mark.title = 'Opened read-only';
         el.append(mark);
     }
 

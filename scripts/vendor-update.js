@@ -69,11 +69,6 @@ const PACKAGES = [
     files: [['dist/umd/lucide.min.js', 'lucide.min.js']],
   },
   {
-    name: 'marked-katex-extension', npm: 'marked-katex-extension', repo: 'https://github.com/UziTech/marked-katex-extension',
-    license: 'MIT', tag: 'v',
-    files: [['lib/index.umd.js', 'marked-katex-extension.umd.js']],
-  },
-  {
     name: 'github-markdown-css', npm: 'github-markdown-css', repo: 'https://github.com/sindresorhus/github-markdown-css',
     license: 'MIT', tag: 'v',
     files: [['github-markdown-light.css', 'github-markdown-light.css'], ['github-markdown-dark.css', 'github-markdown-dark.css']],

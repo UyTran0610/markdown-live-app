@@ -14,7 +14,6 @@ Every vendored file was verified by SHA-256 against the published release on npm
 | [mermaid](https://github.com/mermaid-js/mermaid) | 12.1.0 | MIT | `mermaid.min.js` |
 | [KaTeX](https://github.com/KaTeX/KaTeX) | 0.19.0 | MIT | `katex.min.js`, `katex.min.css`, `fonts/` |
 | [lucide](https://github.com/lucide-icons/lucide) | 1.54.0 | ISC | `lucide.min.js` |
-| [marked-katex-extension](https://github.com/UziTech/marked-katex-extension) | 5.1.13 | MIT | `marked-katex-extension.umd.js` |
 | [github-markdown-css](https://github.com/sindresorhus/github-markdown-css) | 5.9.0 | MIT | `github-markdown-light.css`, `github-markdown-dark.css` |
 | [@highlightjs/cdn-assets](https://github.com/highlightjs/cdn-assets) | 11.12.0 | BSD-3-Clause | `hljs-github.min.css`, `hljs-github-dark.min.css` |
 | [CodeMirror](https://github.com/codemirror/view) | 6.0.2 | MIT | `codemirror.bundle.js` |
@@ -496,43 +495,6 @@ airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circl
 The MIT License (MIT) (for the icons listed above)
 
 Copyright (c) 2013-present Cole Bemis
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-</details>
-
-## marked-katex-extension
-
-- **Version:** 5.1.13
-- **Files:** `src/vendor/marked-katex-extension.umd.js`
-- **Source:** npm: <https://www.npmjs.com/package/marked-katex-extension/v/5.1.13> &middot; GitHub: <https://github.com/UziTech/marked-katex-extension/tree/v5.1.13>
-- **License:** MIT
-- **License text retrieved from:** https://cdn.jsdelivr.net/npm/marked-katex-extension@5.1.13/LICENSE
-
-<details>
-<summary>Full license text &mdash; marked-katex-extension 5.1.13</summary>
-
-```text
-MIT License
-
-Copyright (c) 2021 @markedjs
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

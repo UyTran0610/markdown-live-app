@@ -41,7 +41,8 @@ import { makeExclusive } from '../export/menu.js';
 import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, serializeSession, sessionKeepsContent, suggestSavePath, untitledName } from '../io/documents.js';
 import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
-import { assignHeadingIds, renderMarkdown } from '../preview/render.js';
+import { assignHeadingIds, flushLazyRenders, renderMarkdown } from '../preview/render.js';
+import { diffBlocks } from '../preview/blocks.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
 import { dropIndex, disambiguateTabName, tabScrollState } from '../ui/tabs.js';
@@ -595,13 +596,13 @@ export async function runSelfCheck() {
         });
 
         await section('khối #9', async () => {
-            // marked.parse ném lỗi: preview phải rơi về văn bản thô, không đụng innerHTML.
+            // marked.lexer ném lỗi: preview phải rơi về văn bản thô, không đụng innerHTML.
             const savedValue = docText();
             const savedMarked = window.marked;
             probe('# probe render');
             if (savedMarked) {
-                // marked.parse là getter không configurable: thay cả object marked rồi trả lại reference cũ.
-                window.marked = { ...savedMarked, parse: () => { throw new Error('probe'); } };
+                // marked.lexer là method của object marked: thay cả object marked rồi trả lại reference cũ.
+                window.marked = { ...savedMarked, lexer: () => { throw new Error('probe'); } };
                 try {
                     renderMarkdown();
                     assert('render lỗi -> preview hiện văn bản thô', previewOutput.textContent === '# probe render');
@@ -612,6 +613,32 @@ export async function runSelfCheck() {
                 skip('render lỗi -> preview hiện văn bản thô', 'marked chưa tải');
             }
             // Trả editor về nội dung thật TRƯỚC rồi render lại, không thì preview kẹt ở đoạn probe.
+            probe(savedValue);
+            renderMarkdown();
+        });
+
+        assert('diffBlocks giữ prefix/suffix khi đổi giữa', diffBlocks(['a','b','c'], ['a','X','c']).prefix === 1 && diffBlocks(['a','b','c'], ['a','X','c']).suffix === 1);
+        assert('diffBlocks chèn đầu không đụng prefix', diffBlocks(['a','b'], ['n','a','b']).suffix === 2);
+        assert('diffBlocks append không đụng suffix', diffBlocks(['a','b'], ['a','b','n']).prefix === 2);
+        assert('diffBlocks reorder không tái dùng node', diffBlocks(['a','b','c'], ['c','b','a']).prefix === 0 && diffBlocks(['a','b','c'], ['c','b','a']).suffix === 0);
+        assert('diffBlocks tài liệu rỗng', diffBlocks(['a'], []).prefix === 0 && diffBlocks([], ['a']).suffix === 0);
+        await section('khối render theo prefix/suffix', async () => {
+            const savedValue = docText();
+            const doc = 'Alpha para một\n\nBeta para hai\n\nGamma para ba';
+            probe(doc);
+            renderMarkdown();
+            const before = [...previewOutput.children];
+            probe('Alpha para một\n\nBeta para SỬA\n\nGamma para ba');
+            renderMarkdown();
+            const after = [...previewOutput.children];
+            assert('khối không đổi giữ nguyên node (prefix/suffix)', after[0] === before[0] && after[2] === before[2]);
+            assert('khối đổi được thay node', after[1] !== before[1]);
+            probe('công thức $E = mc^2$ test');
+            renderMarkdown();
+            const slot = previewOutput.querySelector('.math-slot');
+            assert('công thức ngoài viewport giữ placeholder TeX', !!slot && slot.textContent.includes('E = mc^2'));
+            flushLazyRenders();
+            assert('flushLazyRenders vẽ KaTeX ngay cả ngoài viewport', !!previewOutput.querySelector('.katex'));
             probe(savedValue);
             renderMarkdown();
         });

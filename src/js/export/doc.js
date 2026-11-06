@@ -14,7 +14,7 @@ import {
     waitForImageLoad
 } from './images.js';
 import { convertKatexToImagesForDoc } from './math-image.js';
-import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
+import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
 
 // CSS tối giản nhúng trong DOC: Word không đọc stylesheet của app, và không áp selector hậu duệ
 // xuống ô con nên viền bảng/quote phải inline.
@@ -54,7 +54,8 @@ export async function exportDoc() {
     }
     showToast("Generating DOC file...");
 
-    renderMarkdown();
+    renderMarkdown({ force: true });
+    flushLazyRenders();
     await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
 

@@ -41,15 +41,17 @@ export function initScrollSync() {
 
     editor.addEventListener('wheel', () => { activeScrollSource = scroller; }, { passive: true });
 
-    previewOutput.addEventListener('wheel', () => { activeScrollSource = previewOutput; }, { passive: true });
+    previewOutput.addEventListener('wheel', () => { activeScrollSource = previewOutput; notifyPreviewScrolled(); }, { passive: true });
 
     editor.addEventListener('keydown', () => { activeScrollSource = scroller; });
 
-    previewOutput.addEventListener('keydown', () => { activeScrollSource = previewOutput; });
+    previewOutput.addEventListener('keydown', () => { activeScrollSource = previewOutput; notifyPreviewScrolled(); });
 
     editor.addEventListener('touchstart', () => { activeScrollSource = scroller; }, { passive: true });
 
-    previewOutput.addEventListener('touchstart', () => { activeScrollSource = previewOutput; }, { passive: true });
+    // Cuộn lập trình (app set scrollTop) cũng bắn 'scroll'; chỉ tính hành động người dùng
+    // (wheel/keydown/touchstart trên preview) để Mermaid biết không nên ghi đè vị trí mới.
+    previewOutput.addEventListener('touchstart', () => { activeScrollSource = previewOutput; notifyPreviewScrolled(); }, { passive: true });
 
     scroller.addEventListener('scroll', () => {
         if (editorScrollTicking) return;
@@ -61,7 +63,6 @@ export function initScrollSync() {
     });
 
     previewOutput.addEventListener('scroll', () => {
-        notifyPreviewScrolled();
         if (previewScrollTicking) return;
         previewScrollTicking = true;
         requestAnimationFrame(() => {

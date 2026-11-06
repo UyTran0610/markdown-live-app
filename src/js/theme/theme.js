@@ -62,8 +62,8 @@ export function initTheme() {
             // Xoá cache vì SVG mang màu theme cũ. Render nằm NGOÀI startViewTransition (chờ mermaid
             // xong mới chụp sẽ đứng cả trang) nhưng PHẢI sau applyTheme.
             clearMermaidCache();
-            invalidatePreviewCaches();
-            // renderActivePreview tôn trọng chặn cỡ: file lớn không chạy marked/KaTeX/Mermaid.
+            invalidatePreviewCaches({ blocks: true });
+            // renderActivePreview dựng lại toàn bộ khối (invalidateBlockCache) để Mermaid vẽ lại đúng theme.
             renderActivePreview();
         });
     }
@@ -79,7 +79,7 @@ export function initTheme() {
             if (!hasManualPreference) {
                 switchTheme(event.matches ? 'dark' : 'light', false);
                 clearMermaidCache();
-                invalidatePreviewCaches();
+                invalidatePreviewCaches({ blocks: true });
                 renderActivePreview();
             }
         });

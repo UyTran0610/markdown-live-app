@@ -2,18 +2,19 @@
 
 import { charCounter } from '../core/dom.js';
 import { debounce } from '../core/utils.js';
-import { cacheActivePreview, renderPreviewGuarded, saveSession, updateActiveContent } from '../io/documents.js';
+import { cacheActivePreview, saveSession, updateActiveContent } from '../io/documents.js';
+import { renderMarkdown } from '../preview/render.js';
 import { getDocLength, setChangeHandler } from './cm.js';
 
 // Editor ẩn preview nên bỏ render; view-mode gọi renderActivePreview() khi chuyển sang có preview.
 function renderAndCache() {
     if (document.body.classList.contains('view-editor')) return;
-    renderPreviewGuarded();
+    renderMarkdown();
     cacheActivePreview();
 }
 
-// Render preview tốn 1.1–2.2s với tài liệu 200k–400k ký tự: chạy giữa lúc gõ sẽ cướp hết
-// main thread và các phím gõ sau đó bị đơ. Giãn debounce theo độ dài tài liệu.
+// Lần render đầu của tài liệu 200k–400k ký tự tốn 1.1–2.2s; lần sau chỉ render lại khối đổi nhờ
+// block cache. Giãn debounce theo độ dài tài liệu.
 const RENDER_BASE_DELAY = 300;
 const RENDER_SIZE_STEP = 100000;
 const RENDER_STEP_DELAY = 150;
@@ -44,10 +45,10 @@ function scheduleSessionSave() {
 }
 
 // Mọi đường sửa đều đi qua updateListener của CodeMirror nên lưu nháp ngay, không chỉ nhờ phím gõ.
+// Chỉ đọc doc.length (O(1)); chuỗi dựng lười ở các điểm cần.
 export function handleEditorChange(update) {
-    const text = update.state.doc.toString();
-    charCounter.textContent = `${text.length} characters`;
-    updateActiveContent(text, update.state);
+    charCounter.textContent = `${update.state.doc.length} characters`;
+    updateActiveContent(update.state);
     debouncedRender();
     scheduleSessionSave();
 }

@@ -6,7 +6,7 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 
 - `src/index.html` is the only HTML (`frontendDist` = `../src`). Load order is a hard constraint: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → preview → print`; vendor scripts all `defer` (`codemirror.bundle.js` must stay before `js/main.js`).
 - `src/js/main.js` calls every `initXxx()` and owns the only `DOMContentLoaded`. Modules are grouped by role under `src/js/{core,editor,preview,export,io,ui,theme,dev}`.
-- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/cm.js` (the whole CodeMirror 6 wrapper: view, keymap, theme, search panel), `editor/sync.js` (`initEditorSync()`), `preview/render.js`, `ui/view-mode.js`, `ui/window-controls.js`.
+- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/cm.js` (the whole CodeMirror 6 wrapper: view, keymap, theme, search panel), `editor/sync.js` (`initEditorSync()`), `preview/render.js` (block renderer: marked.lexer + hash cache + prefix/suffix DOM patch; KaTeX/Mermaid/hljs lazy via IntersectionObserver, `flushLazyRenders()` for exports; docs above `PREVIEW_MAX_CHARS` get a notice instead of a render, exports pass `{ force: true }`), `preview/blocks.js` (hash, LRU block cache, diff/patch), `ui/view-mode.js`, `ui/window-controls.js`.
 - `src/vendor/` holds local third-party libs. Must stay fully offline: never add CDN links. CodeMirror 6 is a hand-built esbuild bundle; rebuild recipe lives in `scripts/vendor-update.js` (`scripts/vendor/codemirror.entry.js` → global `CodeMirror`).
 - `src-tauri/`: new plugin permissions go in `capabilities/default.json`, never in Rust.
 
@@ -42,7 +42,7 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 - `writeSession()` resolves only on `tx.oncomplete` and must propagate errors to the caller.
 - Quit path: `onCloseRequested` → `preventDefault()` → `await flushSession()` → `destroy()` only on success. No `beforeunload`.
 - `restoreSession()` loads the active tab first, with `restoring` set and the editor read-only (`EditorState.readOnly` + `EditorView.editable.of(false)`).
-- Invalidate `tab.preview` on theme change and when Mermaid finishes late.
+- Invalidate `tab.preview` on theme change (blocks=true clears block cache too); Mermaid late-render needs no invalidation (SVG comes from `mermaidCache`).
 
 **CodeMirror editor** (`editor/cm.js`)
 - One `EditorView` for all tabs; never create a second view. `view.setState()` is illegal while an update is in progress.

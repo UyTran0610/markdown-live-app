@@ -9,7 +9,7 @@ import {
     exportWrap
 } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
+import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
 import { exportDoc } from './doc.js';
 import { exportHtml } from './html.js';
 
@@ -37,7 +37,8 @@ export function makeExclusive(fn) {
 // PDF = hộp thoại In của OS: render lại và chờ Mermaid + font xong rồi mới window.print().
 async function exportPdf() {
     showToast("Preparing the print page / exporting PDF...");
-    renderMarkdown();
+    renderMarkdown({ force: true });
+    flushLazyRenders();
     try {
         await Promise.all([
             whenMermaidIdle(8000),

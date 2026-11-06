@@ -5,7 +5,7 @@ import { getDocText } from '../editor/cm.js';
 import { showToast } from '../core/toast.js';
 import { deriveDocumentTitle, deriveExportBaseName, saveTextFile } from './file-save.js';
 import { convertKatexForDoc } from './math-mathml.js';
-import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
+import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
 
 // CSS tối giản nhúng trong HTML: phải kèm sup/sub/kbd/mark/details, checkbox task list và Mermaid.
 const HTML_STYLES = `
@@ -64,7 +64,8 @@ export async function exportHtml() {
     showToast("Generating HTML file...");
 
     // Clone Preview đã render xong, giữ nguyên SVG Mermaid (không cần chuyển PNG).
-    renderMarkdown();
+    renderMarkdown({ force: true });
+    flushLazyRenders();
     await whenMermaidIdle(8000);
     const clone = previewOutput.cloneNode(true);
 

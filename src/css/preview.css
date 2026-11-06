@@ -7,7 +7,7 @@
     overflow-anchor: none;
 }
 
-/* Tài liệu lớn: không render preview (marked/KaTeX/Mermaid sẽ treo), chỉ nhắc chuyển Editor. */
+/* File quá lớn để preview (mở/sửa vẫn bình thường ở Editor view). */
 .preview-too-large {
     padding: 24px;
     border: 1px dashed var(--border-color);
@@ -15,6 +15,11 @@
     color: var(--text-secondary);
     font-size: 0.95rem;
     line-height: 1.5;
+}
+
+/* Placeholder cho công thức khi KaTeX chưa render (ngoài viewport); chữ TeX thô vẫn đọc được. */
+.math-slot {
+    white-space: pre-wrap;
 }
 
 .markdown-alert {

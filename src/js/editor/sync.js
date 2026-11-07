@@ -29,22 +29,24 @@ export function renderDelayFor(chars) {
 
 const debouncedRender = debounce(renderAndCache, () => renderDelayFor(getDocLength()));
 
-// Giãn nhịp lưu session theo kích thước (400ms + 200ms/250k, tối đa 1.5s): 5MB ghi lại ở 400ms là quá đắt.
-const SESSION_BASE_DELAY = 400;
-const SESSION_SIZE_STEP = 250000;
-const SESSION_MAX_DELAY = 1500;
-let sessionSaveTimer = null;
+// Dừng gõ 2s mới lưu: gõ liên tục không ghi, browser rảnh mới ghi để không cướp frame.
+const SESSION_IDLE_DELAY = 2000;
+const SESSION_IDLE_TIMEOUT = 5000;
+let sessionIdleTimer = null;
+let sessionIdleHandle = null;
 
 function scheduleSessionSave() {
-    const delay = Math.min(
-        SESSION_BASE_DELAY + Math.floor(getDocLength() / SESSION_SIZE_STEP) * 200,
-        SESSION_MAX_DELAY
-    );
-    clearTimeout(sessionSaveTimer);
-    sessionSaveTimer = setTimeout(() => { sessionSaveTimer = null; saveSession(); }, delay);
+    if (sessionIdleTimer !== null) clearTimeout(sessionIdleTimer), sessionIdleTimer = null;
+    if (sessionIdleHandle !== null && window.cancelIdleCallback) window.cancelIdleCallback(sessionIdleHandle), sessionIdleHandle = null;
+    sessionIdleTimer = setTimeout(() => {
+        sessionIdleTimer = null;
+        const save = () => { sessionIdleHandle = null; saveSession(); };
+        if (window.requestIdleCallback) sessionIdleHandle = window.requestIdleCallback(save, { timeout: SESSION_IDLE_TIMEOUT });
+        else save();
+    }, SESSION_IDLE_DELAY);
 }
 
-// Mọi đường sửa đều đi qua updateListener của CodeMirror nên lưu nháp ngay, không chỉ nhờ phím gõ.
+// Mọi đường sửa đều đi qua updateListener của CodeMirror nên đều xếp lưu nháp, không chỉ nhờ phím gõ.
 // Chỉ đọc doc.length (O(1)); chuỗi dựng lười ở các điểm cần.
 export function handleEditorChange(update) {
     charCounter.textContent = `${update.state.doc.length} characters`;

@@ -15,6 +15,7 @@ export const {
     EditorSelection,
     Prec,
     keymap,
+    Compartment,
     drawSelection,
     dropCursor,
     placeholder,
@@ -26,7 +27,10 @@ export const {
     redo,
     undoDepth,
     redoDepth,
+    indentMore,
+    indentLess,
     markdown,
+    markdownKeymap,
     syntaxHighlighting,
     HighlightStyle,
     indentUnit,
@@ -41,6 +45,8 @@ export const {
     getSearchQuery,
     setSearchQuery,
     searchPanelOpen,
+    closeBrackets,
+    closeBracketsKeymap,
     tags
 } = CM;
 
@@ -70,17 +76,9 @@ const markdownHighlightStyle = HighlightStyle.define([
     { tag: tags.labelName, class: 'cm-md-label' }
 ]);
 
-// Cặp ký tự bọc vùng chọn khi gõ (giống hành vi cũ của textarea).
-const WRAP_PAIRS = {
-    '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`',
-    '*': '*', '_': '_', '~': '~', '$': '$'
-};
-
-// Cặp tự đóng ngoặc khi gõ ở vị trí con trỏ.
-const AUTO_CLOSE_PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
-
-// Ký tự đóng: gõ đúng ký tự đang đứng sau con trỏ thì nhảy qua, không chèn thêm.
-const CLOSERS = [')', ']', '}', '"', "'", '`'];
+// Chỉ bọc vùng chọn khi gõ; tự đóng ngoặc + nhảy qua dấu đóng do closeBrackets() lo.
+// Backtick bọc qua đây vì closeBrackets() không biết nó; gõ ` trên vùng chọn phải bọc, không xoá.
+const WRAP_FORMATS = { '*': '*', '_': '_', '~': '~', '$': '$', '`': '`' };
 
 /** EditorView dùng chung cho mọi tab (null trước khi init). */
 export let view = null;
@@ -217,177 +215,36 @@ export function handleEditorDuplicate() {
     replaceRange(line.to, line.to, '\n' + line.text, pos, pos);
 }
 
-/**
- * Tab / Shift+Tab: không có vùng chọn thì chèn 4 khoảng trắng, có vùng chọn thì
- * thụt lề (hoặc bỏ thụt lề) cả khối dòng.
- */
-export function indentSelection(shift) {
-    const v = requireView();
-    const { state } = v;
-    const { from, to } = state.selection.main;
-
-    if (from === to && !shift) {
-        replaceRange(from, to, TAB_SPACES, from + TAB_SIZE, from + TAB_SIZE);
-        return;
-    }
-
-    const blockStart = state.doc.lineAt(from).from;
-    const blockEnd = state.doc.lineAt(to).to;
-    const lines = state.doc.sliceString(blockStart, blockEnd).split('\n');
-
-    let firstLineDelta = 0;
-    let totalDelta = 0;
-    const newLines = lines.map((line, idx) => {
-        let delta = 0;
-        let newLine = line;
-        if (!shift) {
-            newLine = TAB_SPACES + line;
-            delta = TAB_SIZE;
-        } else if (line.startsWith(TAB_SPACES)) {
-            newLine = line.slice(TAB_SIZE);
-            delta = -TAB_SIZE;
-        } else if (line.startsWith('\t')) {
-            newLine = line.slice(1);
-            delta = -1;
-        } else {
-            // Tối đa 4 khoảng trắng đầu dòng
-            const spaces = line.match(/^ {1,4}/);
-            if (spaces) {
-                newLine = line.slice(spaces[0].length);
-                delta = -spaces[0].length;
-            }
-        }
-        if (idx === 0) firstLineDelta = delta;
-        totalDelta += delta;
-        return newLine;
+/** Tab không chọn dòng: chèn 4 khoảng trắng tại con trỏ (giữ hành vi cũ). */
+export function insertTabAtCursor(v) {
+    const { from, to } = v.state.selection.main;
+    if (from !== to) return indentMore(v);
+    v.dispatch({
+        changes: { from, to, insert: TAB_SPACES },
+        selection: { anchor: from + TAB_SIZE, head: from + TAB_SIZE },
+        scrollIntoView: true,
+        userEvent: 'input'
     });
-
-    const newSelStart = Math.max(blockStart, from + (from > blockStart ? firstLineDelta : 0));
-    const newSelEnd = Math.max(newSelStart, to + totalDelta);
-    replaceRange(blockStart, blockEnd, newLines.join('\n'), newSelStart, newSelEnd);
-}
-
-/** Enter: tiếp tục list / task / quote của dòng đang gõ. */
-export function insertNewlineContinueList() {
-    const v = requireView();
-    const { state } = v;
-    const { from, to } = state.selection.main;
-    const line = state.doc.lineAt(from);
-    const currentLine = state.doc.sliceString(line.from, from);
-
-    const emptyTaskMatch = currentLine.match(/^(\s*[-*+]\s+\[[ xX]\]\s*)$/);
-    const emptyUlMatch = currentLine.match(/^(\s*[-*+]\s*)$/);
-    const emptyOlMatch = currentLine.match(/^(\s*\d+[.)]\s*)$/);
-    const emptyBqMatch = currentLine.match(/^(\s*>+\s*)$/);
-
-    if (emptyTaskMatch || emptyUlMatch || emptyOlMatch || emptyBqMatch) {
-        replaceRange(line.from, to, '', line.from, line.from);
-        return true;
-    }
-
-    const taskMatch = currentLine.match(/^(\s*)([-*+]|\d+[.)])(\s+\[[ xX]\]\s+)(.*)$/);
-    if (taskMatch) {
-        const [, indent, bullet, marker] = taskMatch;
-        // Dòng mới luôn bắt đầu với checkbox chưa tick.
-        const cleanMarker = marker.replace(/\[[xX]\]/, '[ ]');
-        const insert = '\n' + indent + bullet + cleanMarker;
-        replaceRange(from, to, insert, from + insert.length, from + insert.length);
-        return true;
-    }
-
-    const ulMatch = currentLine.match(/^(\s*)([-*+]\s+)(.*)$/);
-    if (ulMatch) {
-        const [, indent, marker] = ulMatch;
-        const insert = '\n' + indent + marker;
-        replaceRange(from, to, insert, from + insert.length, from + insert.length);
-        return true;
-    }
-
-    const olMatch = currentLine.match(/^(\s*)(\d+)([.)]\s+)(.*)$/);
-    if (olMatch) {
-        const [, indent, num, delim] = olMatch;
-        const nextNum = parseInt(num, 10) + 1;
-        const insert = '\n' + indent + nextNum + delim;
-        replaceRange(from, to, insert, from + insert.length, from + insert.length);
-        return true;
-    }
-
-    const bqMatch = currentLine.match(/^(\s*>+\s*)(.*)$/);
-    if (bqMatch) {
-        const insert = '\n' + bqMatch[1];
-        replaceRange(from, to, insert, from + insert.length, from + insert.length);
-        return true;
-    }
-
-    const indentMatch = currentLine.match(/^(\s+)/);
-    if (indentMatch) {
-        const insert = '\n' + indentMatch[1];
-        replaceRange(from, to, insert, from + insert.length, from + insert.length);
-        return true;
-    }
-
-    return false;
-}
-
-/** Backspace giữa một cặp ngoặc: xoá luôn cả hai. */
-export function deletePairBackward() {
-    const v = requireView();
-    const { state } = v;
-    const { from, to } = state.selection.main;
-    if (from !== to || from === 0 || from >= state.doc.length) return false;
-    const charBefore = state.sliceDoc(from - 1, from);
-    const charAfter = state.sliceDoc(from, from + 1);
-    if (AUTO_CLOSE_PAIRS[charBefore] !== charAfter) return false;
-    replaceRange(from - 1, from + 1, '', from - 1, from - 1);
     return true;
 }
 
 /**
- * Gõ ký tự: tự đóng ngoặc, nhảy qua dấu đóng, hoặc bọc vùng chọn.
- * Chạy trước xử lý mặc định của CodeMirror nên phải tự gửi transaction.
+ * Gõ * _ ~ $ khi đang bôi đen: bọc vùng chọn. Tự đóng ngoặc do closeBrackets() lo.
  */
 export function handleTypedChar(v, from, to, text) {
     if (text.length !== 1 || v.state.readOnly) return false;
     const { state } = v;
     const sel = state.selection.main;
     if (from !== sel.from || to !== sel.to) return false;
-
-    if (from !== to) {
-        const close = WRAP_PAIRS[text];
-        if (!close) return false;
-        const selected = state.sliceDoc(from, to);
-        v.dispatch({
-            changes: [
-                { insert: text, from },
-                { insert: close, from: to }
-            ],
-            selection: { anchor: from + 1, head: to + 1 },
-            userEvent: 'input.type'
-        });
-        return true;
-    }
-
-    const next = state.sliceDoc(from, Math.min(from + 1, state.doc.length));
-    if (CLOSERS.includes(text) && next === text) {
-        // Nhảy qua dấu đóng: thay chính dấu đó bằng nó (DOM đã chèn sẵn 1 ký tự).
-        v.dispatch({
-            changes: { from, to: from + 1, insert: text },
-            selection: { anchor: from + 1, head: from + 1 },
-            userEvent: 'input.type'
-        });
-        return true;
-    }
-
-    const close = AUTO_CLOSE_PAIRS[text];
+    if (from === to) return false;
+    const close = WRAP_FORMATS[text];
     if (!close) return false;
-    if (text === "'") {
-        // Không tự đóng nháy đơn sau ký tự chữ/số (don't, it's, user's).
-        const charBefore = from > 0 ? state.sliceDoc(from - 1, from) : '';
-        if (/\w/.test(charBefore)) return false;
-    }
     v.dispatch({
-        changes: { from, to, insert: text + close },
-        selection: { anchor: from + 1, head: from + 1 },
+        changes: [
+            { insert: text, from },
+            { insert: close, from: to }
+        ],
+        selection: { anchor: from + 1, head: to + 1 },
         userEvent: 'input.type'
     });
     return true;
@@ -429,10 +286,8 @@ export function openReplacePanel(v) {
 
 // Phím tắt riêng của app: ưu tiên cao nhất để không đụng keymap mặc định của CM6.
 const editorKeymap = Prec.highest(keymap.of([
-    { key: 'Tab', run: () => indentSelection(false) },
-    { key: 'Shift-Tab', run: () => indentSelection(true) },
-    { key: 'Enter', run: insertNewlineContinueList },
-    { key: 'Backspace', run: deletePairBackward },
+    { key: 'Tab', run: insertTabAtCursor },
+    { key: 'Shift-Tab', run: indentLess },
     { key: 'Mod-b', run: () => wrapOrToggleFormat('**') },
     { key: 'Mod-i', run: () => wrapOrToggleFormat('*') },
     { key: 'Mod-e', run: () => wrapOrToggleFormat('`', 'code') },
@@ -443,33 +298,52 @@ const editorKeymap = Prec.highest(keymap.of([
     { key: 'Mod-h', run: openReplacePanel }
 ]));
 
+// Enter/Backspace theo markup (list, fence, quote): dựa trên syntax tree, đúng hơn regex cũ.
+const markdownKeymapPrec = Prec.highest(keymap.of(markdownKeymap));
+
 const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged && changeHandler) changeHandler(update);
     if (update.selectionSet && selectionHandler) selectionHandler(update);
 });
+
+export const readOnlyCompartment = new Compartment();
+
+/** Effect readOnly/editable cho Compartment (dùng để reconfigure không mất undo). */
+export function readOnlyEffect(readOnly) {
+    const ro = readOnly === true;
+    return readOnlyCompartment.of([EditorState.readOnly.of(ro), EditorView.editable.of(!ro)]);
+}
+
+// Extension giống nhau mọi tab (parser dùng chung, không mỗi tab một parser riêng).
+const sharedExtensions = [
+    historyWithWordBoundary,
+    drawSelection(),
+    dropCursor(),
+    placeholder('Type Markdown here...'),
+    EditorState.tabSize.of(TAB_SIZE),
+    indentUnit.of(TAB_SPACES),
+    EditorView.lineWrapping,
+    markdown({ addKeymap: false, pasteURLAsLink: false, completeHTMLTags: false }),
+    syntaxHighlighting(markdownHighlightStyle),
+    closeBrackets(),
+    inputHandler,
+    search({ top: false }),
+    updateListener
+];
 
 /** Tạo EditorState cho một tab (nội dung + chế độ chỉ đọc). */
 export function createEditorState(text = '', { readOnly = false } = {}) {
     return EditorState.create({
         doc: text,
         extensions: [
-            historyWithWordBoundary,
-            drawSelection(),
-            dropCursor(),
-            placeholder('Type Markdown here...'),
-            EditorState.tabSize.of(TAB_SIZE),
-            indentUnit.of(TAB_SPACES),
-            EditorView.lineWrapping,
-            markdown({ addKeymap: false, pasteURLAsLink: false, completeHTMLTags: false }),
-            syntaxHighlighting(markdownHighlightStyle),
+            ...sharedExtensions,
+            markdownKeymapPrec,
             editorKeymap,
             keymap.of(historyKeymap),
+            keymap.of(closeBracketsKeymap),
             keymap.of(defaultKeymap),
             keymap.of(searchKeymap),
-            search({ top: false }),
-            EditorState.readOnly.of(readOnly),
-            EditorView.editable.of(!readOnly),
-            updateListener
+            readOnlyEffect(readOnly)
         ]
     });
 }

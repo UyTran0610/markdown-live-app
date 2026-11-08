@@ -190,7 +190,7 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 | `Tab` / `Shift` + `Tab` | Indent / Unindent — supports multi-line selections |
 | `Enter` | Preserves indentation, continues lists (`-`, `1.`, `>`, task lists), or exits the list if the line is empty |
 | Typing `(`, `[`, `{`, quotes, backtick, `*`, `_`, `~`, or `$` over selected text | Automatically encloses selection with the typed character pair |
-| Typing `(`, `[`, `{`, quotes or backtick with nothing selected | Inserts the closing character automatically; typing that character again or pressing `Backspace` on an empty pair skips over / removes it. A single quote typed right after a letter or digit (as in `don't`) is treated as an apostrophe and is not auto-closed |
+| Typing `(`, `[`, `{` or quotes with nothing selected | Inserts the closing character automatically; typing that character again or pressing `Backspace` on an empty pair skips over / removes it. A single quote typed right after a letter or digit (as in `don't`) is treated as an apostrophe and is not auto-closed |
 
 ### Tab & File Shortcuts
 

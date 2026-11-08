@@ -6,7 +6,7 @@ import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
     closeSearchPanel,
-    deletePairBackward,
+    EditorView,
     findNext,
     getDocText,
     getSearchQuery,
@@ -38,7 +38,7 @@ import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, serializeSession, sessionKeepsContent, suggestSavePath, untitledName } from '../io/documents.js';
+import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, getActiveTab, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, untitledName } from '../io/documents.js';
 import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
 import { assignHeadingIds, flushLazyRenders, renderMarkdown } from '../preview/render.js';
@@ -425,40 +425,95 @@ export async function runSelfCheck() {
             assert('session thiếu read-only -> mặc định gõ được', normal.tabs[0].readOnly === false);
         });
 
-        // Handler gõ của CodeMirror nằm trong inputHandler nên gọi trực tiếp để kiểm.
+        // Tự đóng do closeBrackets() + bọc * _ ~ $; Enter theo markdownKeymap. Mô phỏng gõ qua inputHandler facet.
         await section('auto-close', async () => {
-            const press = (key, value, caret) => {
+            const type = (key) => {
+                const { from, to } = view.state.selection.main;
+                for (const h of view.state.facet(EditorView.inputHandler)) {
+                    if (h(view, from, to, key)) return true;
+                }
+                view.dispatch({ changes: { from, to, insert: key }, selection: { anchor: from + key.length, head: from + key.length }, userEvent: 'input.type' });
+                return false;
+            };
+            const typeAt = (value, caret, key) => {
                 probe(value, caret, caret);
-                const handled = handleTypedChar(view, caret, caret, key);
-                return { value: docText(), caret: view.state.selection.main.head, handled };
+                type(key);
+                return { value: docText(), caret: view.state.selection.main.head };
             };
 
-            const quoteOpen = press('"', '', 0);
-            assert('gõ " trên nội dung rỗng -> mở cặp', quoteOpen.value === '""' && quoteOpen.caret === 1);
-            // Assert bắt bug: gõ lại " từng chèn thêm một cặp.
-            const quoteSkip = press('"', '"abc"', 4);
-            assert('gõ lại " nhảy qua dấu đóng, không nhân đôi', quoteSkip.value === '"abc"' && quoteSkip.caret === 5);
-            const backtickSkip = press('`', '`a`', 2);
-            assert('gõ lại ` nhảy qua, không nhân đôi', backtickSkip.value === '`a`' && backtickSkip.caret === 3);
-            const singleSkip = press("'", "'a'", 2);
-            assert("gõ lại ' nhảy qua dấu đóng", singleSkip.value === "'a'" && singleSkip.caret === 3);
-            // Caret ở CUỐI don't, nếu không nhánh nhảy qua bắt trước và không kiểm được guard nháy đơn.
-            const apostrophe = press("'", "don't", 5);
-            assert("' sau chữ là dấu nháy đơn, không tự đóng", !apostrophe.handled);
+            const quoteOpen = typeAt('', 0, '"');
+            assert('gõ " trên nội dung rỗng -> mở cặp (closeBrackets)', quoteOpen.value === '""' && quoteOpen.caret === 1);
+            // Chuỗi gõ thật: mở " rồi gõ chữ rồi " sẽ nhảy qua cặp mình vừa mở.
+            probe('', 0, 0);
+            type('"'); type('a'); type('b'); type('c'); type('"');
+            assert(`gõ " đóng cặp mình mở -> nhảy qua (actual=${JSON.stringify(docText())} caret=${view.state.selection.main.head} facets=${view.state.facet(EditorView.inputHandler).length})`, docText() === '"abc"' && view.state.selection.main.head === 5);
+            probe('', 0, 0);
+            type('('); type('x'); type(')');
+            assert(`gõ ) nhảy qua ( mình vừa mở (actual=${JSON.stringify(docText())} caret=${view.state.selection.main.head})`, docText() === '(x)' && view.state.selection.main.head === 3);
+            // Backtick không nằm trong brackets mặc định của markdown: gõ một chỉ ra một.
+            const backtick = typeAt('', 0, '`');
+            assert('gõ ` không tự đóng (backtick ngoài brackets mặc định)', backtick.value === '`');
+            // Caret ở CUỐI don't: nháy đơn sau chữ không tự đóng, gõ thường chèn một ký tự.
+            const apostrophe = typeAt("don't", 5, "'");
+            assert("' sau chữ là dấu nháy đơn, không tự đóng cặp", apostrophe.value === "don't'");
+            // ( chỉ đóng khi ký tự kế tiếp phù hợp: trước chữ thì không đóng.
+            const parenWord = typeAt('ab', 0, '(');
+            assert('gõ ( trước chữ không tự đóng (closeBrackets chỉ đóng khi hợp)', parenWord.value === '(ab');
 
-            const parenOpen = press('(', '', 0);
-            assert('gõ ( vẫn mở cặp', parenOpen.value === '()' && parenOpen.caret === 1);
-            const parenSkip = press(')', '(x)', 2);
-            assert('gõ ) vẫn nhảy qua (không bị đổi thứ tự)', parenSkip.value === '(x)' && parenSkip.caret === 3);
+            for (const f of ['*', '_', '~', '$', '`']) {
+                probe('abc', 0, 3);
+                assert(`gõ ${f} khi đang bôi đen thì bọc vùng chọn`, handleTypedChar(view, 0, 3, f) === true && docText() === `${f}abc${f}`);
+            }
 
-            // Bọc vùng chọn: gõ dấu mở khi đang bôi đen.
-            probe('abc', 0, 3);
-            handleTypedChar(view, 0, 3, '*');
-            assert('gõ * khi đang bôi đen thì bọc vùng chọn', docText() === '*abc*');
-
+            // Backspace xoá cả cặp: đi qua closeBracketsKeymap.
             probe('""', 1, 1);
-            deletePairBackward();
+            const bs = window.CodeMirror.closeBracketsKeymap.find((b) => b.key === 'Backspace');
+            bs.run(view);
             assert('Backspace giữa cặp xoá cả hai dấu', docText() === '');
+
+            // Enter theo markup: dòng list rỗng thoát list, task mới chưa tick, dòng thụt giữ thụt.
+            const enter = window.CodeMirror.markdownKeymap.find((b) => b.key === 'Enter');
+            probe('- ', 2, 2);
+            enter.run(view);
+            assert('Enter dòng list rỗng -> thoát list', !docText().includes('- '));
+            probe('- done', 6, 6);
+            enter.run(view);
+            assert('Enter list thường -> dòng mới cùng bullet', docText() === '- done\n- ');
+            probe('- [x] việc', 10, 10);
+            enter.run(view);
+            assert('Enter task đã tick -> task mới chưa tick', docText().includes('[ ]'));
+            probe('    code', 8, 8);
+            const handledPlain = enter.run(view);
+            // markdownKeymap không xử lý dòng thường: trả false để default insert newline.
+            if (!handledPlain) view.dispatch({ changes: { from: 8, to: 8, insert: '\n' }, selection: { anchor: 9, head: 9 } });
+            assert('Enter dòng thụt thường -> xuống dòng', docText().includes('\n'));
+        });
+
+        // Exact dirty: undo về đúng bản đã lưu thì hết dirty; toggle readOnly giữ undo.
+        await section('dirty exact + readOnly giữ undo', async () => {
+            const fake = { state: null, savedDoc: null, savedContent: null, savedHash: null, savedLen: null, content: '' };
+            probe('', 0, 0);
+            fake.state = view.state;
+            fake.savedDoc = view.state.doc;
+            probe('hello');
+            fake.state = view.state;
+            assert('gõ -> dirty (so doc)', isTabDirty(fake) === true);
+            undo(view);
+            fake.state = view.state;
+            assert('undo về bản đã lưu -> sạch', isTabDirty(fake) === false);
+
+            const tab = getActiveTab();
+            probe('abc');
+            try {
+                setTabReadOnly(tab, true);
+                assert('readOnly bật sau toggle', view.state.readOnly === true);
+                setTabReadOnly(tab, false);
+                assert('readOnly tắt sau toggle', view.state.readOnly === false);
+            } finally {
+                setTabReadOnly(tab, false);
+            }
+            assert('toggle readOnly giữ undo', undo(view) === true && docText() === '');
+            probe(snap.value);
         });
 
         await section('khối #4', async () => {

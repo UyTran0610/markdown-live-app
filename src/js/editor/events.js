@@ -1,6 +1,7 @@
 // js/editor/events.js — Phím tắt toàn cục của app (gắn trên window, không phụ thuộc editor có focus).
 
 import { findBtn } from '../core/dom.js';
+import { showEditorView } from '../ui/view-mode.js';
 import { openReplacePanel, openSearchPanel, view } from './cm.js';
 import { closeTab, cycleTab, getActiveTab, getTabs, newTab, openFiles, reopenClosedTab, saveActiveDoc, saveAllTabs, switchTab } from '../io/documents.js';
 
@@ -89,14 +90,14 @@ function handleGlobalShortcut(e) {
     if (lowerKey === 'f') {
         e.preventDefault();
         e.stopPropagation();
-        if (view) openSearchPanel(view);
+        if (view) { showEditorView(); openSearchPanel(view); }
         return;
     }
 
     if (lowerKey === 'h') {
         e.preventDefault();
         e.stopPropagation();
-        if (view) openReplacePanel(view);
+        if (view) { showEditorView(); openReplacePanel(view); }
         return;
     }
 
@@ -109,6 +110,6 @@ export function initEditorEvents() {
     window.addEventListener('keydown', handleGlobalShortcut, true);
 
     findBtn.addEventListener('click', () => {
-        if (view) openSearchPanel(view);
+        if (view) { showEditorView(); openSearchPanel(view); }
     });
 }

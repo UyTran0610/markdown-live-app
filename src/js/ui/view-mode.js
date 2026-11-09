@@ -1,7 +1,6 @@
 // js/ui/view-mode.js — Chế độ xem Editor / Split / Preview và thanh kéo chia pane.
 
 import { btnView, paneResizer, paneResizerGhost, viewItems, viewMenu, viewWrap, workspace } from '../core/dom.js';
-import { setPanesResizing } from '../core/flags.js';
 import { getDocLength } from '../editor/cm.js';
 import { renderActivePreview } from '../io/documents.js';
 
@@ -175,7 +174,6 @@ function endResizerDrag() {
     dragMode = null;
     paneResizer.classList.remove('dragging');
     document.body.classList.remove('resizing');
-    setPanesResizing(false);
     hideGhost();
     // Layout cuối cùng chỉ áp dụng đúng một lần: ghost đợi tới lúc nhả chuột, live đẩy nốt rAF đang treo.
     if (wasGhost) {
@@ -216,7 +214,6 @@ export function initViewMode() {
         isDraggingResizer = true;
         paneResizer.classList.add('dragging');
         document.body.classList.add('resizing');
-        setPanesResizing(true);
         // Đo rect một lần lúc bắt đầu kéo: đọc lại ở mỗi move là ép layout giữa lúc kéo.
         dragRect = workspace.getBoundingClientRect();
         dragAxis = window.matchMedia(VERTICAL_LAYOUT_MQ).matches ? 'y' : 'x';

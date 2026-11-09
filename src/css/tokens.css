@@ -47,8 +47,7 @@
     --toast-bg: #24292f;
     --toast-text: #ffffff;
 
-    /* Tô màu cú pháp trong Editor */
-    --md-header-marker: #8c959f;
+    /* Tô màu cú pháp trong Editor (chỉ biến editor.css thực dùng) */
     --md-header-1: #02316b;
     --md-header-2: #033d84;
     --md-header-3: #04499b;
@@ -57,46 +56,18 @@
     --md-header-6: #0b71e7;
     --md-bold: #24292f;
     --md-italic: #24292f;
-    --md-bolditalic: #24292f;
     --md-strikethrough: #6e7781;
     --md-code-inline-text: #cf222e;
     --md-code-inline-bg: rgba(175, 184, 193, 0.2);
-    --md-fence-marker: #8c959f;
-    --md-fence-lang: #8250df;
     --md-code-block: #57606a;
-    --md-quote-marker: #1a7f37;
     --md-quote-text: #57606a;
     --md-list-marker: #9a6700;
-    --md-link-marker: #8c959f;
     --md-link-text: #0969da;
     --md-link-url: #1a7f37;
-    --md-hr: #8c959f;
-    --md-table-pipe: #8c959f;
-    --md-math: #8250df;
 
     /* Cú pháp mở rộng mới */
     --md-escape: #cf222e;
     --md-ref-id: #0969da;
-    --md-ref-title: #1a7f37;
-    --md-autolink: #0969da;
-    --md-task-checked: #1a7f37;
-    --md-task-unchecked: #8c959f;
-    --md-footnote: #8250df;
-
-    /* HTML inline elements */
-    --md-kbd: #57606a;
-    --md-kbd-bg: rgba(175, 184, 193, 0.2);
-    --md-mark-bg: #fff3bf;
-    --md-mark-text: #24292f;
-    --md-sup: #8250df;
-    --md-sub: #8250df;
-    --md-details: #9a6700;
-    --md-summary: #9a6700;
-    --md-table-separator: #6e7781;
-    --md-html-void: #8c959f;
-    --md-html-tag-marker: #8c959f;
-    --md-html-tag-content: #24292f;
-    --md-html-comment: #6e7781;
 
     /* GFM Alerts / Callouts (Preview) */
     --alert-note-color: #0969da;
@@ -153,7 +124,6 @@
     --toast-bg: #30363d;
     --toast-text: #f0f6fc;
 
-    --md-header-marker: #8b949e;
     --md-header-1: #388bfd;
     --md-header-2: #58a6ff;
     --md-header-3: #79c0ff;
@@ -162,45 +132,17 @@
     --md-header-6: #e0f2ff;
     --md-bold: #c9d1d9;
     --md-italic: #c9d1d9;
-    --md-bolditalic: #c9d1d9;
     --md-strikethrough: #8b949e;
     --md-code-inline-text: #ff7b72;
     --md-code-inline-bg: rgba(110, 118, 129, 0.4);
-    --md-fence-marker: #8b949e;
-    --md-fence-lang: #d2a8ff;
     --md-code-block: #8b949e;
-    --md-quote-marker: #3fb950;
     --md-quote-text: #8b949e;
     --md-list-marker: #d29922;
-    --md-link-marker: #8b949e;
     --md-link-text: #58a6ff;
     --md-link-url: #3fb950;
-    --md-hr: #8b949e;
-    --md-table-pipe: #8b949e;
-    --md-math: #d2a8ff;
 
     --md-escape: #ff7b72;
     --md-ref-id: #58a6ff;
-    --md-ref-title: #3fb950;
-    --md-autolink: #58a6ff;
-    --md-task-checked: #3fb950;
-    --md-task-unchecked: #6e7681;
-    --md-footnote: #d2a8ff;
-
-    /* HTML inline elements (dark) */
-    --md-kbd: #c9d1d9;
-    --md-kbd-bg: rgba(110, 118, 129, 0.4);
-    --md-mark-bg: #9a6700;
-    --md-mark-text: #f0f6fc;
-    --md-sup: #d2a8ff;
-    --md-sub: #d2a8ff;
-    --md-details: #d29922;
-    --md-summary: #d29922;
-    --md-table-separator: #6e7681;
-    --md-html-void: #8b949e;
-    --md-html-tag-marker: #8b949e;
-    --md-html-tag-content: #c9d1d9;
-    --md-html-comment: #6e7681;
 
     --alert-note-color: #58a6ff;
     --alert-note-bg: rgba(56, 139, 253, 0.15);

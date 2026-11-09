@@ -12,7 +12,6 @@ if (!CM) throw new Error('Thiếu src/vendor/codemirror.bundle.js: CodeMirror 6 
 export const {
     EditorView,
     EditorState,
-    EditorSelection,
     Prec,
     keymap,
     Compartment,
@@ -22,13 +21,11 @@ export const {
     history,
     historyKeymap,
     defaultKeymap,
-    standardKeymap,
     undo,
     redo,
-    undoDepth,
-    redoDepth,
     indentMore,
     indentLess,
+    copyLineDown,
     markdown,
     markdownKeymap,
     syntaxHighlighting,
@@ -39,12 +36,8 @@ export const {
     openSearchPanel,
     closeSearchPanel,
     findNext,
-    findPrevious,
-    replaceNext,
     replaceAll,
     getSearchQuery,
-    setSearchQuery,
-    searchPanelOpen,
     closeBrackets,
     closeBracketsKeymap,
     tags
@@ -115,20 +108,6 @@ export function getDocText() {
 /** Độ dài nội dung editor (ký tự). */
 export function getDocLength() {
     return view ? view.state.doc.length : 0;
-}
-
-/** Vùng chọn chính: { from, to }. */
-export function getSelectionRange() {
-    if (!view) return { from: 0, to: 0 };
-    const { from, to } = view.state.selection.main;
-    return { from, to };
-}
-
-/** Nội dung đang được chọn. */
-export function getSelectedText() {
-    if (!view) return '';
-    const { from, to } = view.state.selection.main;
-    return view.state.sliceDoc(from, to);
 }
 
 export function focusEditor() {
@@ -204,15 +183,14 @@ export function handleEditorLink() {
 export function handleEditorDuplicate() {
     const v = requireView();
     const { state } = v;
+    if (state.readOnly) return false;
     const { from, to } = state.selection.main;
     if (from !== to) {
         const selected = state.sliceDoc(from, to);
         replaceRange(to, to, selected, to, to + selected.length);
-        return;
+        return true;
     }
-    const line = state.doc.lineAt(from);
-    const pos = line.to + 1 + (from - line.from);
-    replaceRange(line.to, line.to, '\n' + line.text, pos, pos);
+    return copyLineDown({ state, dispatch: (spec) => v.dispatch(spec) });
 }
 
 /** Tab không chọn dòng: chèn 4 khoảng trắng tại con trỏ (giữ hành vi cũ). */
@@ -293,9 +271,7 @@ const editorKeymap = Prec.highest(keymap.of([
     { key: 'Mod-e', run: () => wrapOrToggleFormat('`', 'code') },
     { key: 'Shift-Mod-x', run: () => wrapOrToggleFormat('~~') },
     { key: 'Mod-k', run: handleEditorLink },
-    { key: 'Mod-d', run: handleEditorDuplicate },
-    { key: 'Mod-f', run: (v) => openSearchPanel(v) },
-    { key: 'Mod-h', run: openReplacePanel }
+    { key: 'Mod-d', run: handleEditorDuplicate }
 ]));
 
 // Enter/Backspace theo markup (list, fence, quote): dựa trên syntax tree, đúng hơn regex cũ.
@@ -308,10 +284,16 @@ const updateListener = EditorView.updateListener.of((update) => {
 
 export const readOnlyCompartment = new Compartment();
 
-/** Effect readOnly/editable cho Compartment (dùng để reconfigure không mất undo). */
+/** Extension readOnly/editable cho Compartment (dùng khi dựng state). */
 export function readOnlyEffect(readOnly) {
     const ro = readOnly === true;
     return readOnlyCompartment.of([EditorState.readOnly.of(ro), EditorView.editable.of(!ro)]);
+}
+
+/** StateEffect reconfigure Compartment (dùng khi dispatch, giữ nguyên undo). */
+export function readOnlyReconfigureEffect(readOnly) {
+    const ro = readOnly === true;
+    return readOnlyCompartment.reconfigure([EditorState.readOnly.of(ro), EditorView.editable.of(!ro)]);
 }
 
 // Extension giống nhau mọi tab (parser dùng chung, không mỗi tab một parser riêng).
@@ -331,10 +313,14 @@ const sharedExtensions = [
     updateListener
 ];
 
-/** Tạo EditorState cho một tab (nội dung + chế độ chỉ đọc). */
-export function createEditorState(text = '', { readOnly = false } = {}) {
+/** Tạo EditorState cho một tab (nội dung + chế độ chỉ đọc + selection). */
+export function createEditorState(text = '', { readOnly = false, selStart = 0, selEnd = 0 } = {}) {
+    const docLen = text.length;
+    const anchor = Math.max(0, Math.min(selStart, docLen));
+    const head = Math.max(anchor, Math.min(selEnd, docLen));
     return EditorState.create({
         doc: text,
+        selection: { anchor, head },
         extensions: [
             ...sharedExtensions,
             markdownKeymapPrec,
@@ -361,13 +347,4 @@ export function initEditorView() {
 export function setEditorState(state) {
     if (!view) return;
     view.setState(state);
-}
-
-/** Chiều cao cuộn của editor (px). */
-export function getScrollTop() {
-    return view ? view.scrollDOM.scrollTop : 0;
-}
-
-export function setScrollTop(value) {
-    if (view) view.scrollDOM.scrollTop = value;
 }

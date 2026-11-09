@@ -57,7 +57,7 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 
 **Pane divider**
 - Write `--split-size` at most once per frame; measure the workspace rect once at `pointerdown`. Documents over 100k chars use the ghost bar and apply layout once on release.
-- `isResizingPanes()` (`core/flags.js`) is the single "dragging" signal. Bind `pointerup/cancel` on `window` too.
+- Dragging state is `document.body.resizing` (class from `view-mode.js`); bind `pointerup/cancel` on `window` too.
 
 **Tauri**
 - `single-instance` must be registered FIRST in `lib.rs`, or two windows overwrite the same session. Its callback must `unminimize()` + `show()` before `set_focus()`. First-launch argv is kept in `InitialPaths` and read via `take_initial_paths`.

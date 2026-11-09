@@ -295,7 +295,6 @@ markdown-live-app/
 │   │   ├── main.js             # Điểm vào app: khởi tạo các module theo thứ tự
 │   │   ├── core/               # Tham chiếu DOM, toast, hàm dùng chung
 │   │   ├── editor/             # Thao tác soạn thảo, lịch sử undo/redo, tô màu trực tiếp
-│   │   │   └── syntax/         # Tô màu cú pháp Markdown block + inline
 │   │   ├── preview/            # Render Markdown -> HTML, sanitize, liên kết
 │   │   ├── export/             # Pipeline xuất .html / .doc / .pdf
 │   │   ├── io/                 # Lưu trữ tab & tài liệu, nhập file từ ổ đĩa

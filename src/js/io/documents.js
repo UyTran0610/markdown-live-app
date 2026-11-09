@@ -2,7 +2,7 @@
 
 import { btnImport, btnSave, btnSaveAll, btnSaveAs, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { createEditorState, getView, readOnlyEffect, setEditorState } from '../editor/cm.js';
+import { createEditorState, getView, readOnlyReconfigureEffect, setEditorState } from '../editor/cm.js';
 import { chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { renderCachedHtml, renderMarkdown, snapshotPreviewBlocks, invalidateBlockCache } from '../preview/render.js';
 import { confirmAction } from '../ui/confirm-dialog.js';
@@ -120,6 +120,7 @@ function createTab({ path = null, name = null, content = '', savedContent = cont
         diskMtime,
         pinned,
         scrollTop: 0,
+        scrollSnapshot: null,
         selStart: 0,
         selEnd: 0,
         preview: null,
@@ -178,6 +179,7 @@ function captureActive() {
     tab.selStart = sel.from;
     tab.selEnd = sel.to;
     tab.scrollTop = v.scrollDOM.scrollTop;
+    tab.scrollSnapshot = v.scrollSnapshot();
     // EditorState của tab giữ luôn lịch sử undo riêng (mỗi tab một state).
     tab.state = v.state;
     // Preview scroll thuộc về tab, không nhớ thì đổi tab là mất chỗ đang đọc.
@@ -189,23 +191,20 @@ function restoreTabIntoEditor(tab) {
     const v = getView();
     if (!v) return;
     // Chưa có state (tab mới, hoặc vừa nạp lại từ đĩa) thì dựng state mới.
-    if (!tab.state) tab.state = createEditorState(tab.content, { readOnly: tab.readOnly === true });
+    if (!tab.state) tab.state = createEditorState(tab.content, { readOnly: tab.readOnly === true, selStart: tab.selStart, selEnd: tab.selEnd });
     if (tab.savedDoc === null || tab.savedDoc === undefined) {
         if (tab.savedContent !== null && tab.content === tab.savedContent) tab.savedDoc = tab.state.doc;
         else if (tab.savedContent === '') tab.savedDoc = tab.state.doc.slice(0, 0);
     }
     setEditorState(tab.state);
-    v.scrollDOM.scrollTop = tab.scrollTop;
+    // scrollSnapshot giữ đúng vị trí sau setState (ước lượng chiều cao dòng chưa render);
+    // session khôi phục từ IDB không có snapshot thì fallback scrollTop thô.
+    if (tab.scrollSnapshot) v.dispatch({ effects: tab.scrollSnapshot });
+    else v.scrollDOM.scrollTop = tab.scrollTop;
     // renderMarkdown giữ scrollTop cũ nên phải zero trước khi render tab mới.
     previewOutput.scrollTop = 0;
     if (tab.preview && tab.state && tab.preview.doc === tab.state.doc) renderCachedHtml(tab.preview.blocks, tab.preview.scroll);
     else renderMarkdown();
-    // Con trỏ về đúng chỗ đã lưu của tab (bị kẹp trong độ dài doc hiện tại).
-    const max = tab.state.doc.length;
-    v.dispatch({
-        selection: { anchor: Math.min(tab.selStart, max), head: Math.min(tab.selEnd, max) },
-        scrollIntoView: false
-    });
     v.focus();
 }
 
@@ -339,7 +338,7 @@ export async function closeTab(id, { force = false, remember = true } = {}) {
 export function setTabReadOnly(tab, readOnly) {
     if (!tab) return;
     tab.readOnly = readOnly === true;
-    const effect = readOnlyEffect(tab.readOnly);
+    const effect = readOnlyReconfigureEffect(tab.readOnly);
     if (tab.id === activeId) {
         const v = getView();
         if (v) {
@@ -634,6 +633,7 @@ async function reloadTabFromDisk(tab) {
     tab.diskIgnoredMtime = null;
     // Lịch sử Undo cũ trỏ vào nội dung không còn trong tab: xoá state để dựng lại.
     tab.state = null;
+    tab.scrollSnapshot = null;
     tab.preview = null;
     tab.sessionCache = null;
     if (tab.id === activeId) restoreTabIntoEditor(tab);

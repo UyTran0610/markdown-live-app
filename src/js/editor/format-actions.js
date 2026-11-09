@@ -12,84 +12,87 @@ import {
     setHeadingLevel
 } from './format-helpers.js';
 
+// Thay đổi tối thiểu trên một dòng (chỉ vùng marker): selection trong phần chữ còn lại tự map.
+function lineChange(lineFrom, oldLine, newLine) {
+    if (newLine === oldLine) return null;
+    let p = 0;
+    while (p < oldLine.length && p < newLine.length && oldLine[p] === newLine[p]) p++;
+    let s = 0;
+    while (s < oldLine.length - p && s < newLine.length - p && oldLine[oldLine.length - 1 - s] === newLine[newLine.length - 1 - s]) s++;
+    return { from: lineFrom + p, to: lineFrom + oldLine.length - s, insert: newLine.slice(p, newLine.length - s) };
+}
+
 export function applyHeadingLevel(level) {
     const v = getView();
     const { state } = v;
     const sel = state.selection.main;
-    const lineStart = state.doc.lineAt(sel.from).from;
-    const lineEnd = state.doc.lineAt(sel.to).to;
-    const original = state.doc.sliceString(lineStart, lineEnd);
-    const lines = original.split('\n');
+    const firstLine = state.doc.lineAt(sel.from).number;
+    const lastLine = state.doc.lineAt(Math.max(sel.from, sel.to)).number;
 
-    const allSame = lines.every((line) => getHeadingLevel(line) === level);
+    const lines = [];
+    for (let n = firstLine; n <= lastLine; n++) lines.push(state.doc.line(n));
+
+    const allSame = lines.every((line) => getHeadingLevel(line.text) === level);
     const target = allSame ? 0 : level;
-    let delta = 0;
-    const newLines = lines.map((line) => {
-        const res = setHeadingLevel(line, target);
-        if (!res) return line;
-        delta += res.delta;
-        return res.line;
-    });
-    const replacedText = newLines.join('\n');
-    // So sánh TEXT chứ không so tổng delta: delta có dấu nên dòng cộng/bớt cùng độ dài triệt tiêu nhau.
-    if (replacedText === original) return;
+    const changes = [];
+    for (const line of lines) {
+        const res = setHeadingLevel(line.text, target);
+        if (!res) continue;
+        const c = lineChange(line.from, line.text, res.line);
+        if (c) changes.push(c);
+    }
+    if (!changes.length) return;
 
-    replaceRange(lineStart, lineEnd, replacedText, lineStart, Math.max(lineStart, sel.to + delta));
+    // Không truyền selection: CM map selection qua từng change.
+    v.dispatch({ changes, scrollIntoView: true, userEvent: 'input.format' });
 }
 
 export function applyListStyle(style) {
     const v = getView();
     const { state } = v;
     const sel = state.selection.main;
-    const lineStart = state.doc.lineAt(sel.from).from;
-    const lineEnd = state.doc.lineAt(sel.to).to;
-    const original = state.doc.sliceString(lineStart, lineEnd);
-    const lines = original.split('\n');
+    const firstLine = state.doc.lineAt(sel.from).number;
+    const lastLine = state.doc.lineAt(Math.max(sel.from, sel.to)).number;
 
-    let delta = 0;
+    const lines = [];
+    for (let n = firstLine; n <= lastLine; n++) lines.push(state.doc.line(n));
+
+    // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi có dòng trống;
+    // nâng cấp sau: restart về 1 khi gặp đoạn văn mới.
     let num = 0;
-    const newLines = lines.map((line) => {
+    const changes = [];
+    for (const lineObj of lines) {
+        const line = lineObj.text;
         const parsed = parseListLine(line);
         // Dòng thường: lấy phần thụt lề đầu dòng.
         const indent = parsed ? parsed.indent : (line.match(/^[ \t]*/) || [''])[0];
         const rest = parsed ? parsed.rest : line.slice(indent.length);
 
-        if (!parsed && rest.trim() === '' && lines.length > 1) return line;
+        if (!parsed && rest.trim() === '' && lines.length > 1) continue;
 
+        let newLine;
         if (parsed && parsed.kind === style && (lines.length === 1 || parsed.rest.trim() !== '')) {
-            const newLine = indent + rest;
-            delta += newLine.length - line.length;
-            return newLine;
-        }
-
-        let marker;
-        if (style === 'numbered') {
-            num++;
-            marker = num + '. ';
-        } else if (style === 'task') {
-            marker = '- [ ] ';
+            newLine = indent + rest;
         } else {
-            marker = '- ';
+            let marker;
+            if (style === 'numbered') {
+                num++;
+                marker = num + '. ';
+            } else if (style === 'task') {
+                marker = '- [ ] ';
+            } else {
+                marker = '- ';
+            }
+            newLine = indent + (style === 'quote' ? '> ' : marker) + rest;
         }
-        const newLine = indent + (style === 'quote' ? '> ' : marker) + rest;
-        delta += newLine.length - line.length;
-        return newLine;
-    });
-    const replacedText = newLines.join('\n');
-    // So sánh TEXT chứ không so tổng delta (xem lý do ở applyHeadingLevel).
-    if (replacedText === original) return;
+        if (newLine === line) continue;
+        const c = lineChange(lineObj.from, line, newLine);
+        if (c) changes.push(c);
+    }
+    if (!changes.length) return;
 
-    // ponytail: đánh số liên tục trên cả vùng chọn kể cả khi có dòng trống;
-    // nâng cấp sau: restart về 1 khi gặp đoạn văn mới.
-
-    // Giữ vùng bôi đen: marker ở ĐẦU dòng nên selection mới dịch theo delta độ dài từng dòng.
-    const firstLineDelta = newLines[0].length - lines[0].length;
-    const newSelStart = sel.from > lineStart
-        ? Math.max(lineStart, sel.from + firstLineDelta)
-        : lineStart;
-    const newSelEnd = Math.max(newSelStart, sel.to + delta);
-
-    replaceRange(lineStart, lineEnd, replacedText, newSelStart, newSelEnd);
+    // Không truyền selection: CM map selection qua từng change.
+    v.dispatch({ changes, scrollIntoView: true, userEvent: 'input.format' });
 }
 
 export function insertTableBlock(cols, rows) {

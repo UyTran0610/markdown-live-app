@@ -31,7 +31,8 @@ export {
     redoDepth,
     indentWithTab,
     indentMore,
-    indentLess
+    indentLess,
+    copyLineDown
 } from '@codemirror/commands';
 export { markdown, markdownLanguage, markdownKeymap } from '@codemirror/lang-markdown';
 export { syntaxHighlighting, HighlightStyle, indentUnit } from '@codemirror/language';

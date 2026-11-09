@@ -1,7 +1,6 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
 import { infoAbout, infoBody, infoDialog, infoDoc, previewOutput, tableMenu } from '../core/dom.js';
-import { isResizingPanes, setPanesResizing } from '../core/flags.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
@@ -159,11 +158,6 @@ export async function runSelfCheck() {
         assert('ngưỡng ghost là 100k ký tự', GHOST_DRAG_MIN_CHARS === 100000);
         assert('thanh ảo giữa vùng -> lệch nửa bề rộng', ghostOffsetPx(50, 1000) === 497.5);
         assert('thanh ảo ở mép trái -> lệch âm nửa bề dày', ghostOffsetPx(0, 1000) === -2.5);
-        assert('cờ kéo pane mặc định tắt', isResizingPanes() === false);
-        setPanesResizing(true);
-        assert('cờ kéo pane bật khi đang kéo', isResizingPanes() === true);
-        setPanesResizing(false);
-        assert('cờ kéo pane tắt lại sau khi kéo', isResizingPanes() === false);
 
         // Render preview phải giãn debounce theo độ dài: tài liệu lớn render 1.1–2.2s,
         // chạy giữa lúc gõ sẽ cướp main thread.
@@ -620,6 +614,15 @@ export async function runSelfCheck() {
             assert('heading delta 0 vẫn áp dụng', run('### a\nbbbb', () => applyHeadingLevel(1)) === '# a\n# bbbb');
             assert('bullet delta 0 vẫn áp dụng', run('- aaa\nbbb', () => applyListStyle('bullet')) === 'aaa\n- bbb');
             assert('numbered delta 0 vẫn áp dụng', run('1. a\nbbb', () => applyListStyle('numbered')) === 'a\n1. bbb');
+            // Per-line changes: CM map selection qua delta từng dòng (không tính tay).
+            probe('abc\ndef', 1, 6);
+            applyHeadingLevel(1);
+            assert('heading: selection dịch theo marker từng dòng',
+                view.state.selection.main.from === 3 && view.state.selection.main.to === 10);
+            probe('aaa\nbbb', 1, 6);
+            applyListStyle('bullet');
+            assert('bullet: selection dịch theo marker từng dòng',
+                view.state.selection.main.from === 3 && view.state.selection.main.to === 10);
             probe('abc def', 0, 3);
             insertTableBlock(2, 2);
             assert('chèn bảng giữ nguyên vùng chọn', docText().startsWith('abc') && docText().includes('| Head |'));

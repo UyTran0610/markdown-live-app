@@ -295,7 +295,6 @@ markdown-live-app/
 │   │   ├── main.js             # Entry point: initialises modules in order
 │   │   ├── core/               # DOM references, toasts, shared helpers
 │   │   ├── editor/             # Editing ops, undo/redo history, live highlight
-│   │   │   └── syntax/         # Block + inline Markdown highlighting
 │   │   ├── preview/            # Markdown -> HTML render, sanitize, links
 │   │   ├── export/             # .html / .doc / .pdf pipelines
 │   │   ├── io/                 # Tab & document store, import from disk

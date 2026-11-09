@@ -30,8 +30,6 @@
     font-variant-ligatures: none;
     font-kerning: none;
     letter-spacing: normal;
-    tab-size: 4;
-    -moz-tab-size: 4;
     overflow-y: scroll;
     scrollbar-gutter: stable;
 }

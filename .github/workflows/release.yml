@@ -10,6 +10,10 @@ on:
         description: 'Tên phiên bản (VD: v1.0.0)'
         required: true
         default: 'v1.0.0'
+      release_notes:
+        description: 'Release note (tuỳ chọn). Dùng \n để xuống dòng, hỗ trợ Markdown. Để trống = tự tạo từ các commit.'
+        required: false
+        default: ''
 
 # Cấp quyền ghi để action có thể tạo Release, tải file lên, và commit lại version bump
 permissions:
@@ -34,14 +38,19 @@ jobs:
 
       # Xác định tag phiên bản (nếu chạy thủ công thì lấy input, nếu push tag thì lấy ref)
       # Đồng thời tách ra bản "sạch" không có tiền tố v để ghi vào tauri.conf.json / Cargo.toml
+      # Giá trị đi qua biến môi trường (không nhúng ${{ }} thẳng vào script) để tránh chèn lệnh.
       - name: Determine Release Tag
         id: release_tag
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            RAW="${{ inputs.version }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            RAW="$INPUT_VERSION"
           else
-            RAW="${{ github.ref_name }}"
+            RAW="$REF_NAME"
           fi
           echo "tag=$RAW" >> $GITHUB_OUTPUT
           echo "version=${RAW#v}" >> $GITHUB_OUTPUT
@@ -50,22 +59,48 @@ jobs:
       # đồng thời tự cache-busting (?v=...) các asset trong index.html theo version mới
       - name: Sync version into project files
         shell: bash
-        run: node scripts/sync-version.js --set "${{ steps.release_tag.outputs.version }}"
+        env:
+          VERSION: ${{ steps.release_tag.outputs.version }}
+        run: node scripts/sync-version.js --set "$VERSION"
 
       # Chỉ commit lại khi chạy thủ công (workflow_dispatch) vì lúc đó đang đứng trên 1 branch thật.
       # Khi trigger bằng tag push thì bỏ qua (tag không phải branch để push ngược lại được).
       - name: Commit version bump back to repo
         if: github.event_name == 'workflow_dispatch'
         shell: bash
+        env:
+          VERSION: ${{ steps.release_tag.outputs.version }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src/index.html
           if ! git diff --cached --quiet; then
-            git commit -m "chore: bump version to ${{ steps.release_tag.outputs.version }} [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            git commit -m "chore: bump version to $VERSION [skip ci]"
+            git push origin HEAD:"$BRANCH"
           else
             echo "Version không đổi, bỏ qua commit."
+          fi
+
+      # Chuẩn bị nội dung release note:
+      #  - Có nhập release_notes  -> dùng đúng nội dung đó (chuỗi \n được đổi thành xuống dòng thật)
+      #  - Để trống / push tag    -> để GitHub tự tạo changelog từ các commit/PR
+      - name: Prepare release notes
+        id: notes
+        shell: bash
+        env:
+          INPUT_NOTES: ${{ inputs.release_notes }}
+        run: |
+          if [ -n "$INPUT_NOTES" ]; then
+            printf '%s' "$INPUT_NOTES" | sed 's/\\n/\n/g' > release-notes.md
+            echo "body_path=release-notes.md" >> $GITHUB_OUTPUT
+            echo "auto=false" >> $GITHUB_OUTPUT
+            echo "Dùng release note do người dùng nhập:"
+            cat release-notes.md
+          else
+            echo "body_path=" >> $GITHUB_OUTPUT
+            echo "auto=true" >> $GITHUB_OUTPUT
+            echo "Không có release note nhập tay, sẽ tự tạo từ commit."
           fi
 
       - name: Install Node dependencies
@@ -118,6 +153,8 @@ jobs:
         with:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           name: Markdown Live ${{ steps.release_tag.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.body_path }}
+          generate_release_notes: ${{ steps.notes.outputs.auto == 'true' }}
           draft: false
           prerelease: false
           files: |

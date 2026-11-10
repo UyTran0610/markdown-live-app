@@ -1,22 +1,27 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { infoAbout, infoBody, infoDialog, infoDoc, previewOutput, tableMenu } from '../core/dom.js';
+import { findInput, infoAbout, infoBody, infoDialog, infoDoc, previewOutput, replaceInput, tableMenu } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
-    closeSearchPanel,
     EditorView,
-    findNext,
     getDocText,
-    getSearchQuery,
     getView,
     handleTypedChar,
-    openSearchPanel,
     redo,
-    replaceAll,
     setChangeHandler,
     undo
 } from '../editor/cm.js';
+import {
+    closeFindDialog,
+    findNextMatch,
+    getFindActiveIndex,
+    getFindMatches,
+    isFindDialogOpen,
+    openFindDialog,
+    replaceFindAll,
+    runFindSearch
+} from '../editor/find.js';
 import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
 import {
     buildBlockFence,
@@ -862,41 +867,43 @@ export async function runSelfCheck() {
         if (results.length === mark) skip('6 assert KaTeX -> MathML', 'katex chưa tải');
 
         mark = results.length;
-        await section('panel tìm kiếm', async () => {
-            // Panel của @codemirror/search nằm trong editor pane, không che format bar.
+        await section('hộp thoại tìm & thay thế', async () => {
             const previewBefore = previewOutput.innerHTML;
+            const viewModeBefore = document.body.className;
             probe('foo Foo food');
-            openSearchPanel(view);
-            const panel = view.dom.querySelector('.cm-search');
-            assert('mở panel tìm kiếm', !!panel);
-            assert('panel nằm trong editor pane', !!panel && !!panel.closest('.editor-container'));
 
-            const input = panel.querySelector('[name=search]');
-            input.value = 'foo';
-            // Panel của CodeMirror nghe onkeyup/onchange, không nghe 'input'.
-            input.dispatchEvent(new Event('keyup', { bubbles: true }));
-            assert('truy vấn tìm kiếm được ghi nhận', getSearchQuery(view.state).search === 'foo');
+            openFindDialog();
+            assert('mở hộp thoại tìm kiếm', isFindDialogOpen());
+            assert('hộp thoại có ô tìm và ô thay thế', !!findInput && !!replaceInput);
+            assert('mở hộp thoại không đổi chế độ xem', document.body.className === viewModeBefore);
+            assert('panel tìm neo trong vùng nội dung, không phải modal',
+                document.getElementById('find-dialog').closest('.workspace') !== null);
+            assert('hàng thay thế gập mặc định', !document.getElementById('find-dialog').classList.contains('show-replace'));
+            document.getElementById('find-toggle-replace').click();
+            assert('bấm nút toggle bung hàng thay thế', document.getElementById('find-dialog').classList.contains('show-replace'));
 
-            findNext(view);
+            findInput.value = 'foo';
+            runFindSearch();
+            assert('tìm thấy 3 kết quả', getFindMatches().length === 3);
+
+            findNextMatch();
             assert('nút next chọn match đầu tiên',
                 view.state.selection.main.from === 0 && view.state.selection.main.to === 3);
-            findNext(view);
+            findNextMatch();
             assert('nút next chọn match kế tiếp',
                 view.state.selection.main.from === 4 && view.state.selection.main.to === 7);
+            assert('match đang chọn được giữ sau khi bấm mũi tên', getFindActiveIndex() === 1);
 
-            const replaceInput = panel.querySelector('[name=replace]');
-            assert('panel có ô thay thế', !!replaceInput);
             replaceInput.value = 'bar';
-            replaceInput.dispatchEvent(new Event('keyup', { bubbles: true }));
-            replaceAll(view);
+            replaceFindAll();
             assert('thay hết đổi đúng nội dung', docText() === 'bar bar bard');
             assert('tìm kiếm không đụng preview', previewOutput.innerHTML === previewBefore);
 
-            closeSearchPanel(view);
-            assert('đóng panel tìm kiếm', !view.dom.querySelector('.cm-search'));
+            closeFindDialog();
+            assert('đóng hộp thoại tìm kiếm', !isFindDialogOpen());
             probe(snap.value);
         });
-        if (results.length === mark) skip('assert panel tìm kiếm', 'panel không có trong DOM');
+        if (results.length === mark) skip('assert hộp thoại tìm kiếm', 'hộp thoại không có trong DOM');
 
         mark = results.length;
         if (document.getElementById('btn-help')) await section('hộp thoại About', async () => {

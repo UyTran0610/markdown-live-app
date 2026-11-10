@@ -165,5 +165,29 @@ export const statusPos = document.getElementById('status-pos');
 
 export const statusEncoding = document.getElementById('status-encoding');
 
-// Nút mở panel tìm kiếm của CodeMirror trên thanh định dạng.
+// Nút mở hộp thoại tìm & thay thế trên thanh định dạng.
 export const findBtn = document.getElementById('btn-find');
+
+export const findDialog = document.getElementById('find-dialog');
+
+export const findInput = document.getElementById('find-input');
+
+export const findCount = document.getElementById('find-count');
+
+export const findPrevBtn = document.getElementById('find-prev');
+
+export const findNextBtn = document.getElementById('find-next');
+
+export const findCloseBtn = document.getElementById('find-close');
+
+export const findToggleReplace = document.getElementById('find-toggle-replace');
+
+export const findMatchCase = document.getElementById('find-match-case');
+
+export const findRegex = document.getElementById('find-regex');
+
+export const replaceInput = document.getElementById('replace-input');
+
+export const findReplaceBtn = document.getElementById('find-replace');
+
+export const findReplaceAllBtn = document.getElementById('find-replace-all');

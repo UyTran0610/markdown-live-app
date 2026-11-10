@@ -1,8 +1,7 @@
 // js/editor/events.js — Phím tắt toàn cục của app (gắn trên window, không phụ thuộc editor có focus).
 
 import { findBtn } from '../core/dom.js';
-import { showEditorView } from '../ui/view-mode.js';
-import { openReplacePanel, openSearchPanel, view } from './cm.js';
+import { openFindDialog } from './find.js';
 import { closeTab, cycleTab, getActiveTab, getTabs, newTab, openFiles, reopenClosedTab, saveActiveDoc, saveAllTabs, switchTab } from '../io/documents.js';
 
 // Ctrl+1..9 -> tab thứ N. Nằm ngoài handler vì cần ngưỡng (Ctrl+0 / Ctrl+9 khi có ít tab là hợp lệ).
@@ -86,18 +85,18 @@ function handleGlobalShortcut(e) {
         return;
     }
 
-    // Tìm kiếm trong Editor: chặn trình tìm của trình duyệt, dùng panel của CodeMirror.
+    // Tìm kiếm trong Editor: chặn trình tìm của trình duyệt, dùng hộp thoại của app.
     if (lowerKey === 'f') {
         e.preventDefault();
         e.stopPropagation();
-        if (view) { showEditorView(); openSearchPanel(view); }
+        openFindDialog({ focus: 'find' });
         return;
     }
 
     if (lowerKey === 'h') {
         e.preventDefault();
         e.stopPropagation();
-        if (view) { showEditorView(); openReplacePanel(view); }
+        openFindDialog({ focus: 'replace' });
         return;
     }
 
@@ -110,6 +109,6 @@ export function initEditorEvents() {
     window.addEventListener('keydown', handleGlobalShortcut, true);
 
     findBtn.addEventListener('click', () => {
-        if (view) { showEditorView(); openSearchPanel(view); }
+        openFindDialog({ focus: 'find' });
     });
 }

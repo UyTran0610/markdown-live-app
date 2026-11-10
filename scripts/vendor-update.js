@@ -19,7 +19,7 @@
 // CodeMirror 6 cũng vắng: npm không có bản UMD/IIFE sẵn (chỉ có ESM theo từng package), nên app bundle
 // tay thành global `CodeMirror`. Công thức:
 //   npm i --no-save esbuild codemirror@6 @codemirror/lang-markdown@6 @codemirror/language@6 \
-//     @codemirror/search@6 @codemirror/commands@6 @codemirror/state@6 @codemirror/view@6 \
+//     @codemirror/commands@6 @codemirror/state@6 @codemirror/view@6 \
 //     @codemirror/autocomplete@6 @lezer/highlight@1 @lezer/markdown@1
 //   npx esbuild scripts/vendor/codemirror.entry.js --bundle --minify --format=iife \
 //     --global-name=CodeMirror --outfile=src/vendor/codemirror.bundle.js

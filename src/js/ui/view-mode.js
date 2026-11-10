@@ -59,8 +59,9 @@ export function isValidViewMode(mode) {
 }
 
 // Bật lại chế độ Editor (dùng khi widget tìm kiếm mở trong lúc đang ở chế độ Preview).
-export function showEditorView() {
-    applyViewMode('editor');
+// persist=false dùng cho chuyển tạm thời: đổi lựa chọn của người dùng thì không ghi đè.
+export function showEditorView(persist = true) {
+    applyViewMode('editor', persist);
 }
 
 function applyViewMode(mode, persist = true) {

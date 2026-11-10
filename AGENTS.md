@@ -6,7 +6,7 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 
 - `src/index.html` is the only HTML (`frontendDist` = `../src`). Load order is a hard constraint: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → preview → print`; vendor scripts all `defer` (`codemirror.bundle.js` must stay before `js/main.js`).
 - `src/js/main.js` calls every `initXxx()` and owns the only `DOMContentLoaded`. Modules are grouped by role under `src/js/{core,editor,preview,export,io,ui,theme,dev}`.
-- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/cm.js` (the whole CodeMirror 6 wrapper: view, keymap, theme, search panel), `editor/sync.js` (`initEditorSync()`), `preview/render.js` (block renderer: marked.lexer + hash cache + prefix/suffix DOM patch; KaTeX/Mermaid/hljs lazy via IntersectionObserver, `flushLazyRenders()` for exports; docs above `PREVIEW_MAX_CHARS` get a notice instead of a render, exports pass `{ force: true }`), `preview/blocks.js` (hash, LRU block cache, diff/patch), `ui/view-mode.js`, `ui/window-controls.js`.
+- Key files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/cm.js` (the whole CodeMirror 6 wrapper: view, keymap, theme, find-match decoration field), `editor/find.js` (find & replace panel: engine + match navigation), `editor/sync.js` (`initEditorSync()`), `preview/render.js` (block renderer: marked.lexer + hash cache + prefix/suffix DOM patch; KaTeX/Mermaid/hljs lazy via IntersectionObserver, `flushLazyRenders()` for exports; docs above `PREVIEW_MAX_CHARS` get a notice instead of a render, exports pass `{ force: true }`), `preview/blocks.js` (hash, LRU block cache, diff/patch), `ui/view-mode.js`, `ui/window-controls.js`.
 - `src/vendor/` holds local third-party libs. Must stay fully offline: never add CDN links. CodeMirror 6 is a hand-built esbuild bundle; rebuild recipe lives in `scripts/vendor-update.js` (`scripts/vendor/codemirror.entry.js` → global `CodeMirror`).
 - `src-tauri/`: new plugin permissions go in `capabilities/default.json`, never in Rust.
 
@@ -50,9 +50,12 @@ Offline-first Markdown editor: Tauri v2 (thin Rust shell) + vanilla JS/HTML/CSS.
 - All app CSS overrides live under the `#cm-editor` ID prefix (CM6's own class selectors would otherwise win) and map `.cm-md-*` token classes onto the existing `--md-*` tokens.
 - Undo grouping is per word via `history({joinToEvent})`; CM6 has no `tr.annotate`.
 
-**Find & replace**
-- Use the built-in `@codemirror/search` panel (`openSearchPanel`); it renders inside `.editor-container` so it never covers the format bar.
-- Only scans the Editor document, never the Preview DOM.
+**Find & replace** (`editor/find.js`)
+- The app builds its own floating panel (`#find-dialog`, classes `.dialog-overlay` / `.dialog`) inside `.workspace`, top-right of the content area: find + replace, no result list. `@codemirror/search` is NOT bundled any more.
+- The panel is not modal: the overlay is transparent with `pointer-events: none`, so clicking the app does not close it. It keeps the `.dialog-overlay` class so the global shortcut guard (`events.js`) still swallows Tab/Ctrl+S inside the panel.
+- Opening it never changes the view mode; the ▲▼ arrows jump to a match and in Preview-only mode switch to Editor (`showEditorView(false)` = temporary, does not overwrite the saved preference).
+- The replace row is collapsed by default (`#find-dialog.show-replace`); Ctrl+H expands it.
+- Only scans the Editor document, never the Preview DOM. Matches are highlighted with a `Decoration` set pushed through `setFindHighlights()` (`StateField` in `editor/cm.js`).
 - WebView2 keeps Ctrl+F for its own find bar (Tauri exposes no switch), so the format-bar magnifier button is the entry point that always works.
 
 **Pane divider**

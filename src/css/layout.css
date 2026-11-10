@@ -77,13 +77,15 @@ body.resizing .preview-pane {
     flex: 1;
 }
 
-/* 3 chế độ xem đặt trên <body>: view-split / view-editor / view-preview. */
+/* 3 chế độ xem đặt trên <body>: view-split / view-editor / view-preview.
+   position: relative để panel tìm & thay thế neo góc trên phải vùng nội dung. */
 .workspace {
     display: flex;
     flex: 1;
     height: auto;
     min-height: 0;
     overflow: hidden;
+    position: relative;
     --split-size: 50%;
 }
 

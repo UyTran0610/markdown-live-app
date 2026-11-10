@@ -106,67 +106,12 @@
 .cm-md-comment { color: var(--md-code-block); font-style: italic; }
 .cm-md-label { color: var(--md-ref-id); font-weight: 600; }
 
-/* Panel tìm kiếm / thay thế của @codemirror/search nằm trong editor pane. */
-#cm-editor .cm-panels {
-    background-color: var(--pane-header-bg);
-    color: var(--text-primary);
-}
-
-#cm-editor .cm-panel.cm-search {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border-top: 1px solid var(--border-color);
-    background-color: var(--pane-header-bg);
-    color: var(--text-primary);
-    font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-    font-size: 13px;
-}
-
-#cm-editor .cm-search .cm-textfield {
-    padding: 3px 6px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: var(--pane-bg);
-    color: var(--text-primary);
-    font: inherit;
-    min-width: 140px;
-}
-
-/* appearance: none + background-image: none: CodeMirror vẽ nút bằng gradient,
-   nếu không tắt thì gradient đè lên màu nền của app. */
-#cm-editor .cm-search button {
-    appearance: none;
-    -webkit-appearance: none;
-    padding: 3px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: var(--pane-bg);
-    background-image: none;
-    color: var(--text-primary);
-    font: inherit;
-    cursor: pointer;
-}
-
-#cm-editor .cm-search button:hover {
-    background-color: var(--btn-bg-hover);
-}
-
-#cm-editor .cm-search label {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    color: var(--text-secondary);
-    user-select: none;
-}
-
-#cm-editor .cm-searchMatch {
+/* Kết quả tìm kiếm do overlay của app tô trong editor. */
+#cm-editor .cm-find-hit {
     background-color: var(--find-hit-bg);
 }
 
-#cm-editor .cm-searchMatch.cm-searchMatch-selected {
+#cm-editor .cm-find-hit.cm-find-hit-active {
     background-color: var(--find-hit-bg);
     outline: 1px solid var(--text-muted);
 }

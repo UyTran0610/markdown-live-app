@@ -5,6 +5,7 @@ import { debounce } from '../core/utils.js';
 import { cacheActivePreview, saveSession, updateActiveContent } from '../io/documents.js';
 import { renderMarkdown } from '../preview/render.js';
 import { getDocLength, setChangeHandler } from './cm.js';
+import { refreshFindResults } from './find.js';
 
 // Editor ẩn preview nên bỏ render; view-mode gọi renderActivePreview() khi chuyển sang có preview.
 function renderAndCache() {
@@ -51,6 +52,8 @@ function scheduleSessionSave() {
 export function handleEditorChange(update) {
     charCounter.textContent = `${update.state.doc.length} characters`;
     updateActiveContent(update.state);
+    // Hộp thoại tìm đang mở: kết quả cũ hỏng theo nội dung mới.
+    refreshFindResults();
     debouncedRender();
     scheduleSessionSave();
 }

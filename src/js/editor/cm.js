@@ -12,6 +12,9 @@ if (!CM) throw new Error('Thiếu src/vendor/codemirror.bundle.js: CodeMirror 6 
 export const {
     EditorView,
     EditorState,
+    Decoration,
+    StateField,
+    StateEffect,
     Prec,
     keymap,
     Compartment,
@@ -31,13 +34,6 @@ export const {
     syntaxHighlighting,
     HighlightStyle,
     indentUnit,
-    search,
-    searchKeymap,
-    openSearchPanel,
-    closeSearchPanel,
-    findNext,
-    replaceAll,
-    getSearchQuery,
     closeBrackets,
     closeBracketsKeymap,
     tags
@@ -246,20 +242,23 @@ const historyWithWordBoundary = history({
     joinToEvent: (tr, isAdjacent) => isAdjacent && !startsNewWord(tr)
 });
 
-/** Mở panel tìm kiếm và đưa con trỏ vào ô Replace (Ctrl+H). */
-export function openReplacePanel(v) {
-    openSearchPanel(v);
-    const focusReplace = () => {
-        const input = v.dom.querySelector('.cm-search [name=replace]');
-        if (input) {
-            input.focus();
-            input.select();
-            return true;
-        }
-        return false;
-    };
-    if (!focusReplace()) setTimeout(focusReplace, 0);
-    return true;
+// Tô sáng kết quả tìm kiếm: field giữ bộ decoration, app đẩy bộ mới qua effect.
+const setFindHits = StateEffect.define();
+
+const findHitField = StateField.define({
+    create: () => Decoration.none,
+    update: (value, tr) => {
+        let next = value.map(tr.changes);
+        for (const eff of tr.effects) if (eff.is(setFindHits)) next = eff.value;
+        return next;
+    },
+    provide: (f) => EditorView.decorations.from(f)
+});
+
+/** Đẩy bộ highlight tìm kiếm (DecorationSet) vào editor. */
+export function setFindHighlights(v, decorationSet) {
+    if (!v) return;
+    v.dispatch({ effects: setFindHits.of(decorationSet) });
 }
 
 // Phím tắt riêng của app: ưu tiên cao nhất để không đụng keymap mặc định của CM6.
@@ -309,7 +308,7 @@ const sharedExtensions = [
     syntaxHighlighting(markdownHighlightStyle),
     closeBrackets(),
     inputHandler,
-    search({ top: false }),
+    findHitField,
     updateListener
 ];
 
@@ -328,7 +327,6 @@ export function createEditorState(text = '', { readOnly = false, selStart = 0, s
             keymap.of(historyKeymap),
             keymap.of(closeBracketsKeymap),
             keymap.of(defaultKeymap),
-            keymap.of(searchKeymap),
             readOnlyEffect(readOnly)
         ]
     });

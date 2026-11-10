@@ -280,6 +280,173 @@
     margin-bottom: 14px;
 }
 
+/* Hộp tìm & thay thế: panel nổi góc trên phải vùng nội dung, không phải modal.
+   Overlay trong suốt + pointer-events:none nên bấm trong app vẫn được, click ngoài không đóng. */
+#find-dialog {
+    position: absolute;
+    inset: 0;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 8px 12px;
+    background: none;
+    pointer-events: none;
+}
+
+.find-dialog {
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+    width: min(400px, calc(100vw - 24px));
+    padding: 10px;
+    transform-origin: top right;
+}
+
+/* Cột 1: nút toggle. Cột 2: hai hàng ô nhập + công cụ.
+   Toggle nằm trong 1 hàng lưới nên co theo chiều cao cột phải: gập thì bằng ô Find, mở thì phủ cả 2 hàng. */
+.find-body {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 6px;
+    align-items: stretch;
+}
+
+#find-toggle-replace {
+    align-self: stretch;
+    height: auto;
+    min-height: 32px;
+}
+
+/* Lưới trong: ô nhập | công cụ, 2 hàng (Find, Replace) — 2 ô nhập cùng cột nên canh thẳng nhau. */
+.find-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: start;
+}
+
+.find-field {
+    grid-column: 1;
+    min-width: 0;
+}
+
+#find-input {
+    grid-row: 1;
+}
+
+#replace-input {
+    grid-row: 2;
+}
+
+.find-tools {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.find-tools-main {
+    grid-row: 1;
+    grid-column: 2;
+}
+
+.find-tools-replace {
+    grid-row: 2;
+    grid-column: 2;
+}
+
+/* Chip Aa / .*: checkbox thật bên trong, nút bấm đóng vai trò toggle (như Chrome). */
+.find-dialog .find-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.find-dialog .find-toggle input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.find-toggle span {
+    pointer-events: none;
+}
+
+.find-toggle:has(input:checked) {
+    background: var(--btn-active-bg);
+    color: var(--text-primary);
+}
+
+.find-toggle:focus-within {
+    outline: 2px solid var(--btn-focus-ring);
+    outline-offset: -1px;
+}
+
+.find-dialog .find-count {
+    flex: 0 0 auto;
+    min-width: 34px;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.find-count.is-error {
+    color: var(--alert-warning-color);
+}
+
+.find-icon-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    justify-content: center;
+}
+
+/* Hàng thay thế gập, bung bằng nút toggle trước ô nhập (Ctrl+H mở luôn hàng này).
+   display:contents để 2 phần tử con thành ô lưới của .find-body. */
+.find-replace-row {
+    display: none;
+}
+
+#find-dialog.show-replace .find-replace-row {
+    display: contents;
+}
+
+/* Nút toggle đứng trước ô nhập (giống VS Code): chevron xoay 180° khi hàng thay thế mở. */
+#find-dialog #find-toggle-replace svg {
+    transition: transform 0.15s ease;
+}
+
+#find-dialog.show-replace #find-toggle-replace svg {
+    transform: rotate(180deg);
+}
+
+/* Cửa sổ hẹp: panel bám sát mép. */
+@media (max-width: 520px) {
+    #find-dialog {
+        padding: 6px 8px;
+    }
+
+    .find-dialog {
+        width: calc(100vw - 16px);
+    }
+}
+
 /* Giảm chuyển động: tắt animation hộp thoại; trạng thái ẩn không dựa vào transition nên vẫn dùng được. */
 @media (prefers-reduced-motion: reduce) {
     .dialog-overlay,

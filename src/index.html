@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
     <!-- Phiên bản About; scripts/sync-version.js ghi đè mỗi lần dev/build, không sửa tay. -->
-    <meta name="app-version" content="2.2.0">
+    <meta name="app-version" content="2.3.0">
     <title>Markdown Live</title>
     <!-- 4 CSS theme Preview nạp sẵn, media="not all" = tải nhưng không áp dụng; đổi theme chỉ gán media,
          không fetch nên Editor và Preview đổi màu cùng lúc. -->
-    <link rel="stylesheet" href="vendor/github-markdown-light.css?v=2.2.0" data-theme-css="light">
-    <link rel="stylesheet" href="vendor/hljs-github.min.css?v=2.2.0" data-theme-css="light">
-    <link rel="stylesheet" href="vendor/github-markdown-dark.css?v=2.2.0" data-theme-css="dark" media="not all">
-    <link rel="stylesheet" href="vendor/hljs-github-dark.min.css?v=2.2.0" data-theme-css="dark" media="not all">
+    <link rel="stylesheet" href="vendor/github-markdown-light.css?v=2.3.0" data-theme-css="light">
+    <link rel="stylesheet" href="vendor/hljs-github.min.css?v=2.3.0" data-theme-css="light">
+    <link rel="stylesheet" href="vendor/github-markdown-dark.css?v=2.3.0" data-theme-css="dark" media="not all">
+    <link rel="stylesheet" href="vendor/hljs-github-dark.min.css?v=2.3.0" data-theme-css="dark" media="not all">
     <script>
         // Áp theme sớm để tránh nháy sai giao diện: dùng lựa chọn đã lưu, không có thì theo hệ thống.
         (function () {
@@ -34,27 +34,27 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="vendor/katex.min.css?v=2.2.0">  
-    <link rel="stylesheet" href="css/tokens.css?v=2.2.0">
-    <link rel="stylesheet" href="css/base.css?v=2.2.0">
-    <link rel="stylesheet" href="css/layout.css?v=2.2.0">
-    <link rel="stylesheet" href="css/format-bar.css?v=2.2.0">
-    <link rel="stylesheet" href="css/dialogs.css?v=2.2.0">
-    <link rel="stylesheet" href="css/toast.css?v=2.2.0">
-    <link rel="stylesheet" href="css/toolbar.css?v=2.2.0">
-    <link rel="stylesheet" href="css/tabs.css?v=2.2.0">
-    <link rel="stylesheet" href="css/editor.css?v=2.2.0">
-    <link rel="stylesheet" href="css/preview.css?v=2.2.0">
-    <link rel="stylesheet" href="css/print.css?v=2.2.0">
+    <link rel="stylesheet" href="vendor/katex.min.css?v=2.3.0">  
+    <link rel="stylesheet" href="css/tokens.css?v=2.3.0">
+    <link rel="stylesheet" href="css/base.css?v=2.3.0">
+    <link rel="stylesheet" href="css/layout.css?v=2.3.0">
+    <link rel="stylesheet" href="css/format-bar.css?v=2.3.0">
+    <link rel="stylesheet" href="css/dialogs.css?v=2.3.0">
+    <link rel="stylesheet" href="css/toast.css?v=2.3.0">
+    <link rel="stylesheet" href="css/toolbar.css?v=2.3.0">
+    <link rel="stylesheet" href="css/tabs.css?v=2.3.0">
+    <link rel="stylesheet" href="css/editor.css?v=2.3.0">
+    <link rel="stylesheet" href="css/preview.css?v=2.3.0">
+    <link rel="stylesheet" href="css/print.css?v=2.3.0">
     <!-- defer: parse/paint xong HTML rồi mới chạy, vẫn đúng thứ tự khai báo, trước DOMContentLoaded. -->
-    <script src="vendor/lucide.min.js?v=2.2.0" defer></script>
-    <script src="vendor/marked.umd.js?v=2.2.0" defer></script>
-    <script src="vendor/purify.min.js?v=2.2.0" defer></script>
-    <script src="vendor/highlight.min.js?v=2.2.0" defer></script>
-    <script src="vendor/mermaid.min.js?v=2.2.0" defer></script>
-    <script src="vendor/katex.min.js?v=2.2.0" defer></script>
+    <script src="vendor/lucide.min.js?v=2.3.0" defer></script>
+    <script src="vendor/marked.umd.js?v=2.3.0" defer></script>
+    <script src="vendor/purify.min.js?v=2.3.0" defer></script>
+    <script src="vendor/highlight.min.js?v=2.3.0" defer></script>
+    <script src="vendor/mermaid.min.js?v=2.3.0" defer></script>
+    <script src="vendor/katex.min.js?v=2.3.0" defer></script>
     <!-- CodeMirror 6: bundle tự build, phải nạp TRƯỚC js/main.js (app entry là ES module). -->
-    <script src="vendor/codemirror.bundle.js?v=2.2.0" defer></script>
+    <script src="vendor/codemirror.bundle.js?v=2.3.0" defer></script>
 </head>
 <body>
 
@@ -289,6 +289,47 @@
         <section class="pane preview-pane">
             <div id="preview-output" class="markdown-body"></div>
         </section>
+
+        <!-- Tìm & thay thế: panel nổi góc trên phải vùng nội dung, quét nội dung editor (không quét DOM Preview). -->
+        <div id="find-dialog" class="dialog-overlay hidden">
+            <div class="dialog find-dialog" role="dialog" aria-label="Find and replace">
+                <div class="find-body">
+                    <button id="find-toggle-replace" class="dialog-btn find-icon-btn" type="button" title="Toggle replace (Ctrl+H)" aria-label="Toggle replace" aria-expanded="false">
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                    <div class="find-fields">
+                        <input type="text" id="find-input" class="find-field" placeholder="Find" aria-label="Find" autocomplete="off" spellcheck="false">
+                        <div class="find-tools find-tools-main">
+                            <label class="find-toggle" title="Match case">
+                                <input type="checkbox" id="find-match-case" aria-label="Match case">
+                                <span>Aa</span>
+                            </label>
+                            <label class="find-toggle" title="Regular expression">
+                                <input type="checkbox" id="find-regex" aria-label="Regular expression">
+                                <span>.*</span>
+                            </label>
+                            <span id="find-count" class="find-count" aria-live="polite"></span>
+                            <button id="find-prev" class="dialog-btn find-icon-btn" type="button" title="Previous match (Shift+Enter)" aria-label="Previous match">
+                                <i data-lucide="arrow-up"></i>
+                            </button>
+                            <button id="find-next" class="dialog-btn find-icon-btn" type="button" title="Next match (Enter)" aria-label="Next match">
+                                <i data-lucide="arrow-down"></i>
+                            </button>
+                            <button id="find-close" class="dialog-btn find-icon-btn" type="button" title="Close (Esc)" aria-label="Close">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                        <div class="find-replace-row">
+                            <input type="text" id="replace-input" class="find-field" placeholder="Replace with" aria-label="Replace with" autocomplete="off" spellcheck="false">
+                            <div class="find-tools find-tools-replace">
+                                <button id="find-replace" class="dialog-btn" type="button" title="Replace current match">Replace</button>
+                                <button id="find-replace-all" class="dialog-btn" type="button" title="Replace every match">Replace All</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Thanh chia ảo: kéo tài liệu lớn thì pane đứng yên, chỉ thanh này bám chuột (GPU, không reflow). -->
@@ -383,6 +424,6 @@
     <div id="toast" class="toast hidden">Notification appears here</div>
 
     <!-- App entry: ES module tự defer, chạy sau các thư viện vendor ở trên. -->
-    <script type="module" src="js/main.js?v=2.2.0"></script>
+    <script type="module" src="js/main.js?v=2.3.0"></script>
 </body>
 </html>

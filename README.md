@@ -34,6 +34,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
+- [Privacy](#privacy)
 - [License](#license)
 
 ---
@@ -45,6 +46,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Full Editing Toolkit:** A formatting toolbar (headings, lists, bold/italic, tables, links, code, math, Mermaid snippets), live Markdown syntax highlighting, and a real-time character counter.
 - **Multi-Format Export:** Standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images), or vector PDF (selectable text).
 - **Tabs & Data Safety:** Open multiple files as tabs; drafts, tab order, and your last view mode are auto-saved and restored on the next launch.
+- **Find & Replace:** Floating search panel at the top-right of the content area — match case, regular expressions, Replace / Replace All, and `$1`…`$9` group references.
 - **Light/Dark Theme:** Automatic system theme detection with manual override, persisted between sessions.
 
 ---
@@ -72,6 +74,8 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 ### Download Pre-built Binary (Recommended for users)
 
 A portable Windows executable (`.exe`) is automatically built via GitHub Actions for every release tag. Download the latest release from the **[Releases](https://github.com/uytran0610/markdown-live-app/releases)** page—no installation required, just launch `Markdown-Live-Portable.exe`.
+
+Each release also ships two installers for users who prefer a normal setup: `Markdown-Live-Setup.exe` (NSIS) and `Markdown-Live-Setup.msi`. The installers register `.md`, `.markdown`, `.mdown`, `.mkd` and `.txt` with Windows, so double-clicking a Markdown file opens it in Markdown Live.
 
 > [!WARNING]
 > **Windows SmartScreen may flag the app on first launch**
@@ -153,7 +157,7 @@ The formatting toolbar sits above the **EDITOR** pane. Select some text and clic
 | :--- | :--- | :--- | :--- |
 | **Undo** / **Redo** | Step backward or forward through your edit history | — | `Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y` |
 | **Clear** | Empty the entire editor immediately (no confirmation) — press `Ctrl`/`Cmd` + `Z` to restore it | — | — |
-| **Headings** | Choose a heading level from the list | `# Heading 1` ... `###### Heading 6` | — |
+| **Headings** | Choose a heading level from the list, or **Plain text** to strip the heading marker | `# Heading 1` ... `###### Heading 6` | — |
 | **Lists** | Choose a list type: bullet, numbered, or task list | `- item`, `1. item`, `- [ ] task` | — |
 | **B** (Bold) | Make the selected text bold | `**text**` | `Ctrl`/`Cmd` + `B` |
 | *I* (Italic) | Make the selected text italic | `*text*` | `Ctrl`/`Cmd` + `I` |
@@ -167,11 +171,25 @@ The formatting toolbar sits above the **EDITOR** pane. Select some text and clic
 | **Math Block** | Insert a LaTeX display block | `$$ ... $$` | — |
 | **Blockquote** | Turn the current line(s) into a blockquote | `> text` | — |
 | **Mermaid Diagram** | Insert a starter Mermaid diagram block | ` ```mermaid ... ``` ` | — |
+| **Find** | Open the floating find & replace panel | — | `Ctrl`/`Cmd` + `F` |
 
 > [!TIP]
 > All toolbar actions work with Undo/Redo (`Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y`), and the preview updates instantly after each action.
 >
 > The toolbar **Link** button opens a dialog for entering text and a URL, while the `Ctrl`/`Cmd` + `K` shortcut instead inserts `[link](url)` inline with `url` pre-selected for quick pasting — use whichever is faster for you.
+
+### Find & Replace
+
+Search and replace inside the current document, without leaving the editor:
+
+- **Open:** press `Ctrl`/`Cmd` + `F`, or click the magnifier button at the right end of the formatting toolbar. The **Replace** row starts collapsed — press `Ctrl`/`Cmd` + `H` to open the panel with it expanded.
+- **Find:** type a term, then use **▲** / **▼** (or `Enter` / `Shift` + `Enter`) to step through matches. The counter shows the current match and the total.
+- **Options:** **Aa** matches case exactly; **.*` treats the term as a regular expression. In regex mode the replacement field accepts `$1`…`$9`, `$&` (the whole match), `$'` (text before the match) and `$$` (a literal `$`).
+- **Replace:** **Replace** rewrites the current match only; **Replace All** rewrites every match at once.
+- **Highlights:** matching text is highlighted directly in the editor, so you can see where the panel is pointing (up to 500 matches are painted at a time).
+
+> [!NOTE]
+> The panel only scans the editor document, never the rendered Preview DOM. Opening it does not change your view mode — but if you are in **Preview**-only mode, jumping to a match temporarily shows the **Editor** pane.
 
 ### Editor Shortcuts
 
@@ -179,18 +197,20 @@ The editor includes built-in shortcuts and formatting utilities common in modern
 
 | Shortcut | Action |
 | :--- | :--- |
+| `Ctrl`/`Cmd` + `F` | Open the find & replace panel |
+| `Ctrl`/`Cmd` + `H` | Open the find & replace panel with the **Replace** row expanded |
 | `Ctrl`/`Cmd` + `B` | Bold selected text |
 | `Ctrl`/`Cmd` + `I` | Italicize selected text |
 | `Ctrl`/`Cmd` + `Shift` + `X` | Strikethrough selected text |
-| `Ctrl`/`Cmd` + `E` or `Ctrl` + backtick key | Wrap selection in inline code |
+| `Ctrl`/`Cmd` + `E` | Wrap selection in inline code |
 | `Ctrl`/`Cmd` + `K` | Insert link, automatically highlighting the `url` for quick pasting |
 | `Ctrl`/`Cmd` + `D` | Duplicate current line (or selection) |
 | `Ctrl`/`Cmd` + `Z` | Undo |
-| `Ctrl`/`Cmd` + `Y` or `Ctrl`/`Cmd` + `Shift` + `Z` | Redo |
-| `Tab` / `Shift` + `Tab` | Indent / Unindent — supports multi-line selections |
+| `Ctrl`/`Cmd` + `Y` | Redo (`Cmd` + `Shift` + `Z` on macOS, `Ctrl` + `Shift` + `Z` on Linux) |
+| `Tab` / `Shift` + `Tab` | Indent / Unindent — supports multi-line selections; with no selection, `Tab` inserts 4 spaces |
 | `Enter` | Preserves indentation, continues lists (`-`, `1.`, `>`, task lists), or exits the list if the line is empty |
 | Typing `(`, `[`, `{`, quotes, backtick, `*`, `_`, `~`, or `$` over selected text | Automatically encloses selection with the typed character pair |
-| Typing `(`, `[`, `{` or quotes with nothing selected | Inserts the closing character automatically; typing that character again or pressing `Backspace` on an empty pair skips over / removes it. A single quote typed right after a letter or digit (as in `don't`) is treated as an apostrophe and is not auto-closed |
+| Typing `(`, `[`, `{` or quotes with nothing selected | Inserts the closing character automatically when the character after the cursor allows it — it never closes right before a letter or digit; typing that character again or pressing `Backspace` on an empty pair skips over / removes it. A single quote typed right after a letter or digit (as in `don't`) is treated as an apostrophe and is not auto-closed |
 
 ### Tab & File Shortcuts
 
@@ -251,8 +271,11 @@ The exported `.doc` file can be opened in Microsoft Word. Mermaid diagrams are a
 ## Architecture Overview
 
 Markdown Live is engineered with memory efficiency and near-instant responsiveness in mind. The application adopts a hybrid architecture:
-- **Core Runtime:** Tauri v2 (Rust backend) guarantees a compact binary footprint, native clipboard management, and low-overhead system API integrations.
+- **Core Runtime:** Tauri v2 (Rust backend) guarantees a compact binary footprint, native clipboard management, and low-overhead system API integrations. A single-instance plugin keeps one window alive and routes files opened later into it as new tabs.
 - **Frontend Layer:** Built entirely with Vanilla JavaScript/HTML5/CSS3. Without heavy Single Page Application (SPA) frameworks, all dependencies are bundled locally (`vendor/`) without relying on external CDNs.
+- **Editor Engine:** CodeMirror 6, hand-bundled into `src/vendor/codemirror.bundle.js`. A single `EditorView` is shared by every tab; each tab owns its own `EditorState`, so undo history never mixes between tabs.
+- **Preview Pipeline:** Markdown is parsed into blocks, hashed, and cached — only edited blocks are re-rendered after the first parse. KaTeX, Mermaid, and syntax highlighting run lazily as a block scrolls into view.
+- **Session Storage:** Drafts, tab order, and open file paths live in IndexedDB, so a session survives a restart even for large documents.
 
 > [!NOTE]
 > The application runs completely offline. All Markdown parsing, KaTeX mathematical typesetting, and Mermaid diagram rendering are executed locally within the client-side Webview.
@@ -264,10 +287,12 @@ Markdown Live is engineered with memory efficiency and near-instant responsivene
 | Component | Technology / Library | Role |
 | :--- | :--- | :--- |
 | **Backend Core** | Tauri v2, Rust | Window management, Native Clipboard Manager, Opener, Dialog & FS Plugins, Single-instance (one running window that receives files opened later), Snap Layout (Windows 11 snap flyout on the custom Maximize button) |
+| **Editor Engine** | CodeMirror 6 | Markdown editing, live syntax highlighting, undo/redo, bracket handling (hand-bundled into `src/vendor/codemirror.bundle.js`) |
 | **Markdown Parser**| Marked.js + DOMPurify | Markdown parsing and secure XSS sanitization |
 | **Mathematics** | KaTeX + marked-katex-extension | TeX/LaTeX mathematical formula typesetting |
 | **Diagram Engine** | Mermaid.js | Declarative diagram rendering |
 | **Code Engine** | Highlight.js | Code block syntax highlighting |
+| **Preview Styling** | github-markdown-css | GitHub-like typography for the Preview pane (light + dark) |
 | **Iconography** | Lucide Icons | User interface icon system |
 
 ---
@@ -294,15 +319,16 @@ markdown-live-app/
 │   ├── js/                     # ES modules, grouped by responsibility
 │   │   ├── main.js             # Entry point: initialises modules in order
 │   │   ├── core/               # DOM references, toasts, shared helpers
-│   │   ├── editor/             # Editing ops, undo/redo history, live highlight
-│   │   ├── preview/            # Markdown -> HTML render, sanitize, links
+│   │   ├── editor/             # CodeMirror 6 wrapper (cm.js), find & replace
+│   │   │                       # panel, format actions, global shortcuts
+│   │   ├── preview/            # Block renderer + hash cache, sanitize, links
 │   │   ├── export/             # .html / .doc / .pdf pipelines
-│   │   ├── io/                 # Tab & document store, import from disk
+│   │   ├── io/                 # Tab & document store, IndexedDB session
 │   │   ├── ui/                 # Format bar, dialogs, tabs, scroll sync, view modes
 │   │   ├── theme/              # Light / Dark theme
 │   │   └── dev/                # Self-check (?selfcheck) + perf harness (?perf)
 │   ├── vendor/                 # Local 3rd-party bundles (marked, katex,
-│   │   └── fonts/              # mermaid...) + KaTeX web fonts
+│   │   └── fonts/              # mermaid, codemirror.bundle.js...) + KaTeX web fonts
 │   ├── PRIVACY.md              # Privacy statement shown in the About dialog
 │   ├── THIRD_PARTY_NOTICES.md  # Licences of the bundled vendor libraries
 │   └── LICENSE                 # MIT licence for the frontend
@@ -312,11 +338,14 @@ markdown-live-app/
 │   │   └── main.rs
 │   ├── capabilities/           # Plugin permissions (dialog, fs, opener...)
 │   ├── icons/
+│   ├── build.rs
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── scripts/
 │   ├── sync-version.js         # Version sync + asset cache-busting
-│   └── vendor-update.js        # Refresh src/vendor/ (npm run vendor)
+│   ├── vendor-update.js        # Refresh src/vendor/ (npm run vendor)
+│   └── vendor/
+│       └── codemirror.entry.js # Entry point for the hand-built CM6 bundle
 ├── images/                     # README screenshots
 ├── icon.png                    # App icon shown in the README
 ├── README.vi.md                # Vietnamese translation
@@ -335,6 +364,12 @@ Contributions are always welcome! If you want to help improve the project:
 4. Submit a Pull Request with a short summary of the updates made.
 
 If you encounter any bugs or have feature suggestions, please open a new [Issue](https://github.com/uytran0610/markdown-live-app/issues).
+
+---
+
+## Privacy
+
+Markdown Live stores everything on your own device — no accounts, no analytics, no telemetry. See the full [Privacy Statement](src/PRIVACY.md).
 
 ---
 

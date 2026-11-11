@@ -34,6 +34,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - [Công nghệ sử dụng](#công-nghệ-sử-dụng)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
 - [Đóng góp](#đóng-góp)
+- [Quyền riêng tư](#quyền-riêng-tư)
 - [Giấy phép](#giấy-phép)
 
 ---
@@ -45,6 +46,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ định dạng (tiêu đề, danh sách, in đậm/nghiêng, bảng, liên kết, code, công thức, Mermaid), tô màu cú pháp Markdown trực tiếp và đếm ký tự thời gian thực.
 - **Xuất đa định dạng:** HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid chuyển thành ảnh) hoặc PDF vector (giữ khả năng chọn/copy văn bản).
 - **Tab & an toàn dữ liệu:** Mở nhiều file thành nhiều tab; bản nháp, thứ tự tab và chế độ xem gần nhất tự động lưu và khôi phục ở lần mở tiếp theo.
+- **Tìm & thay thế:** Panel tìm kiếm nổi ở góc trên phải vùng nội dung — phân biệt hoa thường, biểu thức chính quy, Replace / Replace All, và tham chiếu nhóm `$1`…`$9`.
 - **Chủ đề Sáng/Tối:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ giữa các phiên.
 
 ---
@@ -72,6 +74,8 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 ### Tải bản dựng sẵn (khuyến nghị cho người dùng)
 
 Bản thực thi portable cho Windows (`.exe`) được build tự động qua GitHub Actions mỗi khi có tag phát hành mới. Tải bản mới nhất tại trang **[Releases](https://github.com/uytran0610/markdown-live-app/releases)**, không cần cài đặt gì thêm — chỉ cần chạy file `Markdown-Live-Portable.exe`.
+
+Mỗi bản phát hành còn có hai bộ cài đặt cho người dùng thích quy trình cài đặt thông thường: `Markdown-Live-Setup.exe` (NSIS) và `Markdown-Live-Setup.msi`. Bộ cài đặt đăng ký `.md`, `.markdown`, `.mdown`, `.mkd` và `.txt` với Windows, nên nhấp đúp file Markdown sẽ mở bằng Markdown Live.
 
 > [!WARNING]
 > **Windows SmartScreen có thể chặn ứng dụng khi mở lần đầu**
@@ -153,7 +157,7 @@ Thanh công cụ định dạng nằm phía trên khung **EDITOR**. Bôi đen đ
 | :--- | :--- | :--- | :--- |
 | **Undo** / **Redo** | Lùi lại hoặc làm lại lịch sử chỉnh sửa | — | `Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y` |
 | **Clear** | Xóa ngay toàn bộ nội dung khung soạn thảo (không hỏi xác nhận) — nhấn `Ctrl`/`Cmd` + `Z` để khôi phục | — | — |
-| **Headings** | Chọn cấp độ tiêu đề từ danh sách | `# Heading 1` ... `###### Heading 6` | — |
+| **Headings** | Chọn cấp tiêu đề từ danh sách, hoặc **Plain text** để bỏ dấu `#` của tiêu đề | `# Heading 1` ... `###### Heading 6` | — |
 | **Lists** | Chọn loại danh sách: gạch đầu dòng, đánh số hoặc task list | `- item`, `1. item`, `- [ ] task` | — |
 | **B** (Bold) | In đậm đoạn văn bản đang chọn | `**text**` | `Ctrl`/`Cmd` + `B` |
 | *I* (Italic) | In nghiêng đoạn văn bản đang chọn | `*text*` | `Ctrl`/`Cmd` + `I` |
@@ -167,11 +171,25 @@ Thanh công cụ định dạng nằm phía trên khung **EDITOR**. Bôi đen đ
 | **Math Block** | Chèn khối công thức LaTeX dạng hiển thị | `$$ ... $$` | — |
 | **Blockquote** | Biến (các) dòng hiện tại thành trích dẫn | `> text` | — |
 | **Mermaid Diagram** | Chèn mẫu khởi tạo sơ đồ Mermaid | ` ```mermaid ... ``` ` | — |
+| **Find** | Mở panel tìm & thay thế nổi | — | `Ctrl`/`Cmd` + `F` |
 
 > [!TIP]
 > Mọi thao tác trên thanh công cụ đều hoạt động với Undo/Redo (`Ctrl`/`Cmd` + `Z` / `Ctrl`/`Cmd` + `Y`), và bản xem trước được cập nhật tức thì sau mỗi thao tác.
 >
 > Nút **Link** trên thanh công cụ mở hộp thoại để nhập văn bản và URL, trong khi phím tắt `Ctrl`/`Cmd` + `K` chèn nhanh `[link](url)` ngay tại vị trí con trỏ với `url` được bôi đen sẵn để dán — dùng cách nào tiện hơn tùy bạn.
+
+### Tìm & thay thế
+
+Tìm kiếm và thay thế ngay trong tài liệu hiện tại, không cần rời khung soạn thảo:
+
+- **Mở:** nhấn `Ctrl`/`Cmd` + `F`, hoặc bấm nút kính lúp ở cuối thanh công cụ định dạng. Hàng **Replace** mặc định đang gập — nhấn `Ctrl`/`Cmd` + `H` để mở panel kèm hàng này.
+- **Tìm:** gõ từ khoá, rồi dùng **▲** / **▼** (hoặc `Enter` / `Shift` + `Enter`) để chuyển giữa các kết quả. Bộ đếm hiện vị trí kết quả hiện tại và tổng số kết quả.
+- **Tuỳ chọn:** **Aa** phân biệt hoa thường; **.*` coi từ khoá là biểu thức chính quy. Ở chế độ biểu thức chính quy, ô thay thế nhận `$1`…`$9`, `$&` (toàn bộ kết quả khớp), `$'` (phần chữ trước kết quả khớp) và `$$` (ký tự `$` thật).
+- **Thay thế:** **Replace** chỉ thay kết quả hiện tại; **Replace All** thay tất cả kết quả cùng lúc.
+- **Tô sáng:** phần chữ khớp được tô sáng thẳng trong editor, để bạn thấy panel đang trỏ tới đâu (tối đa 500 kết quả được tô màu cùng lúc).
+
+> [!NOTE]
+> Panel chỉ quét nội dung editor, không quét DOM của khung Preview. Mở panel không đổi chế độ xem của bạn — nhưng nếu đang ở chế độ chỉ **Preview**, bấm chuyển tới một kết quả sẽ tạm hiện khung **Editor**.
 
 ### Phím tắt trong Editor
 
@@ -179,18 +197,20 @@ Khung soạn thảo hỗ trợ sẵn các phím tắt định dạng và chỉnh
 
 | Phím tắt | Chức năng |
 | :--- | :--- |
+| `Ctrl`/`Cmd` + `F` | Mở panel tìm & thay thế |
+| `Ctrl`/`Cmd` + `H` | Mở panel tìm & thay thế kèm hàng **Replace** |
 | `Ctrl`/`Cmd` + `B` | In đậm đoạn văn bản đang chọn |
 | `Ctrl`/`Cmd` + `I` | In nghiêng đoạn văn bản đang chọn |
 | `Ctrl`/`Cmd` + `Shift` + `X` | Gạch ngang giữa chữ (Strikethrough) |
-| `Ctrl`/`Cmd` + `E` hoặc `Ctrl` + phím backtick | Bọc đoạn chọn thành code inline |
+| `Ctrl`/`Cmd` + `E` | Bọc đoạn chọn thành code inline |
 | `Ctrl`/`Cmd` + `K` | Chèn liên kết, tự động bôi đen phần `url` để dán nhanh |
 | `Ctrl`/`Cmd` + `D` | Nhân bản dòng hiện tại (hoặc vùng đang chọn) |
 | `Ctrl`/`Cmd` + `Z` | Hoàn tác (Undo) |
-| `Ctrl`/`Cmd` + `Y` hoặc `Ctrl`/`Cmd` + `Shift` + `Z` | Làm lại (Redo) |
-| `Tab` / `Shift` + `Tab` | Thụt lề / hủy thụt lề — dùng được cả khi bôi đen nhiều dòng |
+| `Ctrl`/`Cmd` + `Y` | Làm lại (Redo) (`Cmd` + `Shift` + `Z` trên macOS, `Ctrl` + `Shift` + `Z` trên Linux) |
+| `Tab` / `Shift` + `Tab` | Thụt lề / hủy thụt lề — dùng được cả khi bôi đen nhiều dòng; không có vùng chọn thì `Tab` chèn 4 khoảng trắng |
 | `Enter` | Tự động giữ thụt lề, tiếp tục danh sách (`-`, `1.`, `>`, task list) hoặc thoát danh sách nếu dòng đang trống |
 | Gõ `(`, `[`, `{`, nháy đơn/kép, backtick, `*`, `_`, `~` hoặc `$` khi đang bôi đen | Tự động bao đoạn đang chọn bằng đúng ký hiệu vừa gõ |
-| Gõ `(`, `[`, `{`, nháy đơn/kép hoặc backtick khi không bôi đen | Tự động chèn luôn ký tự đóng; gõ lại ký tự đóng đó hoặc nhấn `Backspace` khi cặp đang rỗng sẽ nhảy qua / xoá cả cặp. Nháy đơn gõ ngay sau chữ cái hoặc chữ số (như `don't`) được coi là dấu lược nên không tự đóng |
+| Gõ `(`, `[`, `{` hoặc nháy đơn/kép khi không bôi đen | Tự động chèn luôn ký tự đóng khi ký tự ngay sau con trỏ cho phép — không bao giờ đóng ngay trước một chữ cái hoặc chữ số; gõ lại ký tự đóng đó hoặc nhấn `Backspace` khi cặp đang rỗng sẽ nhảy qua / xoá cả cặp. Nháy đơn gõ ngay sau chữ cái hoặc chữ số (như `don't`) được coi là dấu lược nên không tự đóng |
 
 ### Phím tắt Tab & File
 
@@ -216,7 +236,7 @@ Các phím tắt sau hoạt động ở mọi chế độ, kể cả **Preview**
 
 - **Cách mở file:** nút **Open** (`Ctrl`/`Cmd` + `O`), menu **Recent**, kéo-thả file vào cửa sổ, hoặc nhấp đúp file trong Windows (bộ cài đăng ký sẵn `.md`, `.markdown`, `.mdown`, `.mkd` và `.txt`). Ứng dụng chỉ chạy một cửa sổ — mở thêm file khi app đang chạy sẽ đưa file đó vào cửa sổ hiện có dưới dạng tab mới.
 - **File được hỗ trợ:** `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdx`, `.rmd`, `.qmd`, `.txt`, `.text`, hoặc file không có đuôi (như `README`). Các loại khác (ảnh, file thực thi, …) sẽ bị từ chối.
-- **Dung lượng:** không giới hạn dung lượng mỗi file. File cỡ nào cũng mở được và gõ được. File trên 5 MB hiện thông báo "quá lớn để xem trước" ở khung preview — nguồn file vẫn đọc và sửa đầy đủ ở chế độ Editor. File nhỏ hơn render theo từng khối — KaTeX, Mermaid và tô màu cú pháp chỉ chạy khi khối lọt vào vùng nhìn thấy, và sau lượt phân tích đầu chỉ khối nào bạn sửa mới được render lại. Session giữ bản nháp của tab tới 16 MB mỗi tab; tab file-backed lớn hơn được đọc lại từ đĩa khi mở lại app, và tab Untitled khổng lồ chưa lưu sẽ không được khôi phục.
+- **Dung lượng:** không giới hạn dung lượng mỗi file. File cỡ nào cũng mở được và gõ được. File trên 1.000.000 ký tự hiện thông báo "quá lớn để xem trước" ở khung preview — nguồn file vẫn đọc và sửa đầy đủ ở chế độ Editor. File nhỏ hơn render theo từng khối — KaTeX, Mermaid và tô màu cú pháp chỉ chạy khi khối lọt vào vùng nhìn thấy, và sau lượt phân tích đầu chỉ khối nào bạn sửa mới được render lại. Session giữ bản nháp của tab tới 16 MB mỗi tab; tab file-backed lớn hơn được đọc lại từ đĩa khi mở lại app, và tab Untitled khổng lồ chưa lưu sẽ không được khôi phục.
 - **Mã hoá:** mọi lần lưu đều ghi UTF-8. File lưu ở UTF-16 (ví dụ "Unicode" của Notepad) hoặc mã cũ của Windows (Windows-1252/1258) sẽ được nhận diện, chuyển sang UTF-8 trong bộ nhớ rồi mở ra — ứng dụng sẽ báo rằng file đã được chuyển mã và sẽ được lưu lại thành UTF-8. BOM UTF-8 và kiểu xuống dòng (LF/CRLF) của file được ghi nhớ và giữ nguyên khi lưu; bấm **LF**/**CRLF** trên thanh trạng thái để đổi. File không phải văn bản (file nhị phân) bị từ chối thay vì mở ra lỗi chữ.
 - **Thư mục:** bản này được cấu hình để đọc/ghi trong các thư mục Home, Documents, Desktop và Downloads (kể cả thư mục con). File ở nơi khác có thể bị từ chối — ứng dụng sẽ báo rõ, và **Save As** cho phép chọn vị trí khác.
 - **Mỗi file một tab:** file đã mở sẽ được chuyển tới thay vì mở thêm lần nữa.
@@ -251,8 +271,11 @@ File `.doc` sau khi xuất có thể mở bằng Microsoft Word. Các sơ đồ 
 ## Tổng quan kiến trúc
 
 Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng bộ nhớ và tốc độ phản hồi. Ứng dụng sử dụng kiến trúc hybrid:
-- **Core Runtime:** Tauri v2 (Rust backend) đảm bảo kích thước binary nhỏ gọn, quản lý clipboard native và API hệ thống với mức tiêu hao tài nguyên thấp.
+- **Core Runtime:** Tauri v2 (Rust backend) đảm bảo kích thước binary nhỏ gọn, quản lý clipboard native và API hệ thống với mức tiêu hao tài nguyên thấp. Plugin single-instance giữ một cửa sổ duy nhất và chuyển các file mở sau đó vào đó dưới dạng tab mới.
 - **Frontend Layer:** Hoàn toàn bằng Vanilla JavaScript/HTML5/CSS3. Không sử dụng Single Page Application (SPA) framework nặng nề, toàn bộ dependencies thư viện được lưu trữ cục bộ (`vendor/`), không phụ thuộc mạng CDN ngoài.
+- **Editor Engine:** CodeMirror 6, được bundle thủ công vào `src/vendor/codemirror.bundle.js`. Mọi tab dùng chung một `EditorView`; mỗi tab giữ `EditorState` riêng, nên lịch sử undo không trộn giữa các tab.
+- **Preview Pipeline:** Markdown được parse thành từng khối, băm (hash) và cache lại — sau lượt phân tích đầu chỉ khối bạn sửa mới được render lại. KaTeX, Mermaid và tô màu cú pháp chạy lazy khi khối lọt vào vùng nhìn thấy.
+- **Session Storage:** Bản nháp, thứ tự tab và đường dẫn file đang mở nằm trong IndexedDB, nên phiên làm việc vẫn còn sau khi khởi động lại, kể cả với tài liệu lớn.
 
 > [!NOTE]
 > Ứng dụng chạy hoàn toàn offline. Mọi quá trình parse Markdown, biên dịch công thức Toán học KaTeX và vẽ biểu đồ Mermaid đều được thực thi trực tiếp tại Webview client-side.
@@ -264,10 +287,12 @@ Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng b�
 | Phân hệ | Công nghệ / Thư viện | Vai trò |
 | :--- | :--- | :--- |
 | **Backend Core** | Tauri v2, Rust | Quản trị cửa sổ, Clipboard Manager, Opener, Dialog & FS Plugins, Single-instance (chỉ một cửa sổ chạy, file mở sau được chuyển vào cửa sổ đó), Snap Layout (khung snap của Windows 11 trên nút Maximize tự vẽ) |
+| **Editor Engine** | CodeMirror 6 | Soạn thảo Markdown, tô màu cú pháp trực tiếp, undo/redo, tự đóng ngoặc (bundle thủ công vào `src/vendor/codemirror.bundle.js`) |
 | **Markdown Parser**| Marked.js + DOMPurify | Phân tích cú pháp Markdown và lọc XSS an toàn |
 | **Mathematics** | KaTeX + marked-katex-extension | Xử lý công thức Toán học TeX/LaTeX |
 | **Diagram Engine** | Mermaid.js | Render biểu đồ từ cú pháp khai báo |
 | **Code Engine** | Highlight.js | Tô màu cú pháp khối mã lệnh |
+| **Preview Styling** | github-markdown-css | Kiểu chữ giống GitHub cho khung Preview (sáng + tối) |
 | **Iconography** | Lucide Icons | Hệ thống icon giao diện người dùng |
 
 ---
@@ -294,15 +319,16 @@ markdown-live-app/
 │   ├── js/                     # Module ES, nhóm theo trách nhiệm
 │   │   ├── main.js             # Điểm vào app: khởi tạo các module theo thứ tự
 │   │   ├── core/               # Tham chiếu DOM, toast, hàm dùng chung
-│   │   ├── editor/             # Thao tác soạn thảo, lịch sử undo/redo, tô màu trực tiếp
-│   │   ├── preview/            # Render Markdown -> HTML, sanitize, liên kết
+│   │   ├── editor/             # Bọc CodeMirror 6 (cm.js), panel tìm & thay thế,
+│   │   │                       # thao tác định dạng, phím tắt toàn cục
+│   │   ├── preview/            # Render theo khối + cache hash, sanitize, liên kết
 │   │   ├── export/             # Pipeline xuất .html / .doc / .pdf
-│   │   ├── io/                 # Lưu trữ tab & tài liệu, nhập file từ ổ đĩa
+│   │   ├── io/                 # Lưu trữ tab & tài liệu, session trong IndexedDB
 │   │   ├── ui/                 # Thanh định dạng, hộp thoại, tab, đồng bộ cuộn, chế độ xem
 │   │   ├── theme/              # Theme Sáng / Tối
 │   │   └── dev/                # Tự kiểm tra (?selfcheck) + đo hiệu năng (?perf)
 │   ├── vendor/                 # Thư viện bên thứ 3 lưu cục bộ (marked, katex,
-│   │   └── fonts/              # mermaid...) + font web KaTeX
+│   │   └── fonts/              # mermaid, codemirror.bundle.js...) + font web KaTeX
 │   ├── PRIVACY.md              # Tuyên bố quyền riêng tư hiển thị trong hộp thoại About
 │   ├── THIRD_PARTY_NOTICES.md  # Giấy phép của các thư viện trong vendor/
 │   └── LICENSE                 # Giấy phép MIT cho frontend
@@ -312,11 +338,14 @@ markdown-live-app/
 │   │   └── main.rs
 │   ├── capabilities/           # Quyền plugin (dialog, fs, opener...)
 │   ├── icons/
+│   ├── build.rs
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── scripts/
 │   ├── sync-version.js         # Đồng bộ version + cache-busting tài nguyên
-│   └── vendor-update.js        # Làm mới src/vendor/ (npm run vendor)
+│   ├── vendor-update.js        # Làm mới src/vendor/ (npm run vendor)
+│   └── vendor/
+│       └── codemirror.entry.js # Điểm vào để build gói CM6 thủ công
 ├── images/                     # Ảnh chụp màn hình cho README
 ├── icon.png                    # Icon ứng dụng hiển thị trong README
 ├── README.vi.md                # Bản dịch tiếng Việt
@@ -335,6 +364,12 @@ Mọi đóng góp đều được hoan nghênh! Nếu bạn muốn cải thiện
 4. Mở Pull Request kèm mô tả ngắn gọn về thay đổi.
 
 Nếu phát hiện lỗi hoặc có đề xuất tính năng, vui lòng tạo [Issue](https://github.com/uytran0610/markdown-live-app/issues) mới.
+
+---
+
+## Quyền riêng tư
+
+Markdown Live lưu mọi thứ trên thiết bị của bạn — không tài khoản, không analytics, không telemetry. Xem đầy đủ [Tuyên bố Quyền riêng tư](src/PRIVACY.md).
 
 ---
 

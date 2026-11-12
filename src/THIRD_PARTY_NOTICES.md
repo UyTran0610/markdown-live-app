@@ -20,7 +20,7 @@ Every vendored file was verified by SHA-256 against the published release on npm
 
 ## Notes
 
-- `src/vendor/fonts/` contains 60 files (20 typefaces in `.ttf`, `.woff` and `.woff2`). They ship as part of KaTeX 0.19.0 under the same MIT license.
+- `src/vendor/fonts/` contains 20 files (20 typefaces in `.woff2` only). The upstream KaTeX 0.19.0 release also ships `.ttf` and `.woff` variants, but those are omitted: a browser always picks the first `src` entry in `@font-face` that it supports, and every target browser here supports `woff2`, so the `.ttf`/`.woff` copies were never requested. They ship as part of KaTeX 0.19.0 under the same MIT license.
 - `src/vendor/mermaid.min.js` is a bundled build that already contains DOMPurify 3.4.12 (Apache-2.0 or MPL-2.0) internally; that copy is not distributed separately. It handles KaTeX-style markup for its own math renderer but does not bundle KaTeX itself.
 - `src/vendor/highlight.min.js` is a custom 193-language bundle built with esbuild from the `lib/index.js` entry of the npm package; it carries no license banner, so the version is read from the `11.12.0` constant in the file itself. npm publishes no prebuilt browser bundle (only CommonJS/ESM sources), and `@highlightjs/cdn-assets/highlight.min.js` is the 37-language "common" build, so neither can replace it. Rebuild recipe lives in `scripts/vendor-update.js`.
 - `src/vendor/codemirror.bundle.js` is a custom CodeMirror 6 bundle built with esbuild from `scripts/vendor/codemirror.entry.js` and exposed as the global `CodeMirror`; npm publishes no browser bundle (only ESM per package), so it is built and vendored by hand. It embeds `codemirror` 6.0.2, `@codemirror/state` 6.7.6, `@codemirror/view` 6.43.15, `@codemirror/lang-markdown` 6.5.2, `@codemirror/commands` 6.11.1, `@codemirror/language` 6.13.1, `@codemirror/autocomplete` 6.20.4, `@lezer/highlight` 1.2.5 and `@lezer/markdown` 1.8.1 — all MIT. Rebuild recipe lives in `scripts/vendor-update.js`.
@@ -424,7 +424,7 @@ SOFTWARE.
 ## KaTeX
 
 - **Version:** 0.19.0
-- **Files:** `src/vendor/katex.min.js`, `src/vendor/katex.min.css`, `src/vendor/fonts/*` (60 files)
+- **Files:** `src/vendor/katex.min.js`, `src/vendor/katex.min.css`, `src/vendor/fonts/*` (20 files, `.woff2` only)
 - **Source:** npm: <https://www.npmjs.com/package/katex/v/0.19.0> &middot; GitHub: <https://github.com/KaTeX/KaTeX/tree/0.19.0>
 - **License:** MIT
 - **License text retrieved from:** https://cdn.jsdelivr.net/npm/katex@0.19.0/LICENSE

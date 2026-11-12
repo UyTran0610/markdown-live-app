@@ -166,16 +166,17 @@ async function npmLatestVersion(npmName) {
 }
 
 // 'dist/fonts/**' -> mọi file font trực tiếp trong thư mục đó.
+// Chỉ woff2: WebView2 luôn chọn format đầu tiên trong @font-face nên .woff/.ttf không bao giờ tải.
 // Rỗng = sai đường dẫn, phải ném lỗi: im lặng trả [] thì bước prune sẽ xoá sạch thư mục.
 async function expandGlob(pkg, remote, version) {
   if (!remote.endsWith('/**')) return [remote];
   const dir = remote.slice(0, -2); // bỏ '**', giữ dấu '/' cuối
   const files = await listPackageFiles(`${pkg.npm}@${version}`);
-  const exts = new Set(['.ttf', '.woff', '.woff2']);
+  const exts = new Set(['.woff2']);
   const matched = files
     .filter((f) => f.startsWith(dir) && !f.slice(dir.length).includes('/') && exts.has(path.extname(f)))
     .sort();
-  if (!matched.length) throw new Error(`${pkg.npm}@${version} không có file nào khớp "${dir}*.{ttf,woff,woff2}"`);
+  if (!matched.length) throw new Error(`${pkg.npm}@${version} không có file nào khớp "${dir}*.woff2"`);
   return matched;
 }
 

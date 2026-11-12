@@ -131,7 +131,7 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 | :--- | :--- |
 | **Open** | Mở một hoặc nhiều file Markdown từ máy. Mỗi file mở thành một tab riêng, và file đã mở sẽ được chuyển tới thay vì mở trùng (`Ctrl`/`Cmd` + `O`) |
 | **Recent** | Menu các file vừa mở, cuối danh sách có **Clear Recent Files** (chỉ hiện sau khi bạn đã mở ít nhất một file) |
-| **Save** | Ghi nội dung tab hiện tại về lại file trên ổ đĩa, hoặc hỏi vị trí lưu nếu tab chưa có file. Nút bị vô hiệu cho tới khi tab có thay đổi chưa lưu (`Ctrl`/`Cmd` + `S`) |
+| **Save** | Ghi nội dung tab hiện tại về lại file trên ổ đĩa, hoặc hỏi vị trí lưu nếu tab chưa có file. Nút bị vô hiệu cho tới khi tab có thay đổi chưa lưu, và cũng bị vô hiệu với tab có file không đọc được hoặc đã bị xóa (dùng **Save As** trong trường hợp đó) (`Ctrl`/`Cmd` + `S`) |
 | **Save As** | Lưu tab hiện tại thành file mới hoặc ở vị trí mới (`Ctrl`/`Cmd` + `Shift` + `S`) |
 | **Save All** | Lưu toàn bộ tab đang có thay đổi chưa lưu, lần lượt từng tab (`Ctrl`/`Cmd` + `Alt` + `S`); chỉ hiện khi có từ hai tab đang thay đổi trở lên |
 | **Copy** | Sao chép toàn bộ nội dung Markdown của tab hiện tại vào clipboard |
@@ -185,11 +185,11 @@ Tìm kiếm và thay thế ngay trong tài liệu hiện tại, không cần r�
 - **Mở:** nhấn `Ctrl`/`Cmd` + `F`, hoặc bấm nút kính lúp ở cuối thanh công cụ định dạng. Hàng **Replace** mặc định đang gập; nhấn `Ctrl`/`Cmd` + `H` để mở panel kèm hàng này.
 - **Tìm:** gõ từ khoá, rồi dùng **▲** / **▼** (hoặc `Enter` / `Shift` + `Enter`) để chuyển giữa các kết quả. Bộ đếm hiện vị trí kết quả hiện tại và tổng số kết quả.
 - **Tuỳ chọn:** **Aa** phân biệt hoa thường, còn **`.*`** coi từ khoá là biểu thức chính quy. Ở chế độ biểu thức chính quy, ô thay thế nhận `$1`…`$9`, `$&` (toàn bộ kết quả khớp), `$'` (phần chữ trước kết quả khớp) và `$$` (ký tự `$` thật).
-- **Thay thế:** **Replace** chỉ thay kết quả hiện tại, còn **Replace All** thay tất cả kết quả cùng lúc.
+- **Thay thế:** **Replace** chỉ thay kết quả hiện tại, còn **Replace All** thay tất cả kết quả cùng lúc. Một kết quả chỉ trở thành "hiện tại" sau khi bạn chuyển tới nó bằng **▲** / **▼** hoặc `Enter`, nên **Replace** sẽ không làm gì cho tới khi bạn đã chọn một kết quả.
 - **Tô sáng:** phần chữ khớp được tô sáng thẳng trong editor để bạn thấy panel đang trỏ tới đâu. Tối đa 500 kết quả được tô màu cùng lúc, và việc tìm kiếm dừng ở 5.000 kết quả.
 
 > [!NOTE]
-> Panel chỉ quét nội dung editor, không quét DOM của khung Preview. Mở panel không đổi chế độ xem của bạn, nhưng nếu đang ở chế độ chỉ **Preview**, bấm chuyển tới một kết quả sẽ tạm hiện khung **Editor**.
+> Panel chỉ quét nội dung editor, không quét DOM của khung Preview. Mở panel không đổi chế độ xem của bạn, nhưng nếu đang ở chế độ chỉ **Preview**, bấm chuyển tới một kết quả sẽ chuyển sang chế độ **Editor**. Việc chuyển này không được lưu nên lần mở sau ứng dụng khôi phục chế độ xem trước đó, nhưng cho tới lúc đó bạn vẫn ở **Editor** và cần tự chuyển lại về **Preview**.
 
 ### Phím tắt trong Editor
 
@@ -243,9 +243,9 @@ Các phím tắt sau hoạt động ở mọi chế độ, kể cả **Preview**
 ## Giới hạn & lưu ý khi mở file
 
 - **Cách mở file:** nút **Open** (`Ctrl`/`Cmd` + `O`), menu **Recent**, kéo-thả file vào cửa sổ, hoặc nhấp đúp file trong Windows (bộ cài đăng ký sẵn `.md`, `.markdown`, `.mdown`, `.mkd` và `.txt`). Ứng dụng chỉ chạy một cửa sổ, nên mở thêm file khi app đang chạy sẽ đưa file đó vào cửa sổ hiện có dưới dạng tab mới.
-- **File được hỗ trợ:** `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdx`, `.rmd`, `.qmd`, `.txt`, `.text`, hoặc file không có đuôi (như `README`). Các loại khác (ảnh, file thực thi, …) sẽ bị từ chối.
-- **Dung lượng:** không giới hạn dung lượng mỗi file, file cỡ nào cũng mở được và gõ được. File trên 1.000.000 ký tự sẽ hiện thông báo "quá lớn để xem trước" ở khung preview, còn nguồn file vẫn đọc và sửa đầy đủ ở chế độ Editor. File nhỏ hơn được render theo từng khối: KaTeX, Mermaid và tô màu cú pháp chỉ chạy khi khối lọt vào vùng nhìn thấy, và sau lượt phân tích đầu chỉ khối nào bạn sửa mới được render lại. Session giữ bản nháp của tab tới 16 MB mỗi tab. Tab file-backed lớn hơn được đọc lại từ đĩa khi mở lại app, còn tab Untitled khổng lồ chưa lưu sẽ không được khôi phục.
-- **Mã hoá:** mọi lần lưu đều ghi UTF-8. File lưu ở UTF-16 (ví dụ "Unicode" của Notepad) hoặc mã cũ của Windows (Windows-1252/1258) sẽ được nhận diện, chuyển sang UTF-8 trong bộ nhớ rồi mới mở, và ứng dụng sẽ báo rằng file đã được chuyển mã và sẽ được lưu lại thành UTF-8. BOM UTF-8 và kiểu xuống dòng (LF/CRLF) của file được ghi nhớ và giữ nguyên khi lưu; bấm **LF**/**CRLF** trên thanh trạng thái để đổi. File không phải văn bản (file nhị phân) bị từ chối thay vì mở ra lỗi chữ.
+- **File được hỗ trợ:** `.md`, `.markdown`, `.mdown`, `.mkd`, `.mdx`, `.rmd`, `.qmd`, `.txt`, `.text`, hoặc file không có đuôi (như `README`). Các loại khác (ảnh, file thực thi, …) sẽ bị từ chối. Hộp thoại **Open** chỉ liệt kê các đuôi ở trên, nên file không đuôi hãy mở bằng cách kéo-thả vào cửa sổ hoặc dùng **Open with** của Windows.
+- **Dung lượng:** không giới hạn dung lượng mỗi file, file cỡ nào cũng mở được và gõ được. File trên 1.000.000 ký tự sẽ hiện thông báo "quá lớn để xem trước" ở khung preview, còn nguồn file vẫn đọc và sửa đầy đủ ở chế độ Editor. File nhỏ hơn được render theo từng khối: KaTeX, Mermaid và tô màu cú pháp chỉ chạy khi khối lọt vào vùng nhìn thấy, và sau lượt phân tích đầu chỉ khối nào bạn sửa mới được render lại. Session giữ bản nháp của tab tới 16 triệu ký tự mỗi tab. Tab file-backed lớn hơn được đọc lại từ đĩa khi mở lại app, còn tab Untitled khổng lồ chưa lưu sẽ không được khôi phục.
+- **Mã hoá:** mọi lần lưu đều ghi UTF-8. File lưu ở UTF-16 (ví dụ "Unicode" của Notepad) hoặc mã cũ của Windows (Windows-1252/1258) sẽ được nhận diện, chuyển sang UTF-8 trong bộ nhớ rồi mới mở, và ứng dụng sẽ báo rằng file đã được chuyển mã và sẽ được lưu lại thành UTF-8. BOM UTF-8 và kiểu xuống dòng (LF/CRLF) của file được ghi nhớ và giữ nguyên khi lưu; bấm **LF**/**CRLF** trên thanh trạng thái để đổi. File không phải văn bản (file nhị phân) bị từ chối thay vì mở ra lỗi chữ. Các mã cũ khác (như Shift-JIS hoặc GBK) không được nhận diện và sẽ bị giải mã như Windows-1252 nên có thể hiện lỗi chữ; hãy chuyển chúng sang UTF-8 trước.
 - **Thư mục:** bản này được cấu hình để đọc/ghi trong các thư mục Home, Documents, Desktop và Downloads (kể cả thư mục con). File ở nơi khác có thể bị từ chối. Ứng dụng sẽ báo rõ, và **Save As** cho phép chọn vị trí khác.
 - **Mỗi file một tab:** file đã mở sẽ được chuyển tới thay vì mở thêm lần nữa.
 - **Thay đổi từ bên ngoài ứng dụng:** khi cửa sổ được focus lại (hoặc khi bạn chuyển sang một tab), ứng dụng kiểm tra file trên đĩa. Tab không có thay đổi chưa lưu sẽ tự tải lại, còn tab đang có thay đổi chưa lưu sẽ hỏi **Keep my version** (giữ bản của bạn) hay **Load from disk** (tải từ đĩa). Nếu file đã bị xóa, tab hiện dấu `!` và việc lưu sẽ đi qua **Save As**.

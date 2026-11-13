@@ -52,7 +52,36 @@ const tauriDialogPlugin = () => (window.__TAURI__ ? window.__TAURI__.dialog : un
 
 const tauriFsPlugin = () => (window.__TAURI__ ? window.__TAURI__.fs : undefined);
 
+const tauriInvoke = () => (window.__TAURI__ ? window.__TAURI__.core?.invoke : undefined);
+
 const hasTauriBridge = () => !!(tauriDialogPlugin()?.save && tauriFsPlugin()?.writeTextFile);
+
+// File tạm cạnh file gốc khi ghi atomic (khớp TMP_SUFFIX trong src-tauri/src/lib.rs).
+const TMP_SUFFIX = '.md-live.tmp';
+
+// Duyệt quyền đọc/ghi cho path ngoài $HOME (session, Recent, kéo-thả). Rust kiểm file tồn tại
+// và đuôi văn bản; webview vẫn là ranh giới tin cậy (xem AGENTS.md, mục fs scope).
+export async function allowTextFiles(paths) {
+    const invoke = tauriInvoke();
+    if (!invoke || !paths || !paths.length) return;
+    try {
+        await invoke('allow_text_files', { paths });
+    } catch (err) {
+        console.warn('[fs] allow_text_files failed', err);
+    }
+}
+
+// File .tmp cạnh file gốc chỉ được duyệt khi file gốc đã nằm trong scope.
+async function allowTempSibling(path) {
+    const invoke = tauriInvoke();
+    if (!invoke) return false;
+    try {
+        return await invoke('allow_temp_sibling', { path });
+    } catch (err) {
+        console.warn('[fs] allow_temp_sibling failed', err);
+        return false;
+    }
+}
 
 // KHÔNG đặt tên isTauri: Tauri inject global isTauri, trùng tên gây SyntaxError.
 const isTauriRuntime = () => !!window.__TAURI__;
@@ -130,7 +159,7 @@ export async function readTextFile(path) {
         if (isEncodingError(err)) {
             showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
         } else if (isAclError(err)) {
-            showToast('Could not read that file. This build can only open files inside your home, Documents, Desktop or Downloads folder.');
+            showToast('Could not read that file. It may be missing, or the app may not have access to that location.');
         } else {
             showToast(`Could not read the file: ${errorDetail(err)}`);
         }
@@ -310,15 +339,30 @@ export async function chooseSavePath(defaultPath, extensions) {
 
 // Ghi đè file đã biết path, không mở hộp thoại; dùng chung bắt lỗi ACL với saveTextFile.
 export async function writeTextFile(path, contents, eol = '\n', bom = false) {
-    // File tạm cạnh file thật: cùng thư mục nên nằm trong fs:scope sẵn có.
-    const tmp = path + '.md-live.tmp';
+    // File tạm cạnh file thật: cần cùng nằm trong fs scope mới ghi atomic được.
+    const tmp = path + TMP_SUFFIX;
     try {
         const body = applyEol(contents, eol);
         const payload = bom ? '\uFEFF' + body : body;
-        // Ghi atomic: tạm cạnh file rồi rename đè; writeTextFile thẳng sẽ truncate trước khi ghi.
-        // rename trên Windows dùng MoveFileEx(REPLACE_EXISTING) nên đè được file đã tồn tại.
-        await window.__TAURI__.fs.writeTextFile(tmp, payload);
+        // File gốc phải đã được duyệt thì mới cho phép ghi file .tmp cạnh nó.
+        const tmpAllowed = await allowTempSibling(path);
+        if (!tmpAllowed) {
+            // Không có quyền ghi file .tmp: ghi thẳng (không atomic) để không mất thay đổi.
+            await window.__TAURI__.fs.writeTextFile(path, payload);
+            return true;
+        }
         try {
+            await window.__TAURI__.fs.writeTextFile(tmp, payload);
+        } catch (err) {
+            // Chỉ lỗi phạm vi mới ghi thẳng. Lỗi I/O (đầy đĩa, file khoá) phải ném ra:
+            // writeTextFile truncate file cũ trước khi ghi nên ghi thẳng là mất nội dung gốc.
+            if (!isAclError(err)) throw err;
+            await removeQuietly(tmp);
+            await window.__TAURI__.fs.writeTextFile(path, payload);
+            return true;
+        }
+        try {
+            // rename trên Windows dùng MoveFileEx(REPLACE_EXISTING) nên đè được file đã tồn tại.
             await window.__TAURI__.fs.rename(tmp, path);
         } catch (err) {
             // Rename hỏng (file khoá, ACL): ghi thẳng để không mất thay đổi, rồi dọn file tạm.
@@ -331,7 +375,7 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
         // Ghi hỏng giữa chừng (đầy đĩa, mất quyền): file tạm có thể đã tồn tại, dọn luôn.
         await removeQuietly(tmp);
         if (isAclError(err)) {
-            showToast('Could not save there. This build can only save inside your home, Documents, Desktop or Downloads folder - pick another location.');
+            showToast('Could not save that file. The app may not have permission for that location.');
         } else {
             showToast(`Could not save the file: ${errorDetail(err)}`);
         }

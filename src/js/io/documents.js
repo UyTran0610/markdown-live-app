@@ -3,7 +3,7 @@
 import { btnImport, btnSave, btnSaveAll, btnSaveAs, previewOutput } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { createEditorState, getView, readOnlyReconfigureEffect, setEditorState } from '../editor/cm.js';
-import { chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
+import { allowTextFiles, chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { renderCachedHtml, renderMarkdown, snapshotPreviewBlocks, invalidateBlockCache } from '../preview/render.js';
 import { confirmAction } from '../ui/confirm-dialog.js';
 import { loadSession, migrateLegacySession, whenSessionWritten, writeSession } from './session-store.js';
@@ -392,6 +392,8 @@ export async function openFiles() {
 export async function openPaths(paths) {
     // Danh sách rỗng: không làm gì.
     if (!paths || !paths.length) return;
+    // Duyệt quyền đọc cho file ngoài $HOME (Recent, argv, kéo-thả) trước khi đọc.
+    await allowTextFiles(paths);
     let failed = 0;
     const created = [];
     let reused = null;
@@ -907,6 +909,9 @@ export async function restoreSession() {
             // Chưa từng dùng app: mở một tab Untitled rỗng, sạch.
             activeId = createTab().id;
         }
+
+        // Duyệt quyền đọc cho tab gắn file và danh sách Recent (có thể nằm ngoài $HOME).
+        await allowTextFiles([...tabs.map((tab) => tab.path), ...recentPaths].filter(Boolean));
 
         // Đọc tab đang mở trước rồi mới tới tab nền: textarea rỗng suốt lúc chờ đĩa sẽ bị captureActive() đè.
         const active = getActiveTab();

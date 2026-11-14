@@ -102,7 +102,7 @@ let dragSkippedWarned = false;
 async function measureDividerDrag() {
     if (window.matchMedia(VERTICAL_LAYOUT_MQ).matches) {
         if (!dragSkippedWarned) {
-            console.warn('Perf: kéo divider bị bỏ (bố cục dọc <=768px, trục đo ngang vô nghĩa).');
+            console.warn('Perf: divider drag skipped (vertical layout <=768px, the horizontal axis is meaningless).');
             dragSkippedWarned = true;
         }
         return null;
@@ -243,8 +243,8 @@ export async function runPerfCheck() {
     }
 
     // Số trung bình để đánh giá cơ bản; không đặt ngưỡng PASS/FAIL vì ms phụ thuộc máy.
-    console.log(`Perf check: ${DOC_SIZES.length} document sizes, ${RUNS} runs each (trung bình).`);
-    console.log('typing = độ trễ một phím gõ (transaction CodeMirror + layout/paint); editor = sửa giữa tài liệu kèm tô màu lại; handler = phần việc của app sau mỗi lần gõ; saveSession = ghi phiên kể cả hash; drag frame = đầu khung rAF -> sau paint.');
+    console.log(`Perf check: ${DOC_SIZES.length} document sizes, ${RUNS} runs each (average).`);
+    console.log('typing = latency of one keystroke (CodeMirror transaction + layout/paint); editor = an edit in the middle of the document with re-highlighting; handler = app work after each keystroke; saveSession = writing the session including the hash; drag frame = start of the rAF frame -> after paint.');
     console.table(rows);
     showToast(`Perf: ${DOC_SIZES.length} sizes × ${RUNS} runs (see console.table)`);
 }

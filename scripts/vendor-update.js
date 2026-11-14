@@ -160,7 +160,7 @@ const latestCache = new Map();
 async function npmLatestVersion(npmName) {
   if (latestCache.has(npmName)) return latestCache.get(npmName);
   const data = await fetchJson(`${REGISTRY}/${encodeURIComponent(npmName)}/latest`);
-  if (typeof data.version !== 'string') throw new Error(`npm không trả về version cho ${npmName}`);
+  if (typeof data.version !== 'string') throw new Error(`npm did not return a version for ${npmName}`);
   latestCache.set(npmName, data.version);
   return data.version;
 }
@@ -176,7 +176,7 @@ async function expandGlob(pkg, remote, version) {
   const matched = files
     .filter((f) => f.startsWith(dir) && !f.slice(dir.length).includes('/') && exts.has(path.extname(f)))
     .sort();
-  if (!matched.length) throw new Error(`${pkg.npm}@${version} không có file nào khớp "${dir}*.woff2"`);
+  if (!matched.length) throw new Error(`${pkg.npm}@${version} has no file matching "${dir}*.woff2"`);
   return matched;
 }
 
@@ -185,7 +185,7 @@ async function findLicenseFile(pkg, version) {
   for (const name of LICENSE_NAMES) {
     if (files.includes(name)) return name;
   }
-  throw new Error(`${pkg.npm}@${version} không có file license (thử: ${LICENSE_NAMES.join(', ')})`);
+  throw new Error(`${pkg.npm}@${version} has no license file (tried: ${LICENSE_NAMES.join(', ')})`);
 }
 
 // 0.16 -> 0.19 là breaking dù major vẫn là 0, nên 0.x so cả minor.
@@ -215,7 +215,7 @@ function topLevelSections(doc) {
 function patchSection(doc, name, patch) {
   const sections = topLevelSections(doc);
   const i = sections.findIndex((s) => s.name === name);
-  if (i === -1) throw new Error(`Không tìm thấy section "## ${name}" trong THIRD_PARTY_NOTICES.md`);
+  if (i === -1) throw new Error(`Section "## ${name}" not found in THIRD_PARTY_NOTICES.md`);
   const start = sections[i].start;
   const end = i + 1 < sections.length ? sections[i + 1].start : doc.length;
   // Không cần patch nào khớp cũng OK: chạy lại ở version hiện tại là no-op.
@@ -224,7 +224,7 @@ function patchSection(doc, name, patch) {
 
 function patchNoticesTableRow(doc, pkg, version) {
   const re = new RegExp(`^(\\|\\s*\\[${esc(pkg.name)}\\]\\([^)]*\\)\\s*\\|\\s*)(\\S+?)(\\s*\\|)`, 'm');
-  if (!re.test(doc)) throw new Error(`Không tìm thấy dòng bảng cho ${pkg.name}`);
+  if (!re.test(doc)) throw new Error(`No table row found for ${pkg.name}`);
   return doc.replace(re, `$1${version}$3`);
 }
 
@@ -249,7 +249,7 @@ function patchPackageSection(doc, pkg, version, licenseFile, licenseText) {
 
 function currentVersion(doc, pkg) {
   const m = new RegExp(`^\\|\\s*\\[${esc(pkg.name)}\\]\\([^)]*\\)\\s*\\|\\s*(\\S+?)\\s*\\|`, 'm').exec(doc);
-  if (!m) throw new Error(`Không tìm thấy dòng bảng cho ${pkg.name} trong THIRD_PARTY_NOTICES.md`);
+  if (!m) throw new Error(`No table row found for ${pkg.name} in THIRD_PARTY_NOTICES.md`);
   return m[1];
 }
 
@@ -270,7 +270,7 @@ function pruneFonts(keep) {
   for (const f of fs.readdirSync(dir)) {
     if (keep.has(`fonts/${f}`)) continue;
     fs.rmSync(path.join(dir, f));
-    console.log(`    - xoá file thừa fonts/${f}`);
+    console.log(`    - removed extra file fonts/${f}`);
   }
 }
 
@@ -288,7 +288,7 @@ async function updatePackage(pkg, version) {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       const changed = writeFileAtomic(target, buf);
       written.add(local.split(path.sep).join('/'));
-      console.log(`    ${changed ? 'cập nhật' : 'giữ nguyên'}  ${local}  (${buf.length} bytes)`);
+      console.log(`    ${changed ? 'updated' : 'unchanged'}  ${local}  (${buf.length} bytes)`);
     }
   }
 
@@ -298,10 +298,10 @@ async function updatePackage(pkg, version) {
   const next = patchPackageSection(
     patchNoticesTableRow(doc, pkg, version), pkg, version, licenseFile, licenseText);
   writeFileAtomic(NOTICES_PATH, next);
-  console.log(`    notices: version ${version}, license lấy từ ${licenseFile}`);
+  console.log(`    notices: version ${version}, license taken from ${licenseFile}`);
 
-  console.log('    ⚠ kiểm tra lại phần "## Notes" của notices — version ghi trong đó');
-  console.log('      (dependency nội bộ của bundle mermaid) không được script tự sửa.');
+  console.log('    ⚠ recheck the "## Notes" section of the notices — the version written there');
+  console.log('      (internal dependency of the mermaid bundle) is not patched by this script.');
 }
 
 function parseArgs(argv) {
@@ -316,23 +316,23 @@ function parseArgs(argv) {
     else if (a && a.startsWith('--set=')) { args.mode = 'apply'; pin(args.pins, a.slice('--set='.length)); }
     else if (a && a.startsWith('--only=')) { args.mode = 'apply'; args.only = splitList(a.slice('--only='.length)); }
     else if (a === '--help' || a === '-h') args.mode = 'help';
-    else throw new Error(`Tham số lạ: ${a}`);
+    else throw new Error(`Unknown argument: ${a}`);
   }
   if (args.all && (args.only || Object.keys(args.pins).length)) {
-    throw new Error('--all không đi cùng --only/--set — chọn một: --all | --only <pkg> | --set <pkg>@<ver>');
+    throw new Error('--all cannot be combined with --only/--set — choose one: --all | --only <pkg> | --set <pkg>@<ver>');
   }
   return args;
 }
 
 function splitList(v) {
-  if (!v) throw new Error('Thiếu danh sách package sau --only');
+  if (!v) throw new Error('Missing package list after --only');
   return v.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
 function pin(pins, value) {
-  if (!value) throw new Error('Thiếu giá trị sau --set, vd: --set marked@15.0.12');
+  if (!value) throw new Error('Missing value after --set, e.g.: --set marked@15.0.12');
   const at = value.lastIndexOf('@');
-  if (at <= 0) throw new Error(`--set cần dạng <package>@<version>, vd: --set marked@15.0.12 (nhận "${value}")`);
+  if (at <= 0) throw new Error(`--set requires <package>@<version>, e.g.: --set marked@15.0.12 (got "${value}")`);
   pins[value.slice(0, at).trim()] = value.slice(at + 1).trim();
 }
 
@@ -342,20 +342,20 @@ function selectPackages(only, pins) {
   if (!wanted.size) return PACKAGES;
   const picked = PACKAGES.filter((p) => wanted.has(p.name) || wanted.has(p.npm));
   const unknown = [...wanted].filter((w) => !picked.some((p) => p.name === w || p.npm === w));
-  if (unknown.length) throw new Error(`Không có package nào tên "${unknown.join(', ')}"`);
+  if (unknown.length) throw new Error(`No package named "${unknown.join(', ')}"`);
   return picked;
 }
 
 function usage() {
-  console.log(`Cập nhật thư viện trong src/vendor/ + src/THIRD_PARTY_NOTICES.md
+  console.log(`Update the libraries in src/vendor/ + src/THIRD_PARTY_NOTICES.md
 
-  node scripts/vendor-update.js                 (= --check) báo cáo version hiện tại vs npm latest
-  node scripts/vendor-update.js --all            nâng TẤT CẢ package lên npm latest
-  node scripts/vendor-update.js --only <pkg>[,<pkg>] nâng package lên npm latest
-  node scripts/vendor-update.js --set <pkg>@<ver>     ghim version cụ thể (ghép nhiều: --set a@1 --set b@2)
+  node scripts/vendor-update.js                 (= --check) report the current version vs npm latest
+  node scripts/vendor-update.js --all            upgrade ALL packages to npm latest
+  node scripts/vendor-update.js --only <pkg>[,<pkg>] upgrade the listed packages to npm latest
+  node scripts/vendor-update.js --set <pkg>@<ver>     pin a specific version (can combine: --set a@1 --set b@2)
 
-Package hỗ trợ: ${PACKAGES.map((p) => p.name).join(', ')}
-Không tự động: ${MANUAL_PACKAGES.map((p) => p.name).join(', ')} (bundle tự build, không có trên CDN)`);
+Supported packages: ${PACKAGES.map((p) => p.name).join(', ')}
+Not automatic: ${MANUAL_PACKAGES.map((p) => p.name).join(', ')} (self-built bundle, not on the CDN)`);
 }
 
 async function main() {
@@ -373,17 +373,17 @@ async function main() {
       rows.push({ pkg: pkg.name, cur, latest, breaking: isBreakingJump(cur, latest) });
     }
     for (const m of MANUAL_PACKAGES) {
-      rows.push({ pkg: m.name, cur: currentVersion(doc, { name: m.name }), latest: '— build tay —', breaking: false, manual: true });
+      rows.push({ pkg: m.name, cur: currentVersion(doc, { name: m.name }), latest: '— manual build —', breaking: false, manual: true });
     }
     const w = Math.max(...rows.map((r) => r.pkg.length));
     for (const r of rows) {
-      const flag = r.manual ? 'build tay      '
+      const flag = r.manual ? 'manual build   '
         : r.cur === r.latest ? 'ok             '
-        : r.breaking ? 'CẦN REVIEW     '
-        : 'có bản mới      ';
+        : r.breaking ? 'NEEDS REVIEW   '
+        : 'new version    ';
       console.log(`${r.pkg.padEnd(w)}  ${flag}  ${r.cur} -> ${r.latest}`);
     }
-    console.log('\nDùng --all (tất cả), --only <pkg> hoặc --set <pkg>@<ver> để cập nhật.');
+    console.log('\nUse --all (all), --only <pkg> or --set <pkg>@<ver> to update.');
     return;
   }
 
@@ -395,7 +395,7 @@ async function main() {
       if (cur !== latest && isBreakingJump(cur, latest)) breaking.push(`    ${pkg.name}: ${cur} -> ${latest}`);
     }
     if (breaking.length) {
-      console.log('Sắp nhảy major, có thể phá app — nhớ test lại sau khi chạy:');
+      console.log('Major version jump ahead, may break the app — retest after running:');
       console.log(breaking.join('\n'));
     }
   }
@@ -409,9 +409,9 @@ async function main() {
   for (const f of fs.readdirSync(VENDOR_DIR)) {
     const full = path.join(VENDOR_DIR, f);
     if (!fs.statSync(full).isFile() || owned.has(f)) continue;
-    console.log(`\n⚠ ${f} trong src/vendor/ không thuộc package nào trong bảng registry — kiểm tra thủ công.`);
+    console.log(`\n⚠ ${f} in src/vendor/ does not belong to any package in the registry table — check it manually.`);
   }
-  console.log('\nXong. Chạy `npm run tauri dev` để xác nhận app vẫn render sau khi nhảy version.');
+  console.log('\nDone. Run `npm run tauri dev` to confirm the app still renders after the version bump.');
 }
 
 main().catch((e) => {

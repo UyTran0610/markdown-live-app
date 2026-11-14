@@ -903,7 +903,7 @@ async function loadRestoredSession() {
     try {
         await migrateLegacySession(legacyRaw);
     } catch (e) {
-        console.error('Không migrate được phiên cũ sang IndexedDB:', e);
+        console.error('Could not migrate the legacy session to IndexedDB:', e);
     }
     return deserializeSession(legacyRaw);
 }
@@ -922,7 +922,7 @@ export async function restoreSession() {
         try {
             restored = await loadRestoredSession();
         } catch (e) {
-            console.error('Không đọc được phiên làm việc:', e);
+            console.error('Could not read the working session:', e);
             restored = null;
         }
 

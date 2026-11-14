@@ -7,11 +7,11 @@ on:
   workflow_dispatch: # Cho phép bấm nút "Run workflow" thủ công trên GitHub
     inputs:
       version:
-        description: 'Tên phiên bản (VD: v1.0.0)'
+        description: 'Release tag (e.g. v1.0.0)'
         required: true
         default: 'v1.0.0'
       release_notes:
-        description: 'Release note (tuỳ chọn). Dùng \n để xuống dòng, hỗ trợ Markdown. Để trống = tự tạo từ các commit.'
+        description: 'Release note (optional). Use \n for line breaks, Markdown supported. Leave empty to generate it from the commits.'
         required: false
         default: ''
 
@@ -79,7 +79,7 @@ jobs:
             git commit -m "chore: bump version to $VERSION [skip ci]"
             git push origin HEAD:"$BRANCH"
           else
-            echo "Version không đổi, bỏ qua commit."
+            echo "Version unchanged, skipping the commit."
           fi
 
       # Chuẩn bị nội dung release note:
@@ -95,12 +95,12 @@ jobs:
             printf '%s' "$INPUT_NOTES" | sed 's/\\n/\n/g' > release-notes.md
             echo "body_path=release-notes.md" >> $GITHUB_OUTPUT
             echo "auto=false" >> $GITHUB_OUTPUT
-            echo "Dùng release note do người dùng nhập:"
+            echo "Using the release note entered by the user:"
             cat release-notes.md
           else
             echo "body_path=" >> $GITHUB_OUTPUT
             echo "auto=true" >> $GITHUB_OUTPUT
-            echo "Không có release note nhập tay, sẽ tự tạo từ commit."
+            echo "No manual release note, generating one from the commits."
           fi
 
       - name: Install Node dependencies
@@ -125,7 +125,7 @@ jobs:
           } elseif (Test-Path "src-tauri/target/release/markdown-live.exe") {
             Copy-Item "src-tauri/target/release/markdown-live.exe" -Destination "Markdown-Live-Portable.exe"
           } else {
-            Write-Error "Không tìm thấy file .exe đầu ra trong target/release!"
+            Write-Error "No .exe output file found in target/release!"
             exit 1
           }
 
@@ -134,7 +134,7 @@ jobs:
           if ($nsis) {
             Copy-Item $nsis.FullName -Destination "Markdown-Live-Setup.exe"
           } else {
-            Write-Error "Không tìm thấy installer NSIS (.exe) trong target/release/bundle/nsis!"
+            Write-Error "No NSIS installer (.exe) found in target/release/bundle/nsis!"
             exit 1
           }
 
@@ -143,7 +143,7 @@ jobs:
           if ($msi) {
             Copy-Item $msi.FullName -Destination "Markdown-Live-Setup.msi"
           } else {
-            Write-Error "Không tìm thấy installer MSI (.msi) trong target/release/bundle/msi!"
+            Write-Error "No MSI installer (.msi) found in target/release/bundle/msi!"
             exit 1
           }
 

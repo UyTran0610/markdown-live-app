@@ -22,7 +22,7 @@ function openDb() {
             };
             req.onsuccess = () => resolve(req.result);
             req.onerror = () => reject(req.error);
-            req.onblocked = () => reject(new Error('IndexedDB bị chặn bởi một tab khác của app'));
+            req.onblocked = () => reject(new Error('IndexedDB is blocked by another app tab'));
         }).catch((err) => {
             dbPromise = null;
             throw err;

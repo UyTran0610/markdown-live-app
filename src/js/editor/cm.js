@@ -7,7 +7,7 @@
 import { cmHost } from '../core/dom.js';
 
 const CM = window.CodeMirror;
-if (!CM) throw new Error('Thiếu src/vendor/codemirror.bundle.js: CodeMirror 6 chưa được nạp.');
+if (!CM) throw new Error('Missing src/vendor/codemirror.bundle.js: CodeMirror 6 was not loaded.');
 
 export const {
     EditorView,
@@ -92,7 +92,7 @@ export function setSelectionHandler(fn) {
 }
 
 function requireView() {
-    if (!view) throw new Error('Editor chưa khởi tạo: thiếu initEditorView().');
+    if (!view) throw new Error('Editor is not initialized: initEditorView() is missing.');
     return view;
 }
 

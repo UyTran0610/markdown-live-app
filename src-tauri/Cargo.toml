@@ -1,7 +1,7 @@
 [package]
 name = "markdown-live"
 version = "3.0.0"
-description = "Trình soạn thảo Markdown hai chiều thời gian thực (Offline-first)"
+description = "Real-time bidirectional Markdown editor (Offline-first)"
 authors = ["Uy Tran"]
 edition = "2021"
 
@@ -38,7 +38,7 @@ webview2-com = "0.38"
 windows-core = "0.61"
 
 [package.metadata.winres]
-FileDescription = "Trình soạn thảo Markdown hai chiều thời gian thực"
+FileDescription = "Real-time bidirectional Markdown editor"
 CompanyName = "Uy Tran"
 ProductName = "Markdown Live"
 LegalCopyright = "Copyright © 2026 Uy Tran. Released under the MIT License."

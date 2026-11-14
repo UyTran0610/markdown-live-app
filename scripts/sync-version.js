@@ -43,7 +43,7 @@ function resolveExistingPath(candidates, fileDescription) {
     const fullPath = path.join(ROOT, relPath);
     if (fs.existsSync(fullPath)) return fullPath;
   }
-  throw new Error(`Không tìm thấy file ${fileDescription} ở bất kỳ vị trí nào: ${candidates.join(', ')}`);
+  throw new Error(`File ${fileDescription} not found in any of these locations: ${candidates.join(', ')}`);
 }
 
 const TAURI_CONF = resolveExistingPath(['src-tauri/tauri.conf.json', 'tauri.conf.json'], 'tauri.conf.json');
@@ -54,7 +54,7 @@ function parseTauriConf(content) {
   try {
     return JSON.parse(content);
   } catch (e) {
-    throw new Error('tauri.conf.json không phải JSON hợp lệ: ' + e.message);
+    throw new Error('tauri.conf.json is not valid JSON: ' + e.message);
   }
 }
 
@@ -64,11 +64,11 @@ function setTauriConfVersion(content, version) {
   const escaped = oldVersion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`(^\\s*"version"\\s*:\\s*)"${escaped}"`, 'm');
   if (!pattern.test(content)) {
-    throw new Error('Không tìm thấy trường "version" cấp cao nhất trong tauri.conf.json');
+    throw new Error('Top-level "version" field not found in tauri.conf.json');
   }
   const next = content.replace(pattern, `$1"${version}"`);
   if (getTauriConfVersion(next) !== version) {
-    throw new Error('Cập nhật version thất bại (kiểm tra hậu điều kiện không đạt)');
+    throw new Error('Version update failed (the post-condition check did not pass)');
   }
   return next;
 }
@@ -76,7 +76,7 @@ function setTauriConfVersion(content, version) {
 function getTauriConfVersion(content) {
   const obj = parseTauriConf(content);
   if (typeof obj.version !== 'string' || !obj.version) {
-    throw new Error('Không tìm thấy trường "version" trong tauri.conf.json');
+    throw new Error('No "version" field found in tauri.conf.json');
   }
   return obj.version;
 }
@@ -98,7 +98,7 @@ function setCargoVersion(content, version) {
       break;
     }
   }
-  if (!done) throw new Error('Không tìm thấy version trong block [package] của Cargo.toml');
+  if (!done) throw new Error('No version found in the [package] block of Cargo.toml');
   return lines.join(eol);
 }
 
@@ -126,12 +126,12 @@ function main() {
   if (setIdx !== -1) {
     version = args[setIdx + 1];
     if (!version) {
-      console.error('Thiếu giá trị version sau --set, vd: --set 1.2.0');
+      console.error('Missing version value after --set, e.g.: --set 1.2.0');
       process.exit(1);
     }
     version = version.replace(/^v/, '');
     if (!isValidVersion(version)) {
-      console.error(`Version không hợp lệ: "${version}" (cần dạng X.Y.Z, vd: 1.2.0)`);
+      console.error(`Invalid version: "${version}" (expected X.Y.Z, e.g.: 1.2.0)`);
       process.exit(1);
     }
 
@@ -143,12 +143,12 @@ function main() {
     cargoToml = setCargoVersion(cargoToml, version);
     writeFileAtomic(CARGO_TOML, cargoToml);
 
-    console.log(`[sync-version] Đã cập nhật version = ${version} vào tauri.conf.json & Cargo.toml`);
+    console.log(`[sync-version] Updated version = ${version} in tauri.conf.json & Cargo.toml`);
   } else {
     const tauriConf = readFile(TAURI_CONF);
     version = getTauriConfVersion(tauriConf);
     if (!isValidVersion(version)) {
-      throw new Error(`Version trong tauri.conf.json không hợp lệ: "${version}"`);
+      throw new Error(`Version in tauri.conf.json is invalid: "${version}"`);
     }
   }
 
@@ -156,7 +156,7 @@ function main() {
   indexHtml = syncIndexHtmlVersion(indexHtml, version);
   writeFileAtomic(INDEX_HTML, indexHtml);
 
-  console.log(`[sync-version] Đã đồng bộ cache-busting ?v=${version} vào ${path.relative(ROOT, INDEX_HTML)}`);
+  console.log(`[sync-version] Synced cache-busting ?v=${version} into ${path.relative(ROOT, INDEX_HTML)}`);
 }
 
 main();

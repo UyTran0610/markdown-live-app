@@ -1,6 +1,6 @@
 [package]
 name = "markdown-live"
-version = "3.0.0"
+version = "3.0.1"
 description = "Real-time bidirectional Markdown editor (Offline-first)"
 authors = ["Uy Tran"]
 edition = "2021"

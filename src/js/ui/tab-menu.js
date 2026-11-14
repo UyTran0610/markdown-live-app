@@ -8,7 +8,7 @@ import {
     getRecentPaths,
     getTabs,
     isMarkdownPath,
-    isTabDirty,
+    needsSave,
     openPaths,
     saveTab,
     subscribe,
@@ -34,7 +34,7 @@ function copyPath(path) {
 async function closeClosable(filter) {
     const targets = getTabs().filter((t) => !t.pinned && filter(t));
     if (!targets.length) return;
-    const dirty = targets.filter(isTabDirty);
+    const dirty = targets.filter(needsSave);
     let saveThem = false;
     if (dirty.length) {
         const choice = await confirmAction({
@@ -51,7 +51,7 @@ async function closeClosable(filter) {
     let closed = 0;
     for (const tab of targets) {
         // Chỉ 'saved' và 'discard' mới đóng tab; huỷ Save As hoặc ghi hỏng thì tab ở lại.
-        const result = saveThem && isTabDirty(tab) ? await saveTab(tab) : 'saved';
+        const result = saveThem && needsSave(tab) ? await saveTab(tab) : 'saved';
         if (result !== 'saved' && result !== 'discard') continue;
         // force: câu hỏi đã được trả lời ở trên, không hỏi lại từng tab.
         await closeTab(tab.id, { force: true });
@@ -66,13 +66,13 @@ export function openTabMenu(tab, x, y) {
     const rightSide = index < 0 ? [] : getTabs().slice(index + 1);
 
     openPopupMenu([
-        { label: 'Save', disabled: !isTabDirty(tab), onClick: () => saveTab(tab) },
+        { label: 'Save', disabled: !needsSave(tab), onClick: () => saveTab(tab) },
         { label: 'Save As...', onClick: () => saveTab(tab, { as: true }) },
         { separator: true },
         { label: 'Close', onClick: () => closeTab(tab.id) },
         { label: 'Close Others', disabled: !others.some((t) => !t.pinned), onClick: () => closeClosable((t) => t.id !== tab.id) },
         { label: 'Close to the Right', disabled: !rightSide.some((t) => !t.pinned), onClick: () => closeClosable((t) => rightSide.includes(t)) },
-        { label: 'Close Saved Tabs', disabled: !others.some((t) => !t.pinned && !isTabDirty(t)), onClick: () => closeClosable((t) => t.id !== tab.id && !isTabDirty(t)) },
+        { label: 'Close Saved Tabs', disabled: !others.some((t) => !t.pinned && !needsSave(t)), onClick: () => closeClosable((t) => t.id !== tab.id && !needsSave(t)) },
         { separator: true },
         { label: tab.pinned ? 'Unpin Tab' : 'Pin Tab', onClick: () => updateTabPin(tab.id) },
         { label: 'Copy Path', disabled: !tab.path, onClick: () => copyPath(tab.path) },
@@ -101,7 +101,7 @@ export function openRecentMenu(anchor) {
 export function openAllTabsMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
     openPopupMenu(getTabs().map((tab) => ({
-        label: `${isTabDirty(tab) ? '* ' : ''}${tab.name}${tab.status !== 'ok' ? '  [!]' : ''}`,
+        label: `${needsSave(tab) ? '* ' : ''}${tab.name}${tab.status !== 'ok' ? '  [!]' : ''}`,
         onClick: () => switchTab(tab.id)
     })), rect.left, rect.bottom);
 }

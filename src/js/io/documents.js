@@ -73,6 +73,15 @@ export function isTabDirty(tab) {
     return result;
 }
 
+// Cần ghi khi nội dung đổi HOẶC EOL đổi: EOL nằm ngoài nội dung nên đổi EOL không làm tab dirty,
+// bấm Ctrl+S mà chỉ sửa EOL thì phải ghi được, không thì status bar nói dối.
+export function needsSave(tab) {
+    if (!tab) return false;
+    if (isTabDirty(tab)) return true;
+    // Tab chưa có mốc EOL trên đĩa thì coi như khớp, đừng bắt ghi.
+    return tab.diskEol !== undefined && tab.eol !== tab.diskEol;
+}
+
 // Chuỗi đầy đủ của tab: live doc nếu có state, không thì cache content (tab chưa khôi phục).
 export function tabText(tab) {
     if (tab.state) return tab.state.doc.toString();
@@ -113,6 +122,8 @@ function createTab({ path = null, name = null, content = '', savedContent = cont
         content,
         savedContent,
         eol,
+        // EOL đang có trên đĩa: khác eol nghĩa là người dùng muốn đổi kiểu xuống dòng.
+        diskEol: eol,
         bom,
         encoding,
         readOnly: readOnly === true,
@@ -273,7 +284,7 @@ function rememberClosedTab(tab) {
         path: tab.path, name: tab.name, content: tab.state ? '' : tabText(tab), savedContent: tab.savedContent,
         savedHash: tab.savedHash, savedLen: tab.savedLen,
         savedDoc: tab.savedDoc, state: tab.state,
-        eol: tab.eol, bom: tab.bom, encoding: tab.encoding, readOnly: tab.readOnly,
+        eol: tab.eol, diskEol: tab.diskEol, bom: tab.bom, encoding: tab.encoding, readOnly: tab.readOnly,
         status: tab.status, diskMtime: tab.diskMtime, pinned: tab.pinned
     });
     if (closedTabs.length > CLOSED_TAB_LIMIT) closedTabs.shift();
@@ -294,6 +305,7 @@ export function reopenClosedTab() {
     });
     if (!open) {
         tab.savedHash = closed.savedHash; tab.savedLen = closed.savedLen;
+        if (closed.diskEol) tab.diskEol = closed.diskEol;
         if (closed.state) { tab.state = closed.state; tab.savedDoc = closed.savedDoc; }
     }
     activateTab(tab);
@@ -303,7 +315,7 @@ export async function closeTab(id, { force = false, remember = true } = {}) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
     // force: đóng hàng loạt — người dùng đã trả lời một hộp thoại cho cả nhóm.
-    if (!force && isTabDirty(tab)) {
+    if (!force && needsSave(tab)) {
         // 3 lựa chọn thay confirm(): confirm() không có Save, bấm nhầm Cancel là mất bản nháp.
         const choice = await confirmAction({
             title: 'Close tab',
@@ -406,7 +418,7 @@ export async function openPaths(paths) {
             reused = existing;
             continue;
         }
-        const decoded = await readTextFile(path);
+        const decoded = await readTextFile(path, notes);
         const tab = createTab({ path, name: baseName(path) });
         // Đọc xong mới tạo tab; lỗi thì xoá tab vừa dựng, không để sót tab ma.
         if (!applyDiskText(tab, decoded, { notes })) {
@@ -439,7 +451,9 @@ let lastSaveDir = null;
 // Giữ đuôi và thư mục của tab; hàm thuần, selfcheck gọi được.
 export function suggestSavePath(tab, content) {
     const sep = tab.path && String(tab.path).includes('\\') ? '\\' : '/';
-    const dir = tab.path ? String(tab.path).slice(0, String(tab.path).lastIndexOf(sep)) : (lastSaveDir || '');
+    const cut = tab.path ? String(tab.path).lastIndexOf(sep) : -1;
+    // Path không có separator (file tương đối) -> không có thư mục để ghép, đừng cắt chuỗi.
+    const dir = tab.path ? (cut > 0 ? String(tab.path).slice(0, cut) : '') : (lastSaveDir || '');
     const dot = tab.path ? tab.name.lastIndexOf('.') : -1;
     const base = dot > 0 ? tab.name.slice(0, dot) : (tab.path ? tab.name : '');
     const ext = dot > 0 ? tab.name.slice(dot + 1) : 'md';
@@ -469,7 +483,7 @@ export async function saveTab(tab, options = {}) {
     // cũ nhưng vẫn gõ được; nội dung lấy từ live state qua tabText().
     if (tab.id === activeId) captureActive();
     // Tab sạch không cần ghi; ngoại lệ tab lỗi vẫn phải cho lưu.
-    if (!isTabDirty(tab) && tab.status === 'ok' && !options.as) return 'saved';
+    if (!needsSave(tab) && tab.status === 'ok' && !options.as) return 'saved';
     saving = true;
     try {
         // Chụp nội dung TRƯỚC mọi await: người dùng gõ trong lúc hộp thoại mở thì đĩa nhận bản
@@ -544,6 +558,8 @@ export async function saveTab(tab, options = {}) {
         // Ghi xong: đĩa khớp tab, kể cả khi Save As chọn lại path cũ của tab lỗi.
         tab.status = 'ok';
         tab.diskMtime = mtimeOf(await statFile(path));
+        // EOL vừa ghi xuống đĩa: đổi EOL lần sau mới tính là thay đổi nữa.
+        tab.diskEol = tab.eol;
         tab.savedContent = snapshot;
         // savedDoc + hash chụp cùng lúc: gõ trong lúc hộp thoại mở thì tab vẫn dirty.
         tab.savedDoc = snapshotDoc;
@@ -563,7 +579,7 @@ export async function saveTab(tab, options = {}) {
 
 // Lưu tuần tự: mỗi bước có thể mở hộp thoại Save As nên không chạy song song.
 export async function saveAllTabs() {
-    const dirty = tabs.filter(isTabDirty);
+    const dirty = tabs.filter(needsSave);
     if (!dirty.length) {
         showToast('Nothing to save.');
         return;
@@ -598,6 +614,8 @@ function applyDiskText(tab, decoded, { keepDraft = false, lead = '', notes = nul
     const diskText = toLf(stripBom(raw));
     tab.eol = detectEol(raw);
     tab.bom = detectBom(raw);
+    // EOL đọc từ đĩa: người dùng đổi EOL sau đó mới tính là thay đổi cần ghi.
+    tab.diskEol = tab.eol;
     tab.encoding = decoded.encoding || 'UTF-8';
     tab.status = 'ok';
     // keepDraft: giữ nội dung editor, chỉ cập nhật savedContent về bản đĩa.
@@ -653,7 +671,7 @@ async function diskOkToWrite(tab) {
     if (revision === 'gone') {
         tab.status = 'missing';
         emit();
-        if (!isTabDirty(tab)) return 'stop';
+        if (!needsSave(tab)) return 'stop';
         const choice = await confirmAction({
             title: 'File is gone',
             message: `"${tab.path}"\nno longer exists on disk, and this tab has unsaved changes.`,
@@ -661,10 +679,13 @@ async function diskOkToWrite(tab) {
         });
         // KHÔNG gọi closeTab() ở đây: saving còn bật nên Save ở hộp thoại thứ hai luôn thất bại.
         if (choice === 'close') return 'discard';
-        return choice === 'saveas' ? 'saveas' : 'stop';
+        if (choice === 'saveas') return 'saveas';
+        // Đóng hộp thoại = hủy lưu; im lặng thì người dùng tưởng đã lưu.
+        showToast('No changes were written.');
+        return 'stop';
     }
 
-    if (!isTabDirty(tab)) {
+    if (!needsSave(tab)) {
         // Tab sạch: đĩa là nguồn đúng, tải lại không hỏi.
         await reloadTabFromDisk(tab);
         return 'stop';
@@ -679,6 +700,8 @@ async function diskOkToWrite(tab) {
         return 'stop';
     }
     if (choice !== 'keep') {
+        // Đóng hộp thoại = hủy lưu; nói rõ, im lặng thì người dùng tưởng đã lưu xong.
+        if (!choice) showToast('No changes were written.');
         // Nhớ mtime đã bỏ qua để Alt+Tab không bật lại đúng hộp thoại này.
         tab.diskIgnoredMtime = mtimeOf(await statFile(tab.path));
         return 'stop';
@@ -821,6 +844,9 @@ export function deserializeSession(raw, fallbackId = 1) {
             savedHash: typeof t.savedHash === 'string' ? t.savedHash : null,
             savedLen: Number.isFinite(t.savedLen) ? t.savedLen : null,
             eol: t.eol === '\r\n' ? '\r\n' : '\n',
+            // EOL trên đĩa chưa biết cho tới khi đọc file; tạm lấy theo session,
+            // tab đọc lại đĩa thì applyDiskText() chốt lại.
+            diskEol: t.eol === '\r\n' ? '\r\n' : '\n',
             bom: t.bom === true,
             encoding: typeof t.encoding === 'string' && t.encoding ? t.encoding : 'UTF-8',
             readOnly: t.readOnly === true,
@@ -942,7 +968,7 @@ export async function restoreSession() {
 async function loadTabFromDisk(tab, notes = null) {
     if (!tab || !tab.reload) return;
     tab.reload = false;
-    const decoded = await readTextFile(tab.path);
+    const decoded = await readTextFile(tab.path, notes);
     const wasBroken = tab.status !== 'ok';
     const hadDraft = !!tabText(tab);
     // "Recovered" là phần đầu của một câu, không phải toast riêng: toast chỉ có một ô.

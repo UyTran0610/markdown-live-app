@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { findInput, infoAbout, infoBody, infoDialog, infoDoc, previewOutput, replaceInput, tableMenu } from '../core/dom.js';
+import { findInput, infoAbout, infoBody, infoDialog, infoDoc, previewOutput, replaceInput, tableMenu, toast } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
@@ -36,13 +36,13 @@ import {
 import { handleEditorChange, renderDelayFor } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
-import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, sameFilePath, stripBom, toLf } from '../export/file-save.js';
+import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readErrorMessage, readTextFile, sameFilePath, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, getActiveTab, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, untitledName } from '../io/documents.js';
+import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, getActiveTab, needsSave, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, untitledName } from '../io/documents.js';
 import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
 import { assignHeadingIds, flushLazyRenders, renderMarkdown } from '../preview/render.js';
@@ -129,6 +129,13 @@ export async function runSelfCheck() {
         assert('path Windows không phân biệt hoa thường và dấu gạch', sameFilePath('C:\\Docs\\A.md', 'c:/docs/a.md') === true);
         assert('path khác thư mục vẫn khác file', sameFilePath('/x/a.md', '/y/a.md') === false);
         assert('path thiếu đường dẫn không khớp', sameFilePath(null, '/x/a.md') === false);
+        // Đường dẫn tương đối (không có separator): cắt chuỗi sẽ ra rác kiểu "a.m/a.md".
+        assert('save path tương đối không cắt nhầm thư mục', suggestSavePath({ path: 'a.md', name: 'a.md' }, '') === 'a.md');
+        assert('save path windows giữ thư mục', suggestSavePath({ path: 'C:\\d\\a.md', name: 'a.md' }, '') === 'C:\\d\\a.md');
+        // EOL đổi thì phải ghi được dù nội dung không đổi, không thì status bar nói dối.
+        assert('tab sạch, EOL khớp -> không cần lưu', needsSave({ content: 'x', savedContent: 'x', eol: '\n', diskEol: '\n' }) === false);
+        assert('tab sạch, EOL khác -> phải lưu', needsSave({ content: 'y', savedContent: 'y', eol: '\r\n', diskEol: '\n' }) === true);
+        assert('lỗi đọc: lý do ACL nói rõ', readErrorMessage(new Error('forbidden path: C:\\x\\a.md')).includes('Could not read that file'));
 
         await section('khối #1', async () => {
             const noOverflow = tabScrollState(400, 400, 0);
@@ -410,6 +417,53 @@ export async function runSelfCheck() {
 
             const plain = decodeTextBytes(bytes(0x23, 0x20, 0x41));
             assert('file UTF-8 thường -> giữ nguyên chữ', !!plain && plain.text === '# A' && plain.converted === false);
+        });
+
+        // Mở/lưu file: lỗi phải nói rõ, và lần ghi hỏng không được xoá mất bản nháp.
+        await section('mở/lưu file: lỗi rõ + giữ bản tạm', async () => {
+            const realTauri = window.__TAURI__;
+            const target = 'C:\\selfcheck\\a.md';
+            const tmp = target + '.md-live.tmp';
+            const calls = [];
+            // fs giả: đọc thì bị chặn ACL, ghi file gốc thì hỏng, rename thì bị khoá.
+            const fakeFs = {
+                readFile: async () => { throw new Error('forbidden path: ' + target); },
+                writeTextFile: async (path) => {
+                    calls.push(['write', path]);
+                    if (path === target) throw new Error('disk full');
+                },
+                rename: async () => { calls.push(['rename']); throw new Error('file is locked'); },
+                remove: async (path) => { calls.push(['remove', path]); }
+            };
+            // window.__TAURI__ có thể bị khoá: không gán được thì bỏ phần test này.
+            let stubbed = false;
+            try {
+                window.__TAURI__ = { core: { invoke: async () => true }, fs: fakeFs };
+                stubbed = window.__TAURI__ && window.__TAURI__.fs === fakeFs;
+            } catch (e) {
+                stubbed = false;
+            }
+            if (!stubbed) {
+                skip('stub fs để thử lỗi ghi file', 'window.__TAURI__ không gán được');
+                return;
+            }
+            try {
+                // Lỗi đọc: đẩy lý do vào notes, không toast (toast chỉ một ô, lý do không được bị đè).
+                const notes = [];
+                const toastBefore = toast.textContent;
+                const decoded = await readTextFile(target, notes);
+                assert('lỗi đọc -> ghi lý do vào notes', decoded === null && notes.length === 1 && notes[0].includes('Could not read that file'));
+                assert('lỗi đọc có notes -> không đè toast', toast.textContent === toastBefore);
+
+                // Ghi hỏng sau rename lỗi: file tạm là bản nội dung mới, không được xoá.
+                calls.length = 0;
+                const ok = await writeTextFile(target, 'hello');
+                assert('ghi hỏng -> báo thất bại', ok === false);
+                assert('ghi hỏng -> giữ file tạm (không xoá bản nháp)', !calls.some((c) => c[0] === 'remove' && c[1] === tmp));
+                assert('ghi hỏng -> toast nói chỗ cứu bản nháp', toast.textContent.includes(tmp));
+            } finally {
+                window.__TAURI__ = realTauri;
+            }
         });
 
         // readOnly phải sống cùng session, nếu không mỗi lần khởi động lại mở khoá gõ.

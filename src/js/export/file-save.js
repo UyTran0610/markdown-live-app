@@ -120,6 +120,9 @@ export function sameFilePath(a, b) {
     return windows ? na.toLowerCase() === nb.toLowerCase() : na === nb;
 }
 
+// File không phải UTF-8: mở ra sẽ hỏng nội dung nên từ chối, không đoán bừa.
+const NOT_UTF8_MESSAGE = 'That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.';
+
 // Plugin fs ném lỗi thô; đừng đổ mọi lỗi cho ACL khi có thể là UTF-8, ổ đầy hay file khoá.
 function isEncodingError(err) {
     const msg = String((err && err.message) || err).toLowerCase();
@@ -148,28 +151,33 @@ export function hashText(text) {
     return (h >>> 0).toString(36);
 }
 
+// Lý do đọc hỏng. Hàm thuần để self-check gọi được.
+export function readErrorMessage(err) {
+    if (isEncodingError(err)) return NOT_UTF8_MESSAGE;
+    if (isAclError(err)) return 'Could not read that file. It may be missing, or the app may not have access to that location.';
+    return `Could not read the file: ${errorDetail(err)}`;
+}
+
 // Đọc BYTES rồi tự giải mã: readTextFile không-fatal sẽ biến byte lạ thành U+FFFD và lần lưu
 // sau ghi hỏng file. Ở đây file lạ được CHUYỂN sang UTF-8, chỉ từ chối file nhị phân thật.
-export async function readTextFile(path) {
+// notes: mảng gom thông báo của nhiều file; có notes thì không toast (toast chỉ có một ô).
+export async function readTextFile(path, notes = null) {
     let bytes;
     try {
         bytes = await window.__TAURI__.fs.readFile(path);
     } catch (err) {
         console.error('Read failed:', err);
-        if (isEncodingError(err)) {
-            showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
-        } else if (isAclError(err)) {
-            showToast('Could not read that file. It may be missing, or the app may not have access to that location.');
-        } else {
-            showToast(`Could not read the file: ${errorDetail(err)}`);
-        }
+        const msg = readErrorMessage(err);
+        if (notes) notes.push(msg);
+        else showToast(msg);
         return null;
     }
 
     const decoded = decodeTextBytes(bytes);
     if (!decoded) {
         // File nhị phân thật: không có cách dịch an toàn, từ chối như cũ.
-        showToast('That file is not UTF-8 text, so opening it would corrupt its contents. Convert it to UTF-8 first.');
+        if (notes) notes.push(NOT_UTF8_MESSAGE);
+        else showToast(NOT_UTF8_MESSAGE);
     }
     return decoded;
 }
@@ -341,6 +349,10 @@ export async function chooseSavePath(defaultPath, extensions) {
 export async function writeTextFile(path, contents, eol = '\n', bom = false) {
     // File tạm cạnh file thật: cần cùng nằm trong fs scope mới ghi atomic được.
     const tmp = path + TMP_SUFFIX;
+    // Ghi thẳng vào file gốc là writeTextFile truncate trước: hỏng giữa chừng là mất bản gốc.
+    let directWrite = false;
+    // File tạm đã ghi xong = còn nguyên nội dung mới để cứu.
+    let tmpWritten = false;
     try {
         const body = applyEol(contents, eol);
         const payload = bom ? '\uFEFF' + body : body;
@@ -348,16 +360,19 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
         const tmpAllowed = await allowTempSibling(path);
         if (!tmpAllowed) {
             // Không có quyền ghi file .tmp: ghi thẳng (không atomic) để không mất thay đổi.
+            directWrite = true;
             await window.__TAURI__.fs.writeTextFile(path, payload);
             return true;
         }
         try {
             await window.__TAURI__.fs.writeTextFile(tmp, payload);
+            tmpWritten = true;
         } catch (err) {
             // Chỉ lỗi phạm vi mới ghi thẳng. Lỗi I/O (đầy đĩa, file khoá) phải ném ra:
             // writeTextFile truncate file cũ trước khi ghi nên ghi thẳng là mất nội dung gốc.
             if (!isAclError(err)) throw err;
             await removeQuietly(tmp);
+            directWrite = true;
             await window.__TAURI__.fs.writeTextFile(path, payload);
             return true;
         }
@@ -366,18 +381,25 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
             await window.__TAURI__.fs.rename(tmp, path);
         } catch (err) {
             // Rename hỏng (file khoá, ACL): ghi thẳng để không mất thay đổi, rồi dọn file tạm.
+            directWrite = true;
             await window.__TAURI__.fs.writeTextFile(path, payload);
             await removeQuietly(tmp);
         }
         return true;
     } catch (err) {
         console.error('Write failed:', err);
-        // Ghi hỏng giữa chừng (đầy đĩa, mất quyền): file tạm có thể đã tồn tại, dọn luôn.
-        await removeQuietly(tmp);
-        if (isAclError(err)) {
-            showToast('Could not save that file. The app may not have permission for that location.');
+        const base = isAclError(err)
+            ? 'Could not save that file. The app may not have permission for that location.'
+            : `Could not save the file: ${errorDetail(err)}`;
+        if (directWrite) {
+            // File gốc có thể đã bị cắt cụt; file tạm còn nguyên là bản nội dung mới: GIỮ lại.
+            showToast(tmpWritten
+                ? `${base}\nThe original file may be damaged. Your text was kept in ${tmp}`
+                : `${base}\nThe original file may be damaged.`);
         } else {
-            showToast(`Could not save the file: ${errorDetail(err)}`);
+            // Ghi hỏng giữa chừng (đầy đĩa, mất quyền): file tạm có thể đã tồn tại, dọn luôn.
+            await removeQuietly(tmp);
+            showToast(base);
         }
         return false;
     }

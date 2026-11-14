@@ -1,7 +1,7 @@
 // js/ui/tabs.js — Dải tab: dựng lại từ store, bấm/middle-click, kéo đổi thứ tự.
 
 import { btnSave, btnSaveAll, btnSaveAs, btnTabScrollLeft, btnTabScrollRight, tabStrip } from '../core/dom.js';
-import { closeTab, getActiveTab, getTabs, isTabDirty, moveTab, newTab, subscribe, switchTab } from '../io/documents.js';
+import { closeTab, getActiveTab, getTabs, moveTab, needsSave, newTab, subscribe, switchTab } from '../io/documents.js';
 import { openAllTabsMenu } from './tab-menu.js';
 
 const STATUS_TITLE = {
@@ -11,7 +11,8 @@ const STATUS_TITLE = {
 
 // Dùng ký tự × vì lucide.createIcons() chỉ chạy một lần lúc DOMContentLoaded.
 function buildTab(tab, isActive, displayName, dupeCount) {
-    const dirty = isTabDirty(tab);
+    // Dấu chấm = có thay đổi chưa ghi: nội dung đổi HOẶC EOL đổi.
+    const dirty = needsSave(tab);
     const broken = tab.status !== 'ok';
 
     const el = document.createElement('div');
@@ -150,11 +151,12 @@ function render() {
     tabStrip.appendChild(add);
 
     // Save chỉ bật khi tab khác đĩa; tab lỗi không bật vì bấm Save sẽ thành Save As.
-    const dirty = !!(active && isTabDirty(active));
+    // needsSave: nội dung đổi HOẶC EOL đổi (EOL không nằm trong nội dung nên không làm tab dirty).
+    const savable = !!(active && needsSave(active));
     const broken = !!(active && active.status !== 'ok');
-    if (btnSave) btnSave.disabled = !dirty || broken;
+    if (btnSave) btnSave.disabled = !savable || broken;
     if (btnSaveAs) btnSaveAs.disabled = !active;
-    if (btnSaveAll) btnSaveAll.hidden = all.filter(isTabDirty).length < 2;
+    if (btnSaveAll) btnSaveAll.hidden = all.filter(needsSave).length < 2;
 
     // Chỉ cuộn tab active vào khung nhìn khi tab active đổi, nếu không dải tab bị giật.
     const activeChanged = !active || active.id !== lastRenderedActiveId;

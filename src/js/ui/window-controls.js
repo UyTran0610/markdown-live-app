@@ -2,7 +2,7 @@
 
 import { btnWinClose, btnWinMax, btnWinMin, titlebar } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { checkActiveTabDisk, flushSession, freezeSession, getTabs, isTabDirty, saveAllTabs } from '../io/documents.js';
+import { checkActiveTabDisk, flushSession, freezeSession, getTabs, needsSave, saveAllTabs } from '../io/documents.js';
 import { confirmAction } from './confirm-dialog.js';
 
 // Bản trình duyệt không có __TAURI__: nút vẫn hiện cho đúng layout nhưng bấm không làm gì.
@@ -46,7 +46,7 @@ export function initWindowControls() {
         closing = true;
         try {
             let discard = false;
-            const dirty = getTabs().filter(isTabDirty);
+            const dirty = getTabs().filter(needsSave);
             if (dirty.length) {
                 // "Don't save" phải xoá bản nháp khỏi session, nếu không lần mở sau vẫn thấy đồ đang dở.
                 const choice = await confirmAction({
@@ -57,8 +57,8 @@ export function initWindowControls() {
                 if (!choice) return;
                 if (choice === 'save') {
                     await saveAllTabs();
-                    // Huỷ Save As ở giữa chừng: vẫn còn tab dirty thì không được đóng.
-                    if (getTabs().some(isTabDirty)) {
+                    // Huỷ Save As ở giữa chừng: vẫn còn tab chưa lưu thì không được đóng.
+                    if (getTabs().some(needsSave)) {
                         showToast('Some tabs are still unsaved, so the window stays open.');
                         return;
                     }

@@ -5,7 +5,7 @@ import { paneResizer, previewOutput, viewItems, workspace } from '../core/dom.js
 import { showToast } from '../core/toast.js';
 import { getView } from '../editor/cm.js';
 import { handleEditorChange, renderDelayFor } from '../editor/sync.js';
-import { closeTab, getActiveTab, newTab, setTabReadOnly, switchTab, saveSession } from '../io/documents.js';
+import { closeTab, getActiveTab, newTab, setTabReadOnly, switchTab, saveSession, cacheActivePreview } from '../io/documents.js';
 import { whenSessionWritten } from '../io/session-store.js';
 import { renderMarkdown, whenMermaidIdle } from '../preview/render.js';
 
@@ -19,17 +19,19 @@ const VERTICAL_LAYOUT_MQ = '(max-width: 768px)';
 
 // shortcut: corpus cố định, không Mermaid/ảnh (async hoặc cache, khó so sánh); có công thức
 // để số render tính cả chi phí KaTeX.
+// Mỗi section phải là khối khác nhau: doc lặp lại cùng nội dung thì cache khối không bao giờ
+// đầy, lỗi LRU (đuổi cache khi sửa) bị giấu.
 const PARAGRAPH = 'Markdown Live xử lý mọi thứ trên máy: phân tích cú pháp, lọc HTML, tô màu cú pháp và vẽ sơ đồ. '
     + 'Đoạn văn dài giữ cho chi phí layout chiếm tỉ lệ giống tài liệu thật. ';
 
 function buildSection(n) {
-    return `## Mục ${n}\n\n${PARAGRAPH.repeat(3)}\n\n`
-        + '- Mục một có `inline code` và **đậm**\n- Mục hai\n- [ ] Việc cần làm\n- [x] Việc đã xong\n\n'
+    return `## Mục ${n}\n\n${PARAGRAPH.repeat(3)}Phần ${n}.\n\n`
+        + `- Mục một ở phần ${n} có \`inline code\` và **đậm**\n- Mục hai\n- [ ] Việc cần làm\n- [x] Việc đã xong\n\n`
         + `> Trích dẫn phần ${n}: **quan trọng** và *nhấn mạnh*.\n\n`
         + '| Cột A | Cột B | Cột C |\n| --- | --- | --- |\n'
         + `| ${n} | \`x\` | [link](https://example.com/${n}) |\n\n`
-        + '```js\nfunction probe(n) {\n    return [1, 2, 3].map((v) => v * n);\n}\n```\n\n'
-        + `$$\\int_0^1 x_n^2 \\, dx = \\tfrac{1}{2n+1}$$\n\n`
+        + `\`\`\`js\nfunction probe${n}(n) {\n    return [1, 2, 3].map((v) => v * n);\n}\n\`\`\`\n\n`
+        + `$$\\int_0^1 x_{${n}}^2 \\, dx = \\tfrac{1}{2n+1}$$\n\n`
         + `Công thức nội tuyến $x_n^2 + y_n^2$ của phần ${n}.\n\n`;
 }
 
@@ -157,24 +159,60 @@ export async function runPerfCheck() {
             renderMarkdown();
             void previewOutput.offsetHeight;
             void v.contentDOM.offsetHeight;
+            // Để callback KaTeX/hljs (IntersectionObserver) chạy xong trước khi đo.
+            await settle(300);
 
             const renderTimes = [];
+            const renderJsTimes = [];
+            const renderLayoutTimes = [];
+            const renderCacheTimes = [];
+            const unchangedTimes = [];
+            const unchangedJsTimes = [];
+            const unchangedLayoutTimes = [];
             const editorTimes = [];
             for (let run = 0; run < RUNS; run++) {
+                // Sửa trước để lượt render kế tiếp đo đúng đường "doc vừa đổi".
                 let start = performance.now();
-                renderMarkdown();
-                void previewOutput.offsetHeight; // ép layout, nếu không số đo bỏ qua phần đắt nhất
-                renderTimes.push(performance.now() - start);
-
-                start = performance.now();
-                // Sửa ở giữa tài liệu: đo đúng đường sửa + tô màu lại + lịch sử của CodeMirror.
                 const mid = Math.floor(v.state.doc.length / 2);
                 v.dispatch({ changes: { from: mid, insert: 'x' }, userEvent: 'input.type' });
                 void v.contentDOM.offsetHeight;
                 editorTimes.push(performance.now() - start);
 
-                // Nhường một nhịp cho frame và GC, tránh dồn mọi lượt đo vào một khung hình.
-                await settle(0);
+                // Lượt 1: doc vừa đổi -> DOM đổi. Tách phần trong renderMarkdown() và phần
+                // ép layout (offsetHeight) để biết chi phí nằm ở JS hay ở layout của browser.
+                start = performance.now();
+                renderMarkdown();
+                const renderMs = performance.now() - start;
+                // App thật gọi cacheActivePreview() ngay sau render (renderAndCache trong sync.js).
+                start = performance.now();
+                cacheActivePreview();
+                const cacheMs = performance.now() - start;
+                start = performance.now();
+                void previewOutput.offsetHeight;
+                const layoutMs = performance.now() - start;
+                renderTimes.push(renderMs + cacheMs + layoutMs);
+                renderJsTimes.push(renderMs);
+                renderCacheTimes.push(cacheMs);
+                renderLayoutTimes.push(layoutMs);
+
+                // Lượt 2: doc không đổi -> không đụng DOM. Nếu lượt này còn chậm thì chi phí
+                // bị trả trễ (deferred) sang lượt sau, không phải do việc dựng DOM.
+                start = performance.now();
+                renderMarkdown();
+                const unchangedRenderMs = performance.now() - start;
+                start = performance.now();
+                cacheActivePreview();
+                const unchangedCacheMs = performance.now() - start;
+                start = performance.now();
+                void previewOutput.offsetHeight;
+                const unchangedLayoutMs = performance.now() - start;
+                unchangedTimes.push(unchangedRenderMs + unchangedCacheMs + unchangedLayoutMs);
+                unchangedJsTimes.push(unchangedRenderMs);
+                unchangedLayoutTimes.push(unchangedLayoutMs);
+
+                // Render debounce (đặt lúc sửa) sẽ nổi sau đây: chờ nó xong để nó không chen
+                // vào lượt đo kế tiếp.
+                await settle(renderDelayFor(v.state.doc.length) + 150);
             }
 
             // Cuộn: đo đúng đường cuộn thật — CodeMirror chỉ vẽ lại phần vừa lọt vào khung nhìn.
@@ -219,6 +257,12 @@ export async function runPerfCheck() {
             rows.push({
                 chars: v.state.doc.length,
                 'render (ms)': round1(avg(renderTimes)),
+                'render js (ms)': round1(avg(renderJsTimes)),
+                'cache prev (ms)': round1(avg(renderCacheTimes)),
+                'layout (ms)': round1(avg(renderLayoutTimes)),
+                'unchanged (ms)': round1(avg(unchangedTimes)),
+                'unchanged js (ms)': round1(avg(unchangedJsTimes)),
+                'unchanged layout (ms)': round1(avg(unchangedLayoutTimes)),
                 'editor (ms)': round1(avg(editorTimes)),
                 'scroll (ms)': round1(avg(scrollTimes)),
                 'typing (ms)': round1(avg(typeTimes)),
@@ -245,6 +289,8 @@ export async function runPerfCheck() {
     // Số trung bình để đánh giá cơ bản; không đặt ngưỡng PASS/FAIL vì ms phụ thuộc máy.
     console.log(`Perf check: ${DOC_SIZES.length} document sizes, ${RUNS} runs each (average).`);
     console.log('typing = latency of one keystroke (CodeMirror transaction + layout/paint); editor = an edit in the middle of the document with re-highlighting; handler = app work after each keystroke; saveSession = writing the session including the hash; drag frame = start of the rAF frame -> after paint.');
+    console.log('render js = time spent inside renderMarkdown() (lexer + block hashing + patch + scrollHeight read); layout = forced layout right after it (offsetHeight).');
+    console.log('unchanged = the render right after the previous one, the document is unchanged so the DOM is untouched. If this pass is still slow, the cost is deferred to the next pass.');
     console.table(rows);
     showToast(`Perf: ${DOC_SIZES.length} sizes × ${RUNS} runs (see console.table)`);
 }

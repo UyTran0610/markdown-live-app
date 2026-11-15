@@ -14,12 +14,16 @@ export function cyrb53(str, seed = 0) {
     return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
 }
 
-const BLOCK_CACHE_LIMIT = 2000;
+const BLOCK_CACHE_LIMIT = 50000;
+// Tổng ký tự HTML trong cache (~16 MB): cache phải đủ chứa cả doc lớn nhất, nếu không LRU
+// đuổi đầu mỗi lượt render và doc nhiều khối khác nhau sẽ render lại từ đầu.
+const BLOCK_CACHE_MAX_CHARS = 8000000;
 // Block khổng lồ (bảng nhiều MB) không đáng giữ: chặn phình bộ nhớ khi lặp lại nhiều khối to.
 const BLOCK_CACHE_MAX_ENTRY = 1000000; // chars
 
 // Map giữ thứ tự chèn; get/ re-store để làm LRU.
 const blockCache = new Map();
+let cacheChars = 0;
 
 export function findBlockHtml(hash) {
     const html = blockCache.get(hash);
@@ -31,8 +35,19 @@ export function findBlockHtml(hash) {
 
 export function storeBlockHtml(hash, html) {
     if (html.length > BLOCK_CACHE_MAX_ENTRY) return;
+    const prev = blockCache.get(hash);
+    if (prev !== undefined) {
+        cacheChars -= prev.length;
+        blockCache.delete(hash);
+    }
     blockCache.set(hash, html);
-    while (blockCache.size > BLOCK_CACHE_LIMIT) blockCache.delete(blockCache.keys().next().value);
+    cacheChars += html.length;
+    // Đuổi bản cũ nhất (LRU) cho tới khi vừa vặn số khối vừa vặn tổng ký tự.
+    while (blockCache.size > BLOCK_CACHE_LIMIT || cacheChars > BLOCK_CACHE_MAX_CHARS) {
+        const oldest = blockCache.keys().next().value;
+        cacheChars -= blockCache.get(oldest).length;
+        blockCache.delete(oldest);
+    }
 }
 
 // Mô tả các khối đang nằm trong DOM; null = lần patch tới dựng lại toàn bộ.
@@ -41,6 +56,7 @@ let currentBlocks = null;
 export function resetBlocks() {
     currentBlocks = null;
     blockCache.clear();
+    cacheChars = 0;
 }
 
 // Bản chụp cho tab cache: chỉ hash + html, không giữ nodes.
@@ -106,7 +122,9 @@ export function patchBlocks(container, blocks, prepare) {
         out.push(rec);
         inserted.push(rec);
     }
-    for (let k = 1; k <= s; k++) {
+    // Suffix phải đẩy theo thứ tự tài liệu: đảo thứ tự làm currentBlocks lệch chuỗi hash,
+    // lượt sau không khớp được suffix nên chèn lại gần hết tài liệu.
+    for (let k = s; k >= 1; k--) {
         const src = prev[nPrev - k];
         out.push({ hash: blocks[nNew - k].hash, html: blocks[nNew - k].html, nodes: src.nodes });
     }

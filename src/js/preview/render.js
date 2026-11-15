@@ -1,7 +1,7 @@
 // js/preview/render.js — Render Markdown theo khối: marked.lexer tách token → hash → cache HTML
 // theo khối → chỉ patch khối đổi. KaTeX/Mermaid/hljs chỉ chạy khi khối vào viewport.
 
-import { charCounter, previewOutput } from '../core/dom.js';
+import { previewOutput, setCharCount } from '../core/dom.js';
 import { getDocLength, getDocText } from '../editor/cm.js';
 import { slugifyText } from '../core/utils.js';
 import { processGFMAlerts } from './alerts.js';
@@ -316,6 +316,37 @@ function showTooLargeNotice(chars) {
     previewOutput.appendChild(box);
 }
 
+// lucide.createIcons() tốn ~0,4ms mỗi lần gọi (Object.values trên ~2100 icon) nên gọi
+// theo từng node là rất tốn khi preview có nhiều khối. Chỉ gọi cho khối có [data-lucide]
+// và chỉ truyền đúng icon đang dùng để phần overhead này gần như bằng 0.
+function drawIcons(inserted) {
+    if (typeof lucide === 'undefined' || !inserted.length) return 0;
+    const names = new Set();
+    for (const rec of inserted) {
+        const html = rec.html || '';
+        if (!html.includes('data-lucide')) continue;
+        for (const m of html.matchAll(/data-lucide=["']([^"']+)["']/g)) names.add(m[1]);
+    }
+    if (!names.size) return 0;
+    const full = lucide.icons || lucide;
+    const icons = {};
+    for (const name of names) {
+        const key = name.split(/[-_\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+        if (full[key]) icons[key] = full[key];
+    }
+    if (!Object.keys(icons).length) return 0;
+    let calls = 0;
+    for (const rec of inserted) {
+        if (!(rec.html || '').includes('data-lucide')) continue;
+        for (const n of rec.nodes) {
+            if (n.nodeType !== 1) continue;
+            lucide.createIcons({ root: n, icons });
+            calls++;
+        }
+    }
+    return calls;
+}
+
 export function renderMarkdown({ force = false } = {}) {
     renderVersion++;
 
@@ -324,7 +355,7 @@ export function renderMarkdown({ force = false } = {}) {
 
     if (!force && rawText.length > PREVIEW_MAX_CHARS) {
         showTooLargeNotice(rawText.length);
-        charCounter.textContent = `${rawText.length} characters`;
+        setCharCount(rawText.length);
         return;
     }
 
@@ -337,26 +368,18 @@ export function renderMarkdown({ force = false } = {}) {
         resetBlocks();
         previewOutput.textContent = rawText;
         sweepEnhance();
-        charCounter.textContent = `${rawText.length} characters`;
+        setCharCount(rawText.length);
         restorePreviewScrollTop(previousPreviewScrollTop);
         return;
     }
-
     const { inserted } = patchBlocks(previewOutput, blocks, prepareMermaidFragment);
     sweepEnhance();
 
     // Gán id SAU sanitize: id là thuộc tính DOM, không qua HTML parser.
     assignHeadingIds(previewOutput);
-    charCounter.textContent = `${rawText.length} characters`;
-
+    setCharCount(rawText.length);
     registerEnhance(inserted.flatMap((rec) => rec.nodes));
-
-    if (typeof lucide !== 'undefined') {
-        // Icons chỉ nằm ở subtree vừa chèn: icon cũ giữ nguyên <svg> đã đổi.
-        inserted.forEach((rec) => rec.nodes.forEach((n) => {
-            if (n.nodeType === 1) lucide.createIcons({ root: n });
-        }));
-    }
+    drawIcons(inserted);
 
     // Khôi phục scroll một lần, sau khi mọi thay đổi chiều cao đồng bộ đã xong.
     restorePreviewScrollTop(previousPreviewScrollTop);
@@ -381,20 +404,16 @@ export function renderCachedHtml(blocks, scrollTop) {
     renderVersion++;
     if (getDocLength() > PREVIEW_MAX_CHARS) {
         showTooLargeNotice(getDocLength());
-        charCounter.textContent = `${getDocLength()} characters`;
+        setCharCount(getDocLength());
         return;
     }
     const { inserted } = patchBlocks(previewOutput, blocks || [], prepareMermaidFragment);
     sweepEnhance();
     assignHeadingIds(previewOutput);
-    charCounter.textContent = `${getDocLength()} characters`;
+    setCharCount(getDocLength());
     registerEnhance(inserted.flatMap((rec) => rec.nodes));
-    if (typeof lucide !== 'undefined') {
-        // Cache block giữ <i data-lucide> thô: dựng lại từ cache thì phải thay bằng SVG.
-        inserted.forEach((rec) => rec.nodes.forEach((n) => {
-            if (n.nodeType === 1) lucide.createIcons({ root: n });
-        }));
-    }
+    // Cache block giữ <i data-lucide> thô: dựng lại từ cache thì phải thay bằng SVG.
+    drawIcons(inserted);
     restorePreviewScrollTop(scrollTop);
 }
 

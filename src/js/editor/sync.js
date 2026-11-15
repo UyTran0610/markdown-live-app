@@ -1,6 +1,6 @@
 // js/editor/sync.js — Đồng bộ sau mỗi thay đổi editor: đếm ký tự, render preview, ghi vào store, lưu phiên.
 
-import { charCounter } from '../core/dom.js';
+import { setCharCount } from '../core/dom.js';
 import { debounce } from '../core/utils.js';
 import { cacheActivePreview, saveSession, updateActiveContent } from '../io/documents.js';
 import { renderMarkdown } from '../preview/render.js';
@@ -14,12 +14,12 @@ function renderAndCache() {
     cacheActivePreview();
 }
 
-// Lần render đầu của tài liệu 200k–400k ký tự tốn 1.1–2.2s; lần sau chỉ render lại khối đổi nhờ
-// block cache. Giãn debounce theo độ dài tài liệu.
+// Preview của tài liệu lớn tốn hàng trăm ms (phần lớn là layout của preview, không phải
+// lexer), nên giãn debounce theo độ dài: gõ liên tục không render, chỉ render sau khi ngừng.
 const RENDER_BASE_DELAY = 300;
 const RENDER_SIZE_STEP = 100000;
-const RENDER_STEP_DELAY = 150;
-const RENDER_MAX_DELAY = 1000;
+const RENDER_STEP_DELAY = 50;
+const RENDER_MAX_DELAY = 600;
 
 export function renderDelayFor(chars) {
     return Math.min(
@@ -50,7 +50,7 @@ function scheduleSessionSave() {
 // Mọi đường sửa đều đi qua updateListener của CodeMirror nên đều xếp lưu nháp, không chỉ nhờ phím gõ.
 // Chỉ đọc doc.length (O(1)); chuỗi dựng lười ở các điểm cần.
 export function handleEditorChange(update) {
-    charCounter.textContent = `${update.state.doc.length} characters`;
+    setCharCount(update.state.doc.length);
     updateActiveContent(update.state);
     // Hộp thoại tìm đang mở: kết quả cũ hỏng theo nội dung mới.
     refreshFindResults();

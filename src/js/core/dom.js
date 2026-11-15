@@ -7,6 +7,13 @@ export const previewOutput = document.getElementById('preview-output');
 
 export const charCounter = document.getElementById('char-counter');
 
+// Ghi lại đúng giá trị cũ vẫn làm browser layout lại cả preview (đo được ~0,5s ở doc 400k),
+// nên chỉ ghi khi số ký tự thật sự đổi.
+export function setCharCount(chars) {
+    const text = `${chars} characters`;
+    if (charCounter.textContent !== text) charCounter.textContent = text;
+}
+
 export const btnSync = document.getElementById('btn-sync');
 
 

@@ -16,6 +16,7 @@ Offline-first Markdown editor. Tauri v2 (thin Rust shell in `lib.rs`: registers 
 - Test by opening with `?selfcheck` (correctness) or `?perf` (timings). No other test commands.
 - Version: only `node scripts/sync-version.js --set X.Y.Z` (source of truth `tauri.conf.json`); never hand-edit `Cargo.toml` or `?v=` in `index.html`. Root `package.json` is stale.
 - Comments: only for non-obvious parts (the why, not the what), max 2 lines. Don't comment self-explanatory code.
+- Output: everything the code prints (`console.log`/`warn`/`error`, `console.table` headers, self-check and perf report lines) must be English, like the UI. Code comments stay Vietnamese.
 
 ## Invariants
 

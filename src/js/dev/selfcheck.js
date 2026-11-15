@@ -45,8 +45,8 @@ import { makeExclusive } from '../export/menu.js';
 import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, getActiveTab, needsSave, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, untitledName } from '../io/documents.js';
 import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
-import { assignHeadingIds, flushLazyRenders, renderMarkdown } from '../preview/render.js';
-import { diffBlocks } from '../preview/blocks.js';
+import { assignHeadingIds, flushLazyRenders, renderMarkdown, snapshotPreviewBlocks } from '../preview/render.js';
+import { cyrb53, diffBlocks, findBlockHtml, resetBlocks, storeBlockHtml } from '../preview/blocks.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
 import { dropIndex, disambiguateTabName, tabScrollState } from '../ui/tabs.js';
@@ -171,14 +171,14 @@ export async function runSelfCheck() {
         assert('ghost bar mid-range -> offset by half the width', ghostOffsetPx(50, 1000) === 497.5);
         assert('ghost bar at left edge -> negative half-thickness offset', ghostOffsetPx(0, 1000) === -2.5);
 
-        // Render preview phải giãn debounce theo độ dài: tài liệu lớn render 1.1–2.2s,
+        // Render preview phải giãn debounce theo độ dài: tài liệu lớn render chậm hơn nhiều,
         // chạy giữa lúc gõ sẽ cướp main thread.
         assert('small file render waits 300ms', renderDelayFor(0) === 300);
         assert('99k file render waits 300ms', renderDelayFor(99000) === 300);
-        assert('100k file render waits 450ms', renderDelayFor(100000) === 450);
-        assert('200k file render waits 600ms', renderDelayFor(200000) === 600);
-        assert('400k file render waits 900ms', renderDelayFor(400000) === 900);
-        assert('very large file render stays under 1s', renderDelayFor(5000000) === 1000);
+        assert('100k file render waits 350ms', renderDelayFor(100000) === 350);
+        assert('200k file render waits 400ms', renderDelayFor(200000) === 400);
+        assert('400k file render waits 500ms', renderDelayFor(400000) === 500);
+        assert('very large file render stays under 600ms', renderDelayFor(5000000) === 600);
 
         assert('safe url allows https', isSafeExternalUrl('https://example.com/a?b=1') === true);
         assert('safe url allows mailto', isSafeExternalUrl('mailto:a@b.com') === true);
@@ -739,6 +739,18 @@ export async function runSelfCheck() {
         assert('diffBlocks append does not touch the suffix', diffBlocks(['a','b'], ['a','b','n']).prefix === 2);
         assert('diffBlocks reorder does not reuse nodes', diffBlocks(['a','b','c'], ['c','b','a']).prefix === 0 && diffBlocks(['a','b','c'], ['c','b','a']).suffix === 0);
         assert('diffBlocks on an empty document', diffBlocks(['a'], []).prefix === 0 && diffBlocks([], ['a']).suffix === 0);
+        // Cache khối phải đuổi theo số khối lẫn tổng ký tự: doc >2000 khối khác nhau thì
+        // LRU đuổi đầu mỗi lượt render, khối bị render lại từ đầu (mất cache khi sửa).
+        resetBlocks();
+        for (let i = 0; i < 50001; i++) storeBlockHtml(`probe-${i}`, 'x');
+        assert('block cache evicts the oldest entry past the count limit',
+            findBlockHtml('probe-0') === undefined && findBlockHtml('probe-50000') === 'x');
+        resetBlocks();
+        const bigBlock = 'x'.repeat(1000000);
+        for (let i = 0; i < 9; i++) storeBlockHtml(`big-${i}`, bigBlock);
+        assert('block cache evicts by total chars, not only by count',
+            findBlockHtml('big-0') === undefined && findBlockHtml('big-8') === bigBlock);
+        resetBlocks();
         await section('block render by prefix/suffix', async () => {
             const savedValue = docText();
             const doc = 'Alpha para một\n\nBeta para hai\n\nGamma para ba';
@@ -750,6 +762,21 @@ export async function runSelfCheck() {
             const after = [...previewOutput.children];
             assert('unchanged block keeps its node (prefix/suffix)', after[0] === before[0] && after[2] === before[2]);
             assert('changed block gets its node replaced', after[1] !== before[1]);
+
+            // Đảo thứ tự khối suffix khiến lượt render sau dựng lại gần hết tài liệu.
+            probe('Alpha para một\n\nBeta para SỬA\n\nGamma para ba');
+            renderMarkdown();
+            const again = [...previewOutput.children];
+            assert('rendering the same document again reuses every block node',
+                again.length === after.length && again.every((node, i) => node === after[i]));
+            if (window.marked) {
+                const order = snapshotPreviewBlocks().map((b) => b.hash);
+                const expected = window.marked.lexer('Alpha para một\n\nBeta para SỬA\n\nGamma para ba')
+                    .map((t) => cyrb53(t.raw));
+                assert('block cache keeps the document order', order.join(',') === expected.join(','));
+            } else {
+                skip('block cache keeps the document order', 'marked not loaded');
+            }
             probe('công thức $E = mc^2$ test');
             renderMarkdown();
             const slot = previewOutput.querySelector('.math-slot');

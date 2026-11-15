@@ -240,18 +240,15 @@ export function decodeTextBytes(bytes) {
         }
     }
 
-    // Single-byte Windows cũ: thử windows-1258 rồi windows-1252, chọn bản ít U+FFFD nhất.
-    let best = null;
-    for (const label of ['windows-1258', 'windows-1252']) {
-        try {
-            const text = new TextDecoder(label, { fatal: false }).decode(body);
-            const bad = countReplacementChars(text);
-            if (!best || bad < best.bad) best = { text, bad, label };
-            if (bad === 0) break;
-        } catch {
-            // TextDecoder không hỗ trợ label này: thử tiếp.
-        }
-    }
+    // Single-byte Windows cũ: ưu tiên windows-1252. Chỉ dùng windows-1258 khi file có dấu hiệu
+    // riêng của CP1258 (chữ ă đ ơ ư + dấu thanh tổ hợp) hoặc khi 1252 giải mã hỏng nhiều hơn.
+    // 1252 phải thắng khi hai bảng mã cho cùng kết quả: 0xE9 ra é ở cả hai, nhưng 1258 giải mã
+    // 0xEC thành dấu kết hợp, nên file Windows-1252 bị gắn nhãn sai và chữ bị rã.
+    const cp1252 = decodeSingleByte(body, 'windows-1252');
+    const cp1258 = decodeSingleByte(body, 'windows-1258');
+    let best = cp1252;
+    if (cp1258 && (!best || cp1258.bad < best.bad
+        || (cp1258.bad === best.bad && looksLikeCp1258(cp1258.text)))) best = cp1258;
     // Ký-tự điều khiển còn sót = decode sai: file toàn 0x00 hay 0x7F không được mở.
     if (best && best.bad <= Math.max(4, Math.floor(body.length / 200)) && !hasControlChars(best.text)) {
         return { text: best.text, encoding: best.label === 'windows-1258' ? 'Windows-1258' : 'Windows-1252', converted: true };
@@ -282,6 +279,43 @@ function countReplacementChars(text) {
         if (text.charCodeAt(i) === 0xfffd) n++;
     }
     return n;
+}
+
+// Bảng mã windows-1252 KHÔNG có 9 chữ này; chỉ CP1258 mới có (8 chữ Việt + đồng sign).
+const CP1258_ONLY_LETTERS = new Set([0x0102, 0x0103, 0x0110, 0x0111, 0x01A0, 0x01A1, 0x01AF, 0x01B0, 0x20AB]);
+// 5 dấu thanh tổ hợp của tiếng Việt: sắc, huyền, hỏi, ngã, nặng.
+const CP1258_TONE_MARKS = new Set([0x0300, 0x0301, 0x0303, 0x0309, 0x0323]);
+
+function decodeSingleByte(bytes, label) {
+    try {
+        const text = new TextDecoder(label, { fatal: false }).decode(bytes);
+        return { text, bad: countReplacementChars(text), label };
+    } catch {
+        return null; // TextDecoder không hỗ trợ label này.
+    }
+}
+
+// Chữ cái (để dấu thanh tổ hợp phải đứng SAU chữ cái mới tính là dấu thanh tiếng Việt).
+function isLetterCode(code) {
+    return (code >= 65 && code <= 90)          // A-Z
+        || (code >= 97 && code <= 122)          // a-z
+        || (code >= 0xc0 && code <= 0xff)       // Latin-1: Â Ê Ô ă đ ơ ư ầ ề...
+        || (code >= 0x100 && code <= 0x17f)      // Latin Extended-A
+        || (code >= 0x1e00 && code <= 0x1eff);  // Latin Extended Additional (ế ộ ữ)
+}
+
+// File CP1258 = chữ ă đ ơ ư (và hoa/thường) + dấu thanh tổ hợp đứng sau chữ cái.
+// Cần CẢ HAI dấu hiệu: tiếng Bồ Đào Nha có ã/õ, tiếng Iceland có ð, nhưng cả hai không có
+// dấu thanh tổ hợp — chỉ đếm một dấu hiệu thì file Tây Âu bị gắn nhãn Windows-1258.
+function looksLikeCp1258(text) {
+    let letters = 0;
+    let tones = 0;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (CP1258_ONLY_LETTERS.has(code)) letters++;
+        else if (CP1258_TONE_MARKS.has(code) && i > 0 && isLetterCode(text.charCodeAt(i - 1))) tones++;
+    }
+    return letters > 0 && tones > 0;
 }
 
 function hasManyReplacementChars(text) {

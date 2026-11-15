@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { findInput, infoAbout, infoBody, infoDialog, infoDoc, previewOutput, replaceInput, tableMenu, toast } from '../core/dom.js';
+import { confirmCancelBtn, confirmDialog, confirmPrimaryBtn, confirmSecondaryBtn, findInput, findRegex, infoAbout, infoBody, infoDialog, infoDoc, previewOutput, replaceInput, tableMenu, toast } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
 import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
@@ -10,19 +10,22 @@ import {
     handleTypedChar,
     redo,
     setChangeHandler,
-    undo
+    undo,
+    wrapOrToggleFormat
 } from '../editor/cm.js';
 import {
     closeFindDialog,
+    findMatches,
     findNextMatch,
     getFindActiveIndex,
     getFindMatches,
     isFindDialogOpen,
     openFindDialog,
     replaceFindAll,
+    replaceFindCurrent,
     runFindSearch
 } from '../editor/find.js';
-import { applyHeadingLevel, applyListStyle, insertTableBlock } from '../editor/format-actions.js';
+import { applyHeadingLevel, applyListStyle, insertBlockFence, insertTableBlock } from '../editor/format-actions.js';
 import {
     buildBlockFence,
     buildTableMarkdown,
@@ -42,10 +45,10 @@ import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
 import { convertKatexForDoc } from '../export/math-mathml.js';
 import { makeExclusive } from '../export/menu.js';
-import { isTabDirty, isMarkdownPath, deserializeSession, diskRevision, getActiveTab, needsSave, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, untitledName } from '../io/documents.js';
+import { closeTab, getActiveTab, getTabs, isTabDirty, isMarkdownPath, deserializeSession, diskRevision, needsSave, newTab, saveTab, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, switchTab, tabText, untitledName } from '../io/documents.js';
 import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
-import { assignHeadingIds, flushLazyRenders, renderMarkdown, snapshotPreviewBlocks } from '../preview/render.js';
+import { assignHeadingIds, flushLazyRenders, PREVIEW_MAX_CHARS, renderMarkdown, snapshotPreviewBlocks } from '../preview/render.js';
 import { cyrb53, diffBlocks, findBlockHtml, resetBlocks, storeBlockHtml } from '../preview/blocks.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
@@ -60,6 +63,98 @@ import {
     isValidViewMode,
     usesGhostDrag
 } from '../ui/view-mode.js';
+
+// fs giả cho các mục data safety: Map path -> { bytes, mtime } + log mọi lệnh ghi/xoá.
+// forbidWrite = lỗi ACL (được phép ghi thẳng), failWrite = lỗi I/O (KHÔNG được ghi thẳng).
+function makeFakeFs() {
+    const disk = new Map();
+    const log = [];
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+    let clock = 1700000000000;
+    const api = {
+        disk,
+        log,
+        forbidWrite: new Set(),
+        failWrite: new Set(),
+        allowTemp: true,
+        put(path, text) { disk.set(path, { bytes: enc.encode(text), mtime: clock }); },
+        read(path) { const f = disk.get(path); return f ? dec.decode(f.bytes) : null; },
+        wroteTo(path) { return log.some((c) => c[0] === 'write' && c[1] === path); },
+        fs: {
+            readFile: async (path) => {
+                const f = disk.get(path);
+                if (!f) throw new Error('file not found: ' + path);
+                return f.bytes;
+            },
+            writeTextFile: async (path, contents) => {
+                log.push(['write', path]);
+                if (api.forbidWrite.has(path)) throw new Error('forbidden path: ' + path);
+                if (api.failWrite.has(path)) throw new Error('disk full');
+                disk.set(path, { bytes: enc.encode(contents), mtime: ++clock });
+            },
+            rename: async (from, to) => {
+                log.push(['rename', from, to]);
+                const f = disk.get(from);
+                if (!f) throw new Error('file is locked');
+                disk.delete(from);
+                disk.set(to, f);
+            },
+            remove: async (path) => { log.push(['remove', path]); disk.delete(path); },
+            stat: async (path) => {
+                const f = disk.get(path);
+                if (!f) throw new Error('not found: ' + path);
+                return { mtime: new Date(f.mtime) };
+            }
+        }
+    };
+    return api;
+}
+
+// Cài window.__TAURI__ giả; trả về hàm khôi phục bản cũ.
+// ok=false nghĩa là không gán được (app thật giữ global): tuyệt đối không chạy test ghi file thật.
+function stubTauri(fake, { savePath = null } = {}) {
+    const real = window.__TAURI__;
+    const stub = {
+        core: { invoke: async (cmd) => (cmd === 'allow_temp_sibling' ? fake.allowTemp : true) },
+        fs: fake.fs,
+        dialog: { save: async () => (typeof savePath === 'function' ? savePath() : savePath) }
+    };
+    let ok = false;
+    try {
+        window.__TAURI__ = stub;
+        ok = window.__TAURI__ === stub && window.__TAURI__.fs === fake.fs;
+    } catch (e) {
+        ok = false;
+    }
+    return {
+        ok,
+        restore: () => {
+            try { window.__TAURI__ = real; } catch (e) { /* app giữ global: không khôi phục được */ }
+        }
+    };
+}
+
+// Bấm nút trong hộp thoại xác nhận (primary/secondary/cancel) sau khi hộp thoại mở.
+async function clickConfirm(action) {
+    for (let i = 0; i < 100; i++) {
+        if (!confirmDialog.classList.contains('hidden')) break;
+        await new Promise((r) => setTimeout(r, 10));
+    }
+    if (confirmDialog.classList.contains('hidden')) throw new Error('confirm dialog did not open');
+    const btn = action === 'cancel'
+        ? confirmCancelBtn
+        : (action === 'secondary' ? confirmSecondaryBtn : confirmPrimaryBtn);
+    btn.click();
+}
+
+// Promise có giới hạn thời gian: hộp thoại không mở thì phải FAIL chứ không treo cả self-check.
+function withTimeout(promise, ms = 4000) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timed out waiting for the app')), ms))
+    ]);
+}
 
 export async function runSelfCheck() {
     const results = [];
@@ -330,12 +425,15 @@ export async function runSelfCheck() {
             assert('error tab reloads from disk on the next run', broken.tabs[0].reload === true);
             assert('error tab keeps the draft', broken.tabs[0].content === 'draft');
             assert('error tab does not claim to be saved', isTabDirty(broken.tabs[0]) === true);
-            // serializeSession() chạy trên tab thật: mọi tab lỗi phải mang cờ reload.
+            // serializeSession() chạy trên tab thật: cờ reload phải khớp status của từng tab.
+            // Nhánh tab lỗi được thử thật ở mục 'data safety' (tab status !== 'ok').
             const liveWire = serializeSession();
-            assert('serializeSession flags reload for every error tab', liveWire.tabs.every((t) => t.reload === (t.status !== 'ok')));
+            assert('serializeSession flags reload exactly for the error tabs',
+                liveWire.tabs.every((t) => t.reload === (t.status !== 'ok')));
             assert('serializeSession keeps the default EOL', liveWire.defaultEol === '\n' || liveWire.defaultEol === '\r\n');
             const discardWire = serializeSession({ discardUnsaved: true });
-            assert('serializeSession drops drafts when quitting without saving', discardWire.tabs.every((t) => t.content === null && t.dirty === false && t.savedHash === null && t.savedLen === null));
+            assert('serializeSession drops every draft when quitting without saving',
+                discardWire.tabs.every((t) => t.content === null && t.dirty === false && t.savedHash === null && t.savedLen === null));
             // Fingerprint phải phủ MỌI key của record, bỏ sót là ghi phiên cũ và mất dữ liệu im lặng.
             const fpTab = { id: 1, path: '/a.md', name: 'a.md', content: 'hello', dirty: true, scrollTop: 0 };
             assert('session fingerprint: unchanged record -> identical', sessionFingerprint(fpTab) === sessionFingerprint({ ...fpTab }));
@@ -399,16 +497,54 @@ export async function runSelfCheck() {
             const mixed = new Uint8Array(512);
             for (let i = 0; i < mixed.length; i++) mixed[i] = i % 2 ? 0x7f : 0x00;
             assert('file mixing 0x00/0x7F -> rejected', decodeTextBytes(mixed) === null);
-            // File toàn 0x7F là UTF-8 hợp lệ, nhưng không được mở như file Windows-125x.
+            // File toàn 0x7F là UTF-8 hợp lệ: mở được, nhưng phải là UTF-8 chứ không phải Windows-125x.
             const dels = decodeTextBytes(new Uint8Array(512).fill(0x7f));
-            assert('all-0x7F file -> not opened as Windows-125x',
-                !dels || (dels.encoding !== 'Windows-1252' && dels.encoding !== 'Windows-1258'));
+            assert('all-0x7F file -> opened as UTF-8, not as Windows-125x',
+                !!dels && dels.encoding === 'UTF-8' && dels.converted === false
+                && dels.encoding !== 'Windows-1252' && dels.encoding !== 'Windows-1258');
 
-            // Windows-125x cũ: giữ đúng chữ, không U+FFFD.
+            // Windows-125x cũ: giữ đúng chữ, không U+FFFD, nhãn encoding phải đúng.
             const win1252 = decodeTextBytes(bytes(0x63, 0x61, 0x66, 0xe9, 0x0a));
             assert('windows-1252 file -> keeps the é accent', !!win1252 && win1252.text.indexOf('\u00e9') !== -1);
             assert('windows-1252 file -> no U+FFFD characters', !!win1252 && win1252.text.indexOf('\ufffd') === -1);
             assert('windows-1252 file -> reports the conversion', !!win1252 && win1252.converted === true);
+            assert('windows-1252 file -> is labelled Windows-1252', !!win1252 && win1252.encoding === 'Windows-1252');
+            // 0xEC/0xF2: 1252 ra 'ì'/'ò' dựng sẵn, 1258 ra chữ + dấu kết hợp -> phải chọn 1252.
+            const win1252Accent = decodeTextBytes(bytes(0x69, 0xec, 0x20, 0x6f, 0xf2));
+            assert('windows-1252 file -> keeps the precomposed ì and ò',
+                !!win1252Accent && win1252Accent.text === 'iì oò' && !/[\u0300-\u036f]/.test(win1252Accent.text));
+            assert('windows-1252 file with ì/ò -> is labelled Windows-1252',
+                !!win1252Accent && win1252Accent.encoding === 'Windows-1252');
+
+            // File CP1258 thật: chữ ă đ ơ ư + dấu thanh tổ hợp đứng sau chữ cái.
+            // Bytes: Đ(0xD0) o ọ(0xF2) c | t a í(0xEC) | l i ệ(0xEA+0xF2) | ư(0xDD) ơ(0xF5) n g
+            const cp1258 = decodeTextBytes(bytes(
+                0xd0, 0x6f, 0xf2, 0x63, 0x20,
+                0x74, 0x61, 0x69, 0xec, 0x20,
+                0x6c, 0x69, 0xea, 0xf2, 0x20,
+                0xdd, 0xf5, 0x6e, 0x67
+            ));
+            const cp1258Text = '\u0110o\u0323c tai\u0301 li\u00ea\u0323 \u01af\u01a1ng';
+            assert('cp1258 file -> is labelled Windows-1258',
+                !!cp1258 && cp1258.encoding === 'Windows-1258' && cp1258.converted === true);
+            assert('cp1258 file -> keeps the Vietnamese letters and tone marks',
+                !!cp1258 && cp1258.text === cp1258Text);
+            assert('cp1258 file -> reads the letters that only 1258 has',
+                !!cp1258 && /[\u0102\u0103\u0110\u0111\u01A0\u01A1\u01AF\u01B0]/.test(cp1258.text) && /[\u0300-\u0323]/.test(cp1258.text));
+            // Không được nhận nhầm file Tây Âu làm CP1258: Iceland có ð, Bồ Đào Nha có ã/õ,
+            // Ý có ì — nhưng không có dấu thanh tổ hợp nào cả.
+            const icelandic = decodeTextBytes(bytes(0x4d, 0x61, 0xf0, 0x75, 0x72));
+            assert('icelandic file with ð -> stays Windows-1252',
+                !!icelandic && icelandic.encoding === 'Windows-1252' && icelandic.text === 'Maður');
+            const portuguese = decodeTextBytes(bytes(0x6e, 0xe3, 0x6f, 0x20, 0x73, 0xe3, 0x6f));
+            assert('portuguese file with ã -> stays Windows-1252',
+                !!portuguese && portuguese.encoding === 'Windows-1252' && portuguese.text === 'não são');
+            const italian = decodeTextBytes(bytes(0x63, 0x6f, 0x73, 0xec));
+            assert('italian file with ì -> stays Windows-1252',
+                !!italian && italian.encoding === 'Windows-1252' && italian.text === 'così');
+            const tilde = decodeTextBytes(bytes(0xf5));
+            assert('a file with only õ -> stays Windows-1252',
+                !!tilde && tilde.encoding === 'Windows-1252' && tilde.text === 'õ');
 
             // UTF-8 BOM phải còn nguyên BOM để lần lưu sau ghi lại đúng file gốc.
             const utf8Bom = decodeTextBytes(bytes(0xef, 0xbb, 0xbf, 0x23, 0x20, 0x41));
@@ -528,18 +664,19 @@ export async function runSelfCheck() {
             const enter = window.CodeMirror.markdownKeymap.find((b) => b.key === 'Enter');
             probe('- ', 2, 2);
             enter.run(view);
-            assert('Enter on an empty list line -> leaves the list', !docText().includes('- '));
+            assert('Enter on an empty list line -> leaves the list (marker gone)', docText() === '');
             probe('- done', 6, 6);
             enter.run(view);
             assert('Enter on a normal list line -> new line with the same bullet', docText() === '- done\n- ');
             probe('- [x] việc', 10, 10);
             enter.run(view);
-            assert('Enter on a ticked task -> new unticked task', docText().includes('[ ]'));
+            assert('Enter on a ticked task -> new unticked task', docText() === '- [x] việc\n- [ ] ');
             probe('    code', 8, 8);
             const handledPlain = enter.run(view);
             // markdownKeymap không xử lý dòng thường: trả false để default insert newline.
+            assert('Enter on an indented plain line -> markdownKeymap does not handle it', handledPlain === false);
             if (!handledPlain) view.dispatch({ changes: { from: 8, to: 8, insert: '\n' }, selection: { anchor: 9, head: 9 } });
-            assert('Enter on an indented plain line -> newline', docText().includes('\n'));
+            assert('Enter on an indented plain line -> exactly one newline, text untouched', docText() === '    code\n');
         });
 
         // Exact dirty: undo về đúng bản đã lưu thì hết dirty; toggle readOnly giữ undo.
@@ -753,25 +890,35 @@ export async function runSelfCheck() {
         resetBlocks();
         await section('block render by prefix/suffix', async () => {
             const savedValue = docText();
-            const doc = 'Alpha para một\n\nBeta para hai\n\nGamma para ba';
+            // >= 5 khối: đảo thứ tự suffix chỉ lộ khi còn hơn MỘT khối suffix.
+            const doc = 'Alpha para một\n\nBeta para hai\n\nGamma para ba\n\nDelta para bốn\n\nEpsilon para năm';
+            const edited = 'Alpha para một\n\nBeta para SỬA\n\nGamma para ba\n\nDelta para bốn\n\nEpsilon para năm';
             probe(doc);
             renderMarkdown();
             const before = [...previewOutput.children];
-            probe('Alpha para một\n\nBeta para SỬA\n\nGamma para ba');
+            assert('the document is split into five blocks', before.length === 5);
+            probe(edited);
             renderMarkdown();
             const after = [...previewOutput.children];
-            assert('unchanged block keeps its node (prefix/suffix)', after[0] === before[0] && after[2] === before[2]);
+            assert('unchanged block keeps its node (prefix/suffix)', after[0] === before[0]);
             assert('changed block gets its node replaced', after[1] !== before[1]);
+            assert('suffix blocks keep their nodes', after[2] === before[2] && after[3] === before[3] && after[4] === before[4]);
+            assert('preview keeps the document order',
+                after.map((n) => n.textContent.trim()).join('|')
+                === 'Alpha para một|Beta para SỬA|Gamma para ba|Delta para bốn|Epsilon para năm');
 
             // Đảo thứ tự khối suffix khiến lượt render sau dựng lại gần hết tài liệu.
-            probe('Alpha para một\n\nBeta para SỬA\n\nGamma para ba');
+            probe(edited);
             renderMarkdown();
             const again = [...previewOutput.children];
             assert('rendering the same document again reuses every block node',
                 again.length === after.length && again.every((node, i) => node === after[i]));
+            assert('rendering the same document again keeps the order',
+                again.map((n) => n.textContent.trim()).join('|')
+                === 'Alpha para một|Beta para SỬA|Gamma para ba|Delta para bốn|Epsilon para năm');
             if (window.marked) {
                 const order = snapshotPreviewBlocks().map((b) => b.hash);
-                const expected = window.marked.lexer('Alpha para một\n\nBeta para SỬA\n\nGamma para ba')
+                const expected = window.marked.lexer(edited)
                     .map((t) => cyrb53(t.raw));
                 assert('block cache keeps the document order', order.join(',') === expected.join(','));
             } else {
@@ -865,7 +1012,8 @@ export async function runSelfCheck() {
             assert('link gets its own class', view.dom.querySelectorAll('.cm-md-link').length >= 1);
         });
 
-        await section('progressive highlighting', async () => {
+        // Fuzz sửa văn bản: kiểm CodeMirror giữ đúng nội dung VÀ app vẫn theo kịp nội dung editor.
+        await section('editor edit fuzz', async () => {
             if (!view.dom.clientWidth) {
                 skip('progressive highlighting', 'pane is hidden');
                 return;
@@ -910,6 +1058,11 @@ export async function runSelfCheck() {
             assert('text edit fuzz: content always matches', ok);
             // Editor phải vẫn render được sau loạt sửa (không lỗi cú pháp cây).
             assert('editor still renders after the fuzz', view.dom.querySelectorAll('.cm-line').length > 0);
+            // Phần của app: nội dung tab đang mở phải khớp editor sau khi đồng bộ lại.
+            handleEditorChange({ state: view.state });
+            const fuzzTab = getActiveTab();
+            assert('app content tracking matches the editor after the fuzz',
+                !!fuzzTab && tabText(fuzzTab) === docText());
             probe(snap.value);
         });
 
@@ -1031,6 +1184,357 @@ export async function runSelfCheck() {
             assert('closes the about modal', !isInfoDialogOpen());
         });
         if (results.length === mark) skip('14 About dialog asserts', 'no #btn-help');
+
+        // Data safety: lưu/đóng tab không được mất bản nháp, tab lỗi không được ghi đè file gốc.
+        await section('data safety: save and close never lose a draft', async () => {
+            const originalId = getActiveTab() ? getActiveTab().id : null;
+            const path = 'C:\\selfcheck\\data.md';
+            const otherPath = 'C:\\selfcheck\\other.md';
+            const draftPath = 'C:\\selfcheck\\draft.md';
+            const keepPath = 'C:\\selfcheck\\keep.md';
+            const fake = makeFakeFs();
+            fake.put(path, '# A\n');
+            fake.put(draftPath, 'bản nháp\n');
+            fake.put(keepPath, 'giữ lại\n');
+            let saveTarget = otherPath;
+            const tauriStub = stubTauri(fake, { savePath: () => saveTarget });
+            // Không gán được global thì tuyệt đối không chạy: test này ghi file.
+            if (!tauriStub.ok) {
+                tauriStub.restore();
+                skip('data safety: save and close never lose a draft', 'window.__TAURI__ could not be stubbed');
+                return;
+            }
+            const created = [];
+            // Tab giả: có path, nội dung trên đĩa và mốc mtime khớp để không bị hộp thoại nhầm.
+            const openTab = (tabPath, text) => {
+                const tab = newTab();
+                created.push(tab.id);
+                tab.path = tabPath;
+                tab.name = tabPath.split('\\').pop();
+                tab.content = text;
+                tab.savedContent = text;
+                tab.eol = '\n';
+                tab.diskEol = '\n';
+                tab.status = 'ok';
+                tab.diskMtime = fake.disk.get(tabPath).mtime;
+                probe(text);
+                handleEditorChange({ state: view.state });
+                return tab;
+            };
+            try {
+                // 1. Tab sạch: không ghi gì xuống đĩa.
+                const tab = openTab(path, '# A\n');
+                assert('clean tab -> saveTab reports saved', await saveTab(tab) === 'saved');
+                assert('clean tab -> nothing was written', !fake.wroteTo(path));
+
+                // 2. Tab bẩn: ghi atomic qua file .tmp, không ghi thẳng đè file gốc.
+                probe('# B\n');
+                handleEditorChange({ state: view.state });
+                assert('dirty tab -> saveTab reports saved', await saveTab(tab) === 'saved');
+                assert('dirty tab -> the file on disk has the new content', fake.read(path) === '# B\n');
+                assert('dirty tab -> written through the temp file, not straight over the original',
+                    !fake.wroteTo(path) && fake.log.some((c) => c[0] === 'write' && c[1] === path + '.md-live.tmp'));
+                assert('dirty tab -> clean after saving', isTabDirty(tab) === false);
+
+                // 3. Tab lỗi: tuyệt đối không ghi path cũ, phải đi qua Save As.
+                tab.status = 'unreadable';
+                probe('# C\n');
+                handleEditorChange({ state: view.state });
+                fake.log.length = 0;
+                assert('error tab -> saveTab reports saved through Save As', await saveTab(tab) === 'saved');
+                assert('error tab -> the old path was never written', !fake.wroteTo(path));
+                assert('error tab -> the new path received the content', fake.read(otherPath) === '# C\n');
+                assert('error tab -> the tab now points at the new path', tab.path === otherPath);
+
+                // 4. Ngoại lệ duy nhất: Save As đúng path cũ của tab lỗi thì phải hỏi "Overwrite anyway".
+                tab.path = path;
+                tab.status = 'unreadable';
+                probe('# D\n');
+                handleEditorChange({ state: view.state });
+                saveTarget = path;
+                fake.log.length = 0;
+                const overwriting = saveTab(tab);
+                await clickConfirm('primary');
+                assert('error tab -> overwriting the same path reports saved', await withTimeout(overwriting) === 'saved');
+                assert('error tab -> the old path was written only after the confirmation', fake.read(path) === '# D\n');
+
+                // 5. Lỗi I/O khi ghi file .tmp: file gốc phải còn nguyên.
+                tab.status = 'ok';
+                probe('# E\n');
+                handleEditorChange({ state: view.state });
+                fake.failWrite.add(path + '.md-live.tmp');
+                fake.log.length = 0;
+                assert('io error on the temp file -> saveTab reports failed', await saveTab(tab) === 'failed');
+                assert('io error on the temp file -> the original file is untouched', fake.read(path) === '# D\n');
+                assert('io error on the temp file -> nothing was written straight over the original', !fake.wroteTo(path));
+                fake.failWrite.delete(path + '.md-live.tmp');
+
+                // 6. Không có quyền ghi file .tmp: ghi thẳng file gốc để không mất thay đổi.
+                fake.allowTemp = false;
+                probe('# F\n');
+                handleEditorChange({ state: view.state });
+                fake.log.length = 0;
+                assert('no temp permission -> saveTab reports saved', await saveTab(tab) === 'saved');
+                assert('no temp permission -> the file was written directly', fake.read(path) === '# F\n' && fake.wroteTo(path));
+                assert('no temp permission -> no temp file was written',
+                    !fake.log.some((c) => c[0] === 'write' && c[1] === path + '.md-live.tmp'));
+                fake.allowTemp = true;
+
+                // 7. File biến mất trên đĩa: "File is gone" -> chọn Close tab thì saveTab trả 'discard',
+                //    và bản thân diskOkToWrite KHÔNG được đóng tab.
+                fake.disk.delete(path);
+                probe('# G\n');
+                handleEditorChange({ state: view.state });
+                const goneSave = saveTab(tab);
+                await clickConfirm('secondary');
+                assert('file gone -> saveTab reports discard', await withTimeout(goneSave) === 'discard');
+                assert('file gone -> the tab is still open (only closeTab closes a tab)',
+                    getTabs().some((t) => t.id === tab.id));
+                assert('file gone -> the tab is marked as an error', tab.status === 'missing');
+
+                // 8. Tab lỗi phải mang cờ reload để lần sau đọc lại đĩa.
+                const wire = serializeSession();
+                const rec = wire.tabs.find((t) => t.id === tab.id);
+                assert('error tab -> the session flags it for a disk reload',
+                    !!rec && rec.reload === true && rec.status === 'missing');
+                const discardWire = serializeSession({ discardUnsaved: true });
+                const rec2 = discardWire.tabs.find((t) => t.id === tab.id);
+                assert('error tab -> quitting without saving drops the draft but keeps the reload flag',
+                    !!rec2 && rec2.content === null && rec2.dirty === false && rec2.reload === true);
+
+                // 9. Đóng tab chưa lưu: hỏi trước; "Don't save" thì đóng, hủy thì giữ tab.
+                const draft = openTab(draftPath, 'bản nháp\n');
+                probe('bản nháp sửa\n');
+                handleEditorChange({ state: view.state });
+                const closing = closeTab(draft.id);
+                await clickConfirm('secondary');
+                await withTimeout(closing);
+                assert('closing a dirty tab with "Don\'t save" removes the tab',
+                    !getTabs().some((t) => t.id === draft.id));
+                const keep = openTab(keepPath, 'giữ lại\n');
+                probe('giữ lại sửa\n');
+                handleEditorChange({ state: view.state });
+                const closing2 = closeTab(keep.id);
+                await clickConfirm('cancel');
+                await withTimeout(closing2);
+                assert('cancelling the close prompt keeps the tab open',
+                    getTabs().some((t) => t.id === keep.id));
+            } finally {
+                tauriStub.restore();
+                if (originalId !== null) switchTab(originalId);
+                for (const id of created) await closeTab(id, { force: true, remember: false });
+            }
+        });
+
+        // Undo không trộn giữa các tab: mỗi tab một EditorState riêng.
+        await section('undo history does not mix between tabs', async () => {
+            const originalId = getActiveTab() ? getActiveTab().id : null;
+            const created = [];
+            try {
+                const tabA = newTab();
+                created.push(tabA.id);
+                probe('alpha');
+                const tabB = newTab();
+                created.push(tabB.id);
+                probe('beta');
+                switchTab(tabA.id);
+                assert('switching back restores the first tab content', docText() === 'alpha');
+                assert('undo works inside the first tab', undo(view) === true && docText() === '');
+                switchTab(tabB.id);
+                assert('the second tab keeps its own content', docText() === 'beta');
+                assert('undo in the second tab does not touch the first tab', undo(view) === true && docText() === '');
+                switchTab(tabA.id);
+                assert('the first tab is still empty after undoing in the second tab', docText() === '');
+            } finally {
+                if (originalId !== null) switchTab(originalId);
+                for (const id of created) await closeTab(id, { force: true, remember: false });
+            }
+        });
+
+        // CSP là null: chống XSS là việc của JS. Payload lọt vào preview là lỗi bảo mật.
+        await section('preview sanitizes untrusted markdown', async () => {
+            const savedValue = docText();
+            const payloads = [
+                '<script>alert(1)</script>',
+                '<img src=x onerror="alert(1)">',
+                '<svg onload="alert(1)"><circle r="10"/></svg>',
+                '[link](javascript:alert(1))',
+                '<a href="javascript:alert(1)">x</a>',
+                '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+                '<form action="javascript:alert(1)"><button formaction="javascript:alert(1)">go</button></form>'
+            ];
+            for (const payload of payloads) {
+                probe(payload);
+                renderMarkdown();
+                const html = previewOutput.innerHTML;
+                assert(`xss payload dropped: ${payload.slice(0, 30)}`,
+                    !/<script/i.test(html)
+                    && !/\son[a-z]+\s*=/i.test(html)
+                    && !/javascript:/i.test(html)
+                    && !/srcdoc/i.test(html));
+            }
+            // Link ngoài mở tab mới kèm rel an toàn; anchor trong tài liệu thì không.
+            probe('[ngoài](https://example.com) và [trong](#muc)');
+            renderMarkdown();
+            const ext = previewOutput.querySelector('a[href^="https://"]');
+            const anchor = previewOutput.querySelector('a[href^="#"]');
+            assert('external link opens in a new tab with noopener noreferrer',
+                !!ext && ext.getAttribute('target') === '_blank'
+                && /noopener/.test(ext.getAttribute('rel') || '')
+                && /noreferrer/.test(ext.getAttribute('rel') || ''));
+            assert('anchor link stays in the same tab',
+                !!anchor && !anchor.hasAttribute('target') && !anchor.hasAttribute('rel'));
+            // Mermaid tự sinh SVG chưa lọc: phải lọc lại trước khi tin và cache.
+            if (typeof DOMPurify !== 'undefined') {
+                const clean = DOMPurify.sanitize(
+                    '<svg><script>alert(1)</script><foreignObject><div>nhãn</div></foreignObject></svg>',
+                    MERMAID_SANITIZE_CONFIG
+                );
+                assert('mermaid svg is sanitized again: no script', !/<script/i.test(clean));
+                assert('mermaid svg keeps the label', clean.includes('nhãn'));
+            } else {
+                skip('mermaid svg is sanitized again: no script', 'DOMPurify not loaded');
+            }
+            probe(savedValue);
+            renderMarkdown();
+        });
+
+        // Tìm & thay thế: regex, nhóm bắt, regex hỏng.
+        await section('find and replace: regex, groups, invalid pattern', async () => {
+            const savedValue = docText();
+            const nums = findMatches('a1 b22 c333', '(\\w)(\\d+)', { useRegex: true });
+            assert('regex finds every number', nums.matches.length === 3 && nums.matches[2].hit === 'c333');
+            assert('regex keeps the capture groups',
+                !!nums.matches[0].groups && nums.matches[0].groups[0] === 'a' && nums.matches[0].groups[1] === '1');
+            const bad = findMatches('abc', '(unclosed', { useRegex: true });
+            assert('invalid regex -> error, no match', bad.error !== '' && bad.matches.length === 0);
+            const empty = findMatches('abc', 'x*', { useRegex: true });
+            assert('an empty regex match does not loop forever', empty.matches.length === 0);
+            assert('regex dot matches any character', findMatches('a.b', '.', { useRegex: true }).matches.length === 3);
+            assert('search is case-insensitive by default', findMatches('Foo foo', 'foo').matches.length === 2);
+            assert('match case narrows the hits', findMatches('Foo foo', 'foo', { matchCase: true }).matches.length === 1);
+            assert('the search term is escaped when it is not a regex', findMatches('a.b', 'a.b').matches.length === 1);
+
+            probe('name: value');
+            openFindDialog();
+            findRegex.checked = true;
+            findInput.value = '(\\w+): (\\w+)';
+            runFindSearch();
+            findNextMatch();
+            replaceInput.value = '$2: $1';
+            replaceFindCurrent();
+            assert('regex groups are expanded when replacing', docText() === 'value: name');
+
+            probe('abc foo');
+            findInput.value = 'foo';
+            runFindSearch();
+            findNextMatch();
+            replaceInput.value = "[$'|$&]";
+            replaceFindCurrent();
+            assert('$\' and $& are expanded when replacing', docText() === 'abc [abc |foo]');
+
+            findRegex.checked = false;
+            findInput.value = '';
+            closeFindDialog();
+            probe(savedValue);
+        });
+
+        // Thanh định dạng: list task/quote, toggle heading, khối code.
+        await section('format toolbar: lists, headings, code fence', async () => {
+            probe('mục một');
+            applyListStyle('task');
+            assert('task style adds an unchecked box', docText() === '- [ ] mục một');
+            probe('mục một');
+            applyListStyle('quote');
+            assert('quote style prefixes the line', docText() === '> mục một');
+            probe('### a\n### b', 0, 9);
+            applyHeadingLevel(3);
+            assert('heading toggles off when every line has the same level', docText() === 'a\nb');
+            applyHeadingLevel(3);
+            assert('heading toggles back on', docText() === '### a\n### b');
+            probe('', 0, 0);
+            insertBlockFence('code');
+            assert('code fence inserts a js block', docText() === '```js\n// code here\n```');
+            assert('code fence puts the caret inside the block', view.state.selection.main.head === 6);
+            probe('', 0, 0);
+            insertBlockFence('math');
+            assert('math fence inserts a $$ block', docText() === '$$\nf(x) = \\int_{-\\infty}^{\\infty} e^{-x^2} dx\n$$');
+            assert('math fence puts the caret on the formula line', view.state.selection.main.head === 3);
+            probe('let x = 1;', 0, 10);
+            insertBlockFence('code');
+            assert('the selection becomes the body of the fence', docText() === '```js\n    let x = 1;\n```');
+        });
+
+        // Bật/tắt định dạng: **, *, và nhánh "cặp nằm trong cặp dài hơn".
+        await section('bold and italic toggle', async () => {
+            probe('**đậm**', 2, 5);
+            wrapOrToggleFormat('**');
+            assert('bold toggles off when the selection is already wrapped', docText() === 'đậm');
+            probe('*nghiêng*', 1, 8);
+            wrapOrToggleFormat('*');
+            assert('italic toggles off when the selection is already wrapped', docText() === 'nghiêng');
+            probe('chữ', 0, 3);
+            wrapOrToggleFormat('**');
+            assert('bold wraps a plain selection', docText() === '**chữ**');
+            probe('**đậm**', 2, 5);
+            wrapOrToggleFormat('*');
+            assert('italic does not strip the outer ** pair', docText() === '***đậm***');
+            probe('', 0, 0);
+            wrapOrToggleFormat('**');
+            assert('bold with no selection inserts an empty pair', docText() === '****');
+            assert('the caret lands between the marks', view.state.selection.main.head === 2);
+        });
+
+        // Đọc file rồi ghi lại: BOM và EOL phải y hệt byte gốc.
+        await section('file round-trip: BOM, EOL and legacy encoding', async () => {
+            const original = '\uFEFFTiêu đề\r\nDòng hai\r\n';
+            const decoded = decodeTextBytes(new TextEncoder().encode(original));
+            assert('a UTF-8 BOM file decodes with the BOM kept',
+                !!decoded && decoded.text === original && decoded.encoding === 'UTF-8' && decoded.converted === false);
+            const content = toLf(stripBom(decoded.text));
+            const eol = detectEol(decoded.text);
+            const bom = detectBom(decoded.text);
+            assert('BOM and EOL are detected from the raw text', bom === true && eol === '\r\n');
+            assert('saving the file writes back the original bytes',
+                (bom ? '\uFEFF' : '') + applyEol(content, eol) === original);
+            const utf8 = 'café tiếng Việt\n';
+            const plain = decodeTextBytes(new TextEncoder().encode(utf8));
+            assert('a UTF-8 file keeps the Vietnamese diacritics',
+                !!plain && plain.text === utf8 && plain.converted === false);
+            const legacy = decodeTextBytes(Uint8Array.from([0x63, 0x61, 0x66, 0xe9]));
+            assert('a windows-1252 file is read as text',
+                !!legacy && legacy.text === 'café' && legacy.converted === true && legacy.encoding === 'Windows-1252');
+            assert('a converted file is written back as UTF-8',
+                new TextDecoder().decode(new TextEncoder().encode(legacy.text)) === 'café');
+        });
+
+        // Preview: alert, task list, tiền không phải công thức, giới hạn kích thước.
+        await section('preview edge cases', async () => {
+            const savedValue = docText();
+            probe('> [!NOTE]\n> Nội dung cảnh báo');
+            renderMarkdown();
+            const alertBox = previewOutput.querySelector('.markdown-alert');
+            assert('GFM alert becomes an alert block',
+                !!alertBox && alertBox.classList.contains('markdown-alert-note'));
+            const alertTitle = previewOutput.querySelector('.markdown-alert-title');
+            assert('alert gets a title', !!alertTitle && alertTitle.textContent.includes('Note'));
+            assert('alert drops the [!NOTE] marker', !previewOutput.textContent.includes('[!NOTE]'));
+            probe('- [x] xong\n- [ ] chưa');
+            renderMarkdown();
+            const boxes = previewOutput.querySelectorAll('input[type="checkbox"]');
+            assert('task list renders a checkbox per item', boxes.length === 2);
+            assert('task list keeps the ticked state',
+                !!boxes[0] && boxes[0].checked === true && !!boxes[1] && boxes[1].checked === false);
+            probe('Giá $5 và $6');
+            renderMarkdown();
+            assert('money is not treated as math', !previewOutput.querySelector('.math-slot'));
+            assert('money stays in the text', previewOutput.textContent.includes('$5 và $6'));
+            probe('x'.repeat(PREVIEW_MAX_CHARS + 10));
+            renderMarkdown();
+            assert('a huge document shows the too-large notice', !!previewOutput.querySelector('.preview-too-large'));
+            probe(savedValue);
+            renderMarkdown();
+        });
 
     } catch (err) {
         console.error('Self-check aborted:', err);

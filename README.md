@@ -44,7 +44,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Dual-Pane Bidirectional Sync & Three View Modes:** Edit side by side with a live preview that refreshes shortly after you stop typing, and scroll either pane to keep the other in step. Switch instantly between **Editor**, **Split** and **Preview**, or drag the divider to resize the panes freely.
 - **Rich Rendering, Fully Offline:** GitHub Markdown Alerts, KaTeX math (inline and block), Mermaid diagrams and Highlight.js syntax highlighting, all rendered locally.
 - **Full Editing Toolkit:** A formatting toolbar (headings, lists, bold/italic, tables, links, code, math, Mermaid snippets), live Markdown syntax highlighting and a real-time character counter.
-- **Multi-Format Export:** Standalone HTML (`.html`), Word (`.doc`, with Mermaid diagrams converted to images) or vector PDF (selectable text).
+- **Multi-Format Export:** Standalone HTML (`.html`), Word (`.doc` and `.docx`, with Mermaid diagrams converted to images) or vector PDF (selectable text).
 - **Tabs & Data Safety:** Open multiple files as tabs, with drag-to-reorder, pinning and a right-click menu. Drafts, tab order and your last view mode are saved automatically and restored on the next launch, and files changed outside the app are detected before they can be overwritten.
 - **Find & Replace:** A floating search panel at the top right of the content area, with match case, regular expressions, Replace / Replace All and `$1`…`$9` group references.
 - **Light/Dark Theme:** Automatic system theme detection with manual override, persisted between sessions.
@@ -135,7 +135,7 @@ After launching the application, type or paste your Markdown content into the **
 | **Save As** | Save the current tab under a new name or location (`Ctrl`/`Cmd` + `Shift` + `S`) |
 | **Save All** | Save every tab that has unsaved edits, one after another (`Ctrl`/`Cmd` + `Alt` + `S`); it appears only when two or more tabs are changed |
 | **Copy** | Copy the full raw Markdown content of the current tab to the clipboard |
-| **Export** | Open a menu to export content as **HTML** (`.html`), **Word** (`.doc`, with Mermaid diagrams converted to images) or **Print** (`.pdf` via the system print dialog, with selectable text) |
+| **Export** | Open a menu to export content as **HTML** (`.html`), **Word** (`.doc` or `.docx`, with Mermaid diagrams converted to images) or **Print** (`.pdf` via the system print dialog, with selectable text) |
 | **View** | Switch between **Editor**, **Split** and **Preview** modes |
 | **Scroll** | Toggle synchronized scrolling between Editor and Preview (on by default) |
 | **Theme** | Toggle between Light and Dark themes |
@@ -274,6 +274,10 @@ These work anywhere in the app, including **Preview** mode:
 
 The exported `.doc` file can be opened in Microsoft Word. Mermaid diagrams are automatically converted to images.
 
+### DOCX
+
+The exported `.docx` file is a real Office Open XML package (the format Microsoft Word saves by default), so it opens in Word, LibreOffice and Google Docs with editable text, real heading styles, native tables and lists. Formulas are exported as **native Word equations** (OMML), so they stay editable in the Equation Editor instead of becoming pictures. Mermaid diagrams are embedded as images, and remote images are embedded when the server allows it.
+
 ---
 
 ## Architecture Overview
@@ -330,7 +334,7 @@ markdown-live-app/
 │   │   ├── editor/             # CodeMirror 6 wrapper (cm.js), find & replace
 │   │   │                       # panel, format actions, global shortcuts
 │   │   ├── preview/            # Block renderer + hash cache, sanitize, links
-│   │   ├── export/             # .html / .doc / .pdf pipelines
+│   │   ├── export/             # .html / .doc / .docx / .pdf pipelines
 │   │   ├── io/                 # Tab & document store, IndexedDB session
 │   │   ├── ui/                 # Format bar, dialogs, tabs, scroll sync, view modes
 │   │   ├── theme/              # Light / Dark theme

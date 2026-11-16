@@ -39,6 +39,10 @@ import {
 import { handleEditorChange, renderDelayFor } from '../editor/sync.js';
 import { convertQuotesForDoc, styleDataTablesForDoc } from '../export/doc-transform.js';
 import { buildWordHtml } from '../export/doc.js';
+import { buildDocxModel, buildDocxPackage } from '../export/docx-build.js';
+import { mathmlToOmml } from '../export/docx-math.js';
+import { createZip, crc32 } from '../export/docx-zip.js';
+import { buildDocumentRelsXml, buildDocumentXml, buildNumberingXml, buildStylesXml, CONTENT_WIDTH_TWIP } from '../export/docx-xml.js';
 import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readErrorMessage, readTextFile, sameFilePath, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
@@ -739,6 +743,123 @@ export async function runSelfCheck() {
         assert('doc treats a shields.io badge as SVG', isSvgImageSrc('https://img.shields.io/badge/Tauri-v2.0-24C8DB') === true);
         assert('doc treats the .svg extension as SVG', isSvgImageSrc('https://example.com/a.svg?x=1') === true);
         assert('doc does not treat png as SVG', isSvgImageSrc('https://example.com/a.png') === false);
+
+        // DOCX: gói ZIP phải đúng chuẩn OPC, XML phải parse được và giữ đủ nội dung.
+        await section('docx package and content', async () => {
+            assert('crc32 matches the known vector', crc32(new TextEncoder().encode('123456789')) === 0xCBF43926);
+            const zip = createZip([{ name: 'a.txt', data: new TextEncoder().encode('x') }]);
+            const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+            assert('zip starts with a local file header', view.getUint32(0, true) === 0x04034b50);
+            assert('zip ends with the central directory record', view.getUint32(zip.length - 22, true) === 0x06054b50);
+
+            const host = document.createElement('div');
+            host.innerHTML = '<h1>Tiêu đề</h1><p><strong>Đậm</strong> và <em>nghiêng</em></p>'
+                + '<ul><li>mục một</li></ul><ol><li>bước một</li></ol>'
+                + '<table><tr><th>A</th></tr><tr><td>B</td></tr></table>'
+                + '<blockquote><p>trích dẫn</p></blockquote>'
+                + '<pre><code>const x = 1;</code></pre>';
+            const model = await buildDocxModel(host, 'Tài liệu');
+            const xml = buildDocumentXml(model);
+            const parsed = new DOMParser().parseFromString(xml, 'application/xml');
+            assert('docx document.xml is well-formed XML', !parsed.querySelector('parsererror'));
+            const text = parsed.documentElement.textContent;
+            assert('docx keeps the heading text', text.includes('Tiêu đề'));
+            assert('docx keeps the paragraph text', text.includes('Đậm') && text.includes('nghiêng'));
+            assert('docx keeps the table cells', text.includes('A') && text.includes('B'));
+            assert('docx keeps the code block', text.includes('const x = 1;'));
+            assert('docx heading uses the Heading1 style', xml.includes('<w:pStyle w:val="Heading1"/>'));
+            assert('docx bold run carries the bold flag', xml.includes('<w:b/>'));
+            assert('docx list items carry a numbering reference', xml.includes('<w:numId w:val="1"/>'));
+            assert('docx ordered list gets its own numbering id', model.orderedListIds.length === 1);
+            assert('docx table becomes a w:tbl', xml.includes('<w:tbl>') && xml.includes('<w:gridCol'));
+            assert('docx quote keeps a left border', xml.includes('<w:left w:val="single"'));
+            assert('docx code block uses the CodeBlock style', xml.includes('<w:pStyle w:val="CodeBlock"/>'));
+
+            const bytes = buildDocxPackage(model);
+            assert('docx package starts with the ZIP signature', bytes[0] === 0x50 && bytes[1] === 0x4B);
+            const rels = buildDocumentRelsXml(model);
+            assert('docx relationships list styles and numbering', rels.includes('styles.xml') && rels.includes('numbering.xml'));
+            const styles = buildStylesXml();
+            assert('docx styles define the heading styles', styles.includes('w:styleId="Heading1"'));
+            const numbering = buildNumberingXml(model);
+            assert('docx numbering defines the bullet list', numbering.includes('<w:abstractNum w:abstractNumId="0">'));
+            assert('docx numbering restarts each ordered list', numbering.includes('<w:startOverride w:val="1"/>'));
+        });
+
+        // Bảng: bề rộng cột đo từ Preview và bảng lồng không lẫn hàng vào bảng ngoài.
+        await section('docx: table columns and nested tables', async () => {
+            const host = document.createElement('div');
+            host.innerHTML = '<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>';
+            const plain = buildDocumentXml(await buildDocxModel(host, 'Bảng'));
+            const half = Math.floor(CONTENT_WIDTH_TWIP / 2);
+            assert('docx table without measured widths splits columns evenly',
+                plain.includes(`<w:gridCol w:w="${half}"/>`));
+
+            const widths = new WeakMap();
+            widths.set(host.querySelector('table'), [1200, CONTENT_WIDTH_TWIP - 1200]);
+            const sized = buildDocumentXml(await buildDocxModel(host, 'Bảng', { tableWidths: widths }));
+            assert('docx table keeps the measured column widths',
+                sized.includes('<w:gridCol w:w="1200"/>')
+                && sized.includes(`<w:gridCol w:w="${CONTENT_WIDTH_TWIP - 1200}"/>`));
+            assert('docx table cells follow the column widths', sized.includes('<w:tcW w:w="1200"'));
+
+            const nested = document.createElement('div');
+            nested.innerHTML = '<table><tr><td><table><tr><td>x</td></tr></table></td></tr></table>';
+            const nestedModel = await buildDocxModel(nested, 'Lồng');
+            const outer = nestedModel.blocks.find((b) => b.type === 'table');
+            assert('docx keeps the outer table rows apart from the nested table', outer.rows.length === 1);
+        });
+
+        // Danh sách: đủ 9 cấp để list lồng sâu không trỏ tới ilvl chưa định nghĩa.
+        await section('docx: list levels', async () => {
+            const numbering = buildNumberingXml({ orderedListIds: [2] });
+            assert('docx numbering defines nine bullet levels',
+                numbering.includes('<w:lvl w:ilvl="8"><w:start w:val="1"/><w:numFmt w:val="bullet"/>'));
+            assert('docx numbering defines nine decimal levels',
+                numbering.includes('<w:lvl w:ilvl="8"><w:start w:val="1"/><w:numFmt w:val="decimal"/>'));
+            assert('docx decimal level four shows the full path',
+                numbering.includes('<w:lvlText w:val="%1.%2.%3.%4."/>'));
+            assert('docx ordered list restarts every level',
+                (numbering.match(/<w:startOverride w:val="1"\/>/g) || []).length === 9);
+
+            const nest = (depth) => {
+                let inner = 'x';
+                for (let i = 0; i < depth; i++) inner = `<ul><li>${inner}</li></ul>`;
+                return inner;
+            };
+            const deep = document.createElement('div');
+            deep.innerHTML = nest(4);
+            const deepXml = buildDocumentXml(await buildDocxModel(deep, 'Sâu'));
+            assert('docx keeps the fourth list level', deepXml.includes('<w:ilvl w:val="3"/>'));
+
+            const veryDeep = document.createElement('div');
+            veryDeep.innerHTML = nest(10);
+            const veryDeepXml = buildDocumentXml(await buildDocxModel(veryDeep, 'Rất sâu'));
+            assert('docx clamps a list deeper than nine levels', veryDeepXml.includes('<w:ilvl w:val="8"/>'));
+        });
+
+        // Công thức phải thành equation native của Word (OMML), không phải ảnh.
+        await section('docx: formulas become Word equations', async () => {
+            if (typeof katex === 'undefined') {
+                skip('docx: formulas become Word equations', 'KaTeX not loaded');
+                return;
+            }
+            const host = document.createElement('div');
+            host.innerHTML = katex.renderToString('\\frac{a}{b} + \\sqrt{x}', { throwOnError: false });
+            const math = host.querySelector('.katex-mathml > math');
+            const omml = mathmlToOmml(math);
+            assert('mathml converts to an OMML equation', !!omml && omml.startsWith('<m:oMath>'));
+            assert('OMML keeps the fraction element', !!omml && omml.includes('<m:f>'));
+            assert('OMML keeps the radical element', !!omml && omml.includes('<m:rad>'));
+
+            const model = await buildDocxModel(host, 'Công thức');
+            const xml = buildDocumentXml(model);
+            assert('docx formula is written as an OMML equation', xml.includes('<m:oMath>'));
+            assert('docx formula is not exported as an image', !xml.includes('<w:drawing>'));
+            const parsed = new DOMParser().parseFromString(xml, 'application/xml');
+            assert('docx with a formula is well-formed XML', !parsed.querySelector('parsererror'));
+            assert('docx declares the math namespace', xml.includes('xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"'));
+        });
 
         const standalone = buildStandaloneHtml('<p>x</p>', 'Tiêu đề <đẹp>');
         assert('standalone html has a doctype', standalone.startsWith('<!DOCTYPE html>'));

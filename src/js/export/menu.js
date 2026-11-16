@@ -1,8 +1,9 @@
-// js/export/menu.js — Menu thả xuống Export và các nút xuất file (PDF xuất thẳng ở đây; HTML/DOC có module riêng).
+// js/export/menu.js — Menu thả xuống Export và các nút xuất file (PDF xuất thẳng ở đây; HTML/DOC/DOCX có module riêng).
 
 import {
     btnExport,
     exportDocBtn,
+    exportDocxBtn,
     exportHtmlBtn,
     exportMenu,
     exportPdfBtn,
@@ -11,6 +12,7 @@ import {
 import { showToast } from '../core/toast.js';
 import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
 import { exportDoc } from './doc.js';
+import { exportDocx } from './docx.js';
 import { exportHtml } from './html.js';
 
 function closeExportMenu() {
@@ -48,7 +50,7 @@ async function exportPdf() {
     window.print();
 }
 
-const exportButtons = [exportHtmlBtn, exportDocBtn, exportPdfBtn];
+const exportButtons = [exportHtmlBtn, exportDocBtn, exportDocxBtn, exportPdfBtn];
 
 function setExportDisabled(disabled) {
     exportButtons.forEach((btn) => { btn.disabled = disabled; });
@@ -86,6 +88,8 @@ export function initExportMenu() {
     exportHtmlBtn.addEventListener('click', () => { runExport(exportHtml); });
 
     exportDocBtn.addEventListener('click', () => { runExport(exportDoc); });
+
+    exportDocxBtn.addEventListener('click', () => { runExport(exportDocx); });
 
     exportPdfBtn.addEventListener('click', () => { runExport(exportPdf); });
 }

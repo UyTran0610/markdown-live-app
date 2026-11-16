@@ -370,11 +370,11 @@ async function removeQuietly(path) {
 
 // Chỉ mở hộp thoại, không ghi: nơi gọi kiểm trùng tab TRƯỚC khi nội dung chạm đĩa.
 // Trả null nếu người dùng huỷ hoặc không có cầu dialog (bản trình duyệt).
-export async function chooseSavePath(defaultPath, extensions) {
+export async function chooseSavePath(defaultPath, extensions, label = 'Text file') {
     if (!hasTauriBridge()) return null;
     const picked = await window.__TAURI__.dialog.save({
         defaultPath,
-        filters: [{ name: 'Text file', extensions }]
+        filters: [{ name: label, extensions }]
     });
     return picked || null;
 }
@@ -453,5 +453,31 @@ export async function saveTextFile(contents, baseName, ext, mimeType, eol = '\n'
         return null;
     }
     downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
+    return null;
+}
+
+// Ghi file nhị phân (DOCX): fs.writeFile nhận byte, không dùng writeTextFile.
+export async function saveBinaryFile(bytes, baseName, ext, mimeType, label = 'File') {
+    if (hasTauriBridge()) {
+        const path = await chooseSavePath(baseName + '.' + ext, [ext], label);
+        if (!path) return null;
+        try {
+            await window.__TAURI__.fs.writeFile(path, bytes);
+        } catch (err) {
+            console.error('Write failed:', err);
+            showToast(isAclError(err)
+                ? 'Could not save that file. The app may not have permission for that location.'
+                : `Could not save the file: ${errorDetail(err)}`);
+            return null;
+        }
+        return path;
+    }
+
+    // Trong WebView Tauri mà thiếu dialog/fs thì <a download> không chạy: báo rõ thay vì im lặng.
+    if (isTauriRuntime()) {
+        showToast('Could not save the file: the app\'s file-saving plugin is missing.');
+        return null;
+    }
+    downloadBlob(new Blob([bytes], { type: mimeType }), baseName + '.' + ext);
     return null;
 }

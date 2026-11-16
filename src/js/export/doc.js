@@ -6,12 +6,8 @@ import { showToast } from '../core/toast.js';
 import { convertQuotesForDoc, stripUnusedHeadingIds, styleDataTablesForDoc } from './doc-transform.js';
 import { deriveExportBaseName, saveTextFile } from './file-save.js';
 import {
-    fitDocImageSize,
-    getDocImageSize,
-    isSvgImageSrc,
-    svgImageToPngDataUrl,
-    svgToPngDataUrl,
-    waitForImageLoad
+    convertMermaidToImages,
+    prepareDocImages
 } from './images.js';
 import { convertKatexToImagesForDoc } from './math-image.js';
 import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
@@ -66,60 +62,9 @@ export async function exportDoc() {
         el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
     });
 
-    // Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong Preview theo chỉ số.
-    const origImgs = previewOutput.querySelectorAll('img');
-    const cloneImgs = clone.querySelectorAll('img');
-    for (let idx = 0; idx < cloneImgs.length; idx++) {
-        const img = cloneImgs[idx];
-        const orig = origImgs[idx];
-        if (!orig) continue;
-        await waitForImageLoad(orig);
-        const size = getDocImageSize(orig);
-        const fit = fitDocImageSize(size.width, size.height);
-        if (!(fit.width > 0 && fit.height > 0)) continue;
-
-        const src = orig.currentSrc || orig.getAttribute('src') || '';
-        if (isSvgImageSrc(src)) {
-            try {
-                img.src = await svgImageToPngDataUrl(src, fit.width, fit.height);
-                img.removeAttribute('srcset');
-            } catch (e) {
-                console.warn('Could not convert the SVG image to PNG, keeping the original URL:', src, e);
-            }
-        }
-        img.setAttribute('width', fit.width);
-        img.setAttribute('height', fit.height);
-        img.style.width = fit.width + 'px';
-        img.style.height = fit.height + 'px';
-    }
-
-    // Ánh xạ theo chính node pre (không theo chỉ số svg): mermaid lỗi làm lệch chỉ số và xuất nhầm ảnh.
-    const cloneMers = clone.querySelectorAll('pre.mermaid');
-    const origPres = previewOutput.querySelectorAll('pre.mermaid');
-    for (let i = 0; i < cloneMers.length; i++) {
-        const svg = origPres[i] && origPres[i].querySelector('svg');
-        if (!svg) {
-            console.warn('Mermaid diagram has no SVG yet, skipping image conversion:', i);
-            continue;
-        }
-        try {
-            const { dataUrl, width, height } = await svgToPngDataUrl(svg);
-            const img = document.createElement('img');
-            img.src = dataUrl;
-            img.alt = 'Mermaid diagram';
-            // PNG vẽ ở 2x mà Word bỏ qua max-width: luôn gắn kích thước hiển thị tường minh.
-            const fit = fitDocImageSize(width, height);
-            if (fit.width > 0 && fit.height > 0) {
-                img.setAttribute('width', fit.width);
-                img.setAttribute('height', fit.height);
-                img.style.width = fit.width + 'px';
-                img.style.height = 'auto';
-            }
-            cloneMers[i].replaceWith(img);
-        } catch (e) {
-            console.warn('Could not convert the Mermaid diagram to an image, keeping the source code:', e);
-        }
-    }
+    // Ảnh về đúng kích thước hiển thị (SVG -> PNG), Mermaid -> PNG.
+    await prepareDocImages(previewOutput, clone, { withStyle: true });
+    await convertMermaidToImages(previewOutput, clone, { withStyle: true });
 
     // Công thức -> PNG như Mermaid; công thức lỗi tự rơi về MathML trong hàm này.
     await convertKatexToImagesForDoc(previewOutput, clone);

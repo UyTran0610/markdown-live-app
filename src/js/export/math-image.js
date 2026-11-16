@@ -13,7 +13,7 @@ const KATEX_IMG_PAD = 2;
 
 // Trả { dataUrl, width, height, descent }; descent để canh baseline công thức inline.
 // Ném lỗi nếu canvas bị taint hoặc ảnh trống -> nơi gọi dùng MathML.
-async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
+export async function renderKatexToPng(origKatex, scale = KATEX_IMG_SCALE) {
     const assets = await getKatexAssets();
 
     const clone = origKatex.cloneNode(true);

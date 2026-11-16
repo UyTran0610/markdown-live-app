@@ -47,6 +47,8 @@ export const exportHtmlBtn = document.getElementById('export-html');
 
 export const exportDocBtn = document.getElementById('export-doc');
 
+export const exportDocxBtn = document.getElementById('export-docx');
+
 export const exportPdfBtn = document.getElementById('export-pdf');
 
 export const btnTheme = document.getElementById('btn-theme');

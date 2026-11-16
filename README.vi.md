@@ -44,7 +44,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Đồng bộ hai chiều & ba chế độ xem:** Soạn thảo song song với bản xem trước tự cập nhật ngay sau khi bạn ngừng gõ, và cuộn một khung thì khung còn lại cuộn theo. Chuyển tức thì giữa **Editor**, **Split** và **Preview**, hoặc kéo thanh chia để tùy chỉnh độ rộng hai khung.
 - **Render phong phú, hoạt động hoàn toàn ngoại tuyến:** GitHub Markdown Alerts, công thức KaTeX (nội dòng và dạng khối), sơ đồ Mermaid và tô màu cú pháp Highlight.js, tất cả đều xử lý cục bộ.
 - **Bộ công cụ soạn thảo đầy đủ:** Thanh công cụ định dạng (tiêu đề, danh sách, in đậm/nghiêng, bảng, liên kết, code, công thức, Mermaid), tô màu cú pháp Markdown trực tiếp và đếm ký tự thời gian thực.
-- **Xuất đa định dạng:** HTML độc lập (`.html`), Word (`.doc`, sơ đồ Mermaid chuyển thành ảnh) hoặc PDF vector (giữ khả năng chọn/copy văn bản).
+- **Xuất đa định dạng:** HTML độc lập (`.html`), Word (`.doc` và `.docx`, sơ đồ Mermaid chuyển thành ảnh) hoặc PDF vector (giữ khả năng chọn/copy văn bản).
 - **Tab & an toàn dữ liệu:** Mở nhiều file thành nhiều tab, hỗ trợ kéo để đổi thứ tự, ghim tab và menu chuột phải. Bản nháp, thứ tự tab và chế độ xem gần nhất được tự động lưu và khôi phục ở lần mở tiếp theo, còn file bị chương trình khác sửa sẽ được phát hiện trước khi có thể bị ghi đè.
 - **Tìm & thay thế:** Panel tìm kiếm nổi ở góc trên bên phải vùng nội dung, hỗ trợ phân biệt hoa thường, biểu thức chính quy, Replace / Replace All và tham chiếu nhóm `$1`…`$9`.
 - **Chủ đề Sáng/Tối:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ giữa các phiên.
@@ -135,7 +135,7 @@ Sau khi mở ứng dụng, gõ hoặc dán nội dung Markdown vào khung **EDIT
 | **Save As** | Lưu tab hiện tại thành file mới hoặc ở vị trí mới (`Ctrl`/`Cmd` + `Shift` + `S`) |
 | **Save All** | Lưu toàn bộ tab đang có thay đổi chưa lưu, lần lượt từng tab (`Ctrl`/`Cmd` + `Alt` + `S`); chỉ hiện khi có từ hai tab đang thay đổi trở lên |
 | **Copy** | Sao chép toàn bộ nội dung Markdown của tab hiện tại vào clipboard |
-| **Export** | Mở menu xuất nội dung ra **HTML** (`.html`), **Word** (`.doc`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **Print** (`.pdf`, qua hộp thoại in của hệ thống, chọn được văn bản) |
+| **Export** | Mở menu xuất nội dung ra **HTML** (`.html`), **Word** (`.doc` hoặc `.docx`, sơ đồ Mermaid được chuyển thành ảnh) hoặc **Print** (`.pdf`, qua hộp thoại in của hệ thống, chọn được văn bản) |
 | **View** | Chuyển đổi giữa chế độ **Editor**, **Split** và **Preview** |
 | **Scroll** | Bật/tắt đồng bộ cuộn trang giữa Editor và Preview (mặc định bật) |
 | **Theme** | Chuyển đổi giao diện Sáng / Tối |
@@ -274,6 +274,10 @@ Các phím tắt sau hoạt động ở mọi chế độ, kể cả **Preview**
 
 File `.doc` sau khi xuất có thể mở bằng Microsoft Word. Các sơ đồ Mermaid được tự động chuyển thành ảnh.
 
+### DOCX
+
+File `.docx` sau khi xuất là gói Office Open XML thật (đúng định dạng Microsoft Word lưu mặc định), nên mở được bằng Word, LibreOffice và Google Docs với văn bản vẫn sửa được, style tiêu đề chuẩn, bảng và danh sách native. Công thức được xuất thành **phương trình native của Word** (OMML) nên vẫn sửa được trong Equation Editor, không bị biến thành ảnh. Sơ đồ Mermaid được nhúng dạng ảnh; ảnh từ máy chủ được nhúng khi server cho phép.
+
 ---
 
 ## Tổng quan kiến trúc
@@ -330,7 +334,7 @@ markdown-live-app/
 │   │   ├── editor/             # Bọc CodeMirror 6 (cm.js), panel tìm & thay thế,
 │   │   │                       # thao tác định dạng, phím tắt toàn cục
 │   │   ├── preview/            # Render theo khối + cache hash, sanitize, liên kết
-│   │   ├── export/             # Pipeline xuất .html / .doc / .pdf
+│   │   ├── export/             # Pipeline xuất .html / .doc / .docx / .pdf
 │   │   ├── io/                 # Lưu trữ tab & tài liệu, session trong IndexedDB
 │   │   ├── ui/                 # Thanh định dạng, hộp thoại, tab, đồng bộ cuộn, chế độ xem
 │   │   ├── theme/              # Theme Sáng / Tối

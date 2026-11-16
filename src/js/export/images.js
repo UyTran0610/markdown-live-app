@@ -120,12 +120,12 @@ export function waitForImageLoad(img, timeoutMs = 4000) {
     });
 }
 
-// Vẽ lên canvas 2x; cần crossOrigin='anonymous' (shields.io có CORS), lỗi thì giữ URL gốc.
-export async function svgImageToPngDataUrl(src, w, h, scale = 2) {
+// Tải ảnh vào canvas rồi xuất PNG. crossOrigin='anonymous' cần cho ảnh từ host khác (CORS).
+export async function imageToPngDataUrl(src, w, h, { scale = 2, crossOrigin = false, timeoutMs = 6000 } = {}) {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (crossOrigin) img.crossOrigin = 'anonymous';
     await new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error('image load timeout')), 6000);
+        const t = setTimeout(() => reject(new Error('image load timeout')), timeoutMs);
         img.onload = () => { clearTimeout(t); resolve(); };
         img.onerror = () => { clearTimeout(t); reject(new Error('image load failed')); };
         img.src = src;
@@ -135,4 +135,74 @@ export async function svgImageToPngDataUrl(src, w, h, scale = 2) {
     canvas.height = Math.max(1, Math.round(h * scale));
     canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/png');
+}
+
+// Vẽ lên canvas 2x; cần crossOrigin='anonymous' (shields.io có CORS), lỗi thì giữ URL gốc.
+export async function svgImageToPngDataUrl(src, w, h, scale = 2) {
+    return imageToPngDataUrl(src, w, h, { scale, crossOrigin: true });
+}
+
+// Gom ảnh của Preview về kích thước hiển thị và đổi SVG sang PNG.
+// Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong Preview theo chỉ số.
+// withStyle: DOC (HTML) cần style để trình duyệt giữ đúng khung; DOCX chỉ cần thuộc tính.
+export async function prepareDocImages(origRoot, clone, { withStyle = false } = {}) {
+    const origImgs = origRoot.querySelectorAll('img');
+    const cloneImgs = clone.querySelectorAll('img');
+    for (let i = 0; i < cloneImgs.length; i++) {
+        const img = cloneImgs[i];
+        const orig = origImgs[i];
+        if (!orig) continue;
+        await waitForImageLoad(orig);
+        const size = getDocImageSize(orig);
+        const fit = fitDocImageSize(size.width, size.height);
+        if (!(fit.width > 0 && fit.height > 0)) continue;
+        const src = orig.currentSrc || orig.getAttribute('src') || '';
+        if (isSvgImageSrc(src)) {
+            try {
+                img.src = await svgImageToPngDataUrl(src, fit.width, fit.height);
+                img.removeAttribute('srcset');
+            } catch (e) {
+                console.warn('Could not convert the SVG image to PNG, keeping the original URL:', src, e);
+            }
+        }
+        img.setAttribute('width', fit.width);
+        img.setAttribute('height', fit.height);
+        if (withStyle) {
+            img.style.width = fit.width + 'px';
+            img.style.height = fit.height + 'px';
+        }
+    }
+}
+
+// Mermaid -> PNG; lỗi thì giữ nguyên khối code để không mất nội dung.
+export async function convertMermaidToImages(origRoot, clone, { withStyle = false } = {}) {
+    // Ánh xạ theo chính node pre (không theo chỉ số svg): mermaid lỗi làm lệch chỉ số và xuất nhầm ảnh.
+    const cloneMers = clone.querySelectorAll('pre.mermaid');
+    const origPres = origRoot.querySelectorAll('pre.mermaid');
+    for (let i = 0; i < cloneMers.length; i++) {
+        const svg = origPres[i] && origPres[i].querySelector('svg');
+        if (!svg) {
+            console.warn('Mermaid diagram has no SVG yet, skipping image conversion:', i);
+            continue;
+        }
+        try {
+            const { dataUrl, width, height } = await svgToPngDataUrl(svg);
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            img.alt = 'Mermaid diagram';
+            // PNG vẽ ở 2x mà Word bỏ qua max-width: luôn gắn kích thước hiển thị tường minh.
+            const fit = fitDocImageSize(width, height);
+            if (fit.width > 0 && fit.height > 0) {
+                img.setAttribute('width', fit.width);
+                img.setAttribute('height', fit.height);
+                if (withStyle) {
+                    img.style.width = fit.width + 'px';
+                    img.style.height = fit.height + 'px';
+                }
+            }
+            cloneMers[i].replaceWith(img);
+        } catch (e) {
+            console.warn('Could not convert the Mermaid diagram to an image, keeping the source code:', e);
+        }
+    }
 }

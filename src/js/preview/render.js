@@ -108,7 +108,10 @@ function renderBlockHtml(token) {
         USE_PROFILES: { html: true, mathMl: true, svg: true },
         ADD_ATTR: ['target', 'rel'],
         // Chỉ cho http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn javascript:...).
-        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i,
+        // CSS trong Markdown áp lên cả app: <style> làm trắng cửa sổ, style= che bằng overlay.
+        FORBID_TAGS: ['style'],
+        FORBID_ATTR: ['style']
     });
     const tpl = document.createElement('template');
     tpl.innerHTML = clean;

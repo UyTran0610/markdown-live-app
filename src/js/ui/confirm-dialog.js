@@ -88,7 +88,8 @@ export function initConfirmDialog() {
         }
         if (e.key !== 'Tab') return;
         e.preventDefault();
-        const focusables = Array.from(confirmDialog.querySelectorAll('button')).filter((b) => !b.hidden);
+        // Bỏ nút disabled: focus() vào nút disabled là no-op nên Tab kẹt tại đó.
+        const focusables = Array.from(confirmDialog.querySelectorAll('button')).filter((b) => !b.hidden && !b.disabled);
         if (!focusables.length) return;
         const idx = focusables.indexOf(document.activeElement);
         const next = e.shiftKey

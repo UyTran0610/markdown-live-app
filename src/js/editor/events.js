@@ -6,8 +6,9 @@ import { closeTab, cycleTab, getActiveTab, getTabs, newTab, openFiles, reopenClo
 
 // Ctrl+1..9 -> tab thứ N. Nằm ngoài handler vì cần ngưỡng (Ctrl+0 / Ctrl+9 khi có ít tab là hợp lệ).
 function switchToTabByNumber(e) {
-    const digit = Number(e.key.slice(1));
-    if (!Number.isInteger(digit) || digit < 1 || digit > 9) return false;
+    // e.key của phím số là '1'..'9' (e.code mới là 'Digit1'), nên phải so trực tiếp.
+    if (!/^[1-9]$/.test(e.key)) return false;
+    const digit = Number(e.key);
     const target = getTabs()[digit - 1];
     if (!target) return true;
     e.preventDefault();
@@ -16,8 +17,10 @@ function switchToTabByNumber(e) {
 }
 
 // Hộp thoại đang mở nuốt phím tắt (Enter/Esc/Tab do chính nó xử lý).
+// Panel tìm kiếm không phải hộp thoại: nó chỉ xử lý phím của mình, còn Ctrl+S phải còn sống.
 function insideOpenDialog(e) {
-    return e.target instanceof Element && !!e.target.closest('.dialog-overlay:not(.hidden)');
+    return e.target instanceof Element
+        && !!e.target.closest('.dialog-overlay:not(.hidden):not(#find-dialog)');
 }
 
 // Phím tắt gắn trên window, bắt ở pha capture: bắt trước keymap của CodeMirror

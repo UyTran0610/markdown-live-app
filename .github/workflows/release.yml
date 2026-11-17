@@ -9,7 +9,6 @@ on:
       version:
         description: 'Release tag (e.g. v1.0.0)'
         required: true
-        default: 'v1.0.0'
       release_notes:
         description: 'Release note (optional). Use \n for line breaks, Markdown supported. Leave empty to generate it from the commits.'
         required: false
@@ -52,8 +51,20 @@ jobs:
           else
             RAW="$REF_NAME"
           fi
+          VERSION="${RAW#v}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::No release version given"
+            exit 1
+          fi
+          # Chặn hạ version: chạy tay với version cũ sẽ ghi đè release đã có và hạ version trong repo.
+          CURRENT=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          CHECK=$(node -e "const p=s=>s.split('.').map(n=>parseInt(n,10)||0);const c=p(process.argv[1]),v=p(process.argv[2]);let r='ok';for(let i=0;i<3;i++){const a=c[i]||0,b=v[i]||0;if(a!==b){r=b>a?'ok':'older';break;}}process.stdout.write(r);" "$CURRENT" "$VERSION")
+          if [ "$CHECK" = "older" ]; then
+            echo "::error::Version $VERSION is older than the current $CURRENT"
+            exit 1
+          fi
           echo "tag=$RAW" >> $GITHUB_OUTPUT
-          echo "version=${RAW#v}" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # Ghi số phiên bản vừa xác định vào tauri.conf.json và Cargo.toml,
       # đồng thời tự cache-busting (?v=...) các asset trong index.html theo version mới

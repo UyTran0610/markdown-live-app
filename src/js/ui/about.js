@@ -107,8 +107,9 @@ export function initAbout() {
         } else if (e.key === 'Tab') {
             e.preventDefault();
             // offsetParent === null là display:none: focus() vào nút ẩn là no-op nên chỉ xét nút đang hiện.
+            // Nút disabled cũng bị loại: focus() vào nó cũng là no-op.
             const focusables = Array.from(infoDialog.querySelectorAll('button'))
-                .filter((b) => b.offsetParent !== null);
+                .filter((b) => b.offsetParent !== null && !b.disabled);
             const idx = focusables.indexOf(document.activeElement);
             const next = e.shiftKey
                 ? focusables[(idx - 1 + focusables.length) % focusables.length]

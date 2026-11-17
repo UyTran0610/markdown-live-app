@@ -379,35 +379,33 @@ export async function chooseSavePath(defaultPath, extensions, label = 'Text file
     return picked || null;
 }
 
-// Ghi đè file đã biết path, không mở hộp thoại; dùng chung bắt lỗi ACL với saveTextFile.
-export async function writeTextFile(path, contents, eol = '\n', bom = false) {
-    // File tạm cạnh file thật: cần cùng nằm trong fs scope mới ghi atomic được.
+// Ghi atomic: file tạm cạnh file gốc rồi rename. writer nhận (path, payload) để dùng
+// chung cho văn bản và nhị phân (DOCX) — cả hai đều không được cắt file gốc.
+async function writeAtomic(path, payload, write) {
     const tmp = path + TMP_SUFFIX;
-    // Ghi thẳng vào file gốc là writeTextFile truncate trước: hỏng giữa chừng là mất bản gốc.
+    // Ghi thẳng vào file gốc là truncate trước: hỏng giữa chừng là mất bản gốc.
     let directWrite = false;
     // File tạm đã ghi xong = còn nguyên nội dung mới để cứu.
     let tmpWritten = false;
     try {
-        const body = applyEol(contents, eol);
-        const payload = bom ? '\uFEFF' + body : body;
         // File gốc phải đã được duyệt thì mới cho phép ghi file .tmp cạnh nó.
         const tmpAllowed = await allowTempSibling(path);
         if (!tmpAllowed) {
             // Không có quyền ghi file .tmp: ghi thẳng (không atomic) để không mất thay đổi.
             directWrite = true;
-            await window.__TAURI__.fs.writeTextFile(path, payload);
+            await write(path, payload);
             return true;
         }
         try {
-            await window.__TAURI__.fs.writeTextFile(tmp, payload);
+            await write(tmp, payload);
             tmpWritten = true;
         } catch (err) {
             // Chỉ lỗi phạm vi mới ghi thẳng. Lỗi I/O (đầy đĩa, file khoá) phải ném ra:
-            // writeTextFile truncate file cũ trước khi ghi nên ghi thẳng là mất nội dung gốc.
+            // ghi thẳng là truncate file cũ trước khi ghi nên mất nội dung gốc.
             if (!isAclError(err)) throw err;
             await removeQuietly(tmp);
             directWrite = true;
-            await window.__TAURI__.fs.writeTextFile(path, payload);
+            await write(path, payload);
             return true;
         }
         try {
@@ -416,7 +414,7 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
         } catch (err) {
             // Rename hỏng (file khoá, ACL): ghi thẳng để không mất thay đổi, rồi dọn file tạm.
             directWrite = true;
-            await window.__TAURI__.fs.writeTextFile(path, payload);
+            await write(path, payload);
             await removeQuietly(tmp);
         }
         return true;
@@ -428,7 +426,7 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
         if (directWrite) {
             // File gốc có thể đã bị cắt cụt; file tạm còn nguyên là bản nội dung mới: GIỮ lại.
             showToast(tmpWritten
-                ? `${base}\nThe original file may be damaged. Your text was kept in ${tmp}`
+                ? `${base}\nThe original file may be damaged. Your new content was kept in ${tmp}`
                 : `${base}\nThe original file may be damaged.`);
         } else {
             // Ghi hỏng giữa chừng (đầy đĩa, mất quyền): file tạm có thể đã tồn tại, dọn luôn.
@@ -437,6 +435,13 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
         }
         return false;
     }
+}
+
+// Ghi đè file đã biết path, không mở hộp thoại; dùng chung bắt lỗi ACL với saveTextFile.
+export async function writeTextFile(path, contents, eol = '\n', bom = false) {
+    const body = applyEol(contents, eol);
+    const payload = bom ? '\uFEFF' + body : body;
+    return writeAtomic(path, payload, (p, data) => window.__TAURI__.fs.writeTextFile(p, data));
 }
 
 // Tauri: hộp thoại Save As + fs; ngoài Tauri: <a download>. Trả path đã ghi hoặc null.
@@ -461,16 +466,9 @@ export async function saveBinaryFile(bytes, baseName, ext, mimeType, label = 'Fi
     if (hasTauriBridge()) {
         const path = await chooseSavePath(baseName + '.' + ext, [ext], label);
         if (!path) return null;
-        try {
-            await window.__TAURI__.fs.writeFile(path, bytes);
-        } catch (err) {
-            console.error('Write failed:', err);
-            showToast(isAclError(err)
-                ? 'Could not save that file. The app may not have permission for that location.'
-                : `Could not save the file: ${errorDetail(err)}`);
-            return null;
-        }
-        return path;
+        // Ghi atomic như file văn bản: ghi thẳng sẽ cắt file cũ khi hỏng giữa chừng.
+        const ok = await writeAtomic(path, bytes, (p, data) => window.__TAURI__.fs.writeFile(p, data));
+        return ok ? path : null;
     }
 
     // Trong WebView Tauri mà thiếu dialog/fs thì <a download> không chạy: báo rõ thay vì im lặng.

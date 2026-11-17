@@ -112,7 +112,8 @@ export function initDialogs() {
                 closeDialogs();
             } else if (e.key === 'Tab') {
                 e.preventDefault();
-                const focusables = Array.from(overlay.querySelectorAll('input, button'));
+                // Bỏ nút disabled: focus() vào nút disabled là no-op nên Tab kẹt tại đó.
+                const focusables = Array.from(overlay.querySelectorAll('input, button:not([disabled])'));
                 const idx = focusables.indexOf(document.activeElement);
                 const next = e.shiftKey
                     ? focusables[(idx - 1 + focusables.length) % focusables.length]

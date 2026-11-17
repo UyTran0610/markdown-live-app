@@ -43,7 +43,7 @@ import { buildDocxModel, buildDocxPackage } from '../export/docx-build.js';
 import { mathmlToOmml } from '../export/docx-math.js';
 import { createZip, crc32 } from '../export/docx-zip.js';
 import { buildDocumentRelsXml, buildDocumentXml, buildNumberingXml, buildStylesXml, CONTENT_WIDTH_TWIP } from '../export/docx-xml.js';
-import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readErrorMessage, readTextFile, sameFilePath, stripBom, toLf, writeTextFile } from '../export/file-save.js';
+import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readErrorMessage, readTextFile, sameFilePath, saveBinaryFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
@@ -606,6 +606,47 @@ export async function runSelfCheck() {
             }
         });
 
+        // Xuất DOCX phải ghi atomic giống file văn bản: ghi thẳng sẽ cắt file cũ khi hỏng giữa chừng.
+        await section('binary export writes atomically', async () => {
+            const realTauri = window.__TAURI__;
+            const target = 'C:\\selfcheck\\out.docx';
+            const tmp = target + '.md-live.tmp';
+            const calls = [];
+            // fs giả: ghi file gốc hỏng, rename bị khoá -> file tạm phải còn lại.
+            const fakeFs = {
+                writeFile: async (path) => {
+                    calls.push(['write', path]);
+                    if (path === target) throw new Error('disk full');
+                },
+                writeTextFile: async (path) => { calls.push(['write', path]); },
+                rename: async () => { calls.push(['rename']); throw new Error('file is locked'); },
+                remove: async (path) => { calls.push(['remove', path]); }
+            };
+            let stubbed = false;
+            try {
+                window.__TAURI__ = {
+                    core: { invoke: async () => true },
+                    fs: fakeFs,
+                    dialog: { save: async () => target }
+                };
+                stubbed = window.__TAURI__ && window.__TAURI__.fs === fakeFs;
+            } catch (e) {
+                stubbed = false;
+            }
+            if (!stubbed) {
+                skip('stub fs to test the binary write', 'window.__TAURI__ could not be assigned');
+                return;
+            }
+            try {
+                const path = await saveBinaryFile(new Uint8Array([1, 2, 3]), 'out', 'docx', 'application/octet-stream');
+                assert('binary write failed -> reports failure', path === null);
+                assert('binary write goes through the temp file', calls.some((c) => c[0] === 'write' && c[1] === tmp));
+                assert('binary write writes the temp file first', calls.length > 0 && calls[0][1] === tmp);
+                assert('binary write keeps the temp file (new content not deleted)', !calls.some((c) => c[0] === 'remove' && c[1] === tmp));
+            } finally {
+                window.__TAURI__ = realTauri;
+            }
+        });
         // readOnly phải sống cùng session, nếu không mỗi lần khởi động lại mở khoá gõ.
         await section('session keeps the read-only flag', async () => {
             const ro = deserializeSession(JSON.stringify({
@@ -1306,6 +1347,25 @@ export async function runSelfCheck() {
         });
         if (results.length === mark) skip('14 About dialog asserts', 'no #btn-help');
 
+        // Nút Insert của hộp thoại Link bị disabled tới khi có URL: Tab phải bỏ qua nó.
+        await section('link dialog focus trap skips the disabled button', async () => {
+            const linkDialog = document.getElementById('link-dialog');
+            const urlInput = document.getElementById('link-url');
+            if (!linkDialog || !urlInput) {
+                skip('link dialog focus trap', 'dialog is not in the DOM');
+                return;
+            }
+            linkDialog.classList.remove('hidden');
+            try {
+                urlInput.focus();
+                urlInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+                assert('tab moves past the disabled insert button',
+                    document.activeElement === document.getElementById('link-cancel'));
+            } finally {
+                linkDialog.classList.add('hidden');
+            }
+        });
+
         // Data safety: lưu/đóng tab không được mất bản nháp, tab lỗi không được ghi đè file gốc.
         await section('data safety: save and close never lose a draft', async () => {
             const originalId = getActiveTab() ? getActiveTab().id : null;
@@ -1472,6 +1532,25 @@ export async function runSelfCheck() {
             }
         });
 
+        // Ctrl+1..9 nhảy tới tab thứ N: e.key của phím số là '1'..'9', không phải 'Digit1'.
+        await section('ctrl+digit jumps to a tab', async () => {
+            const originalId = getActiveTab() ? getActiveTab().id : null;
+            const created = [];
+            try {
+                created.push(newTab().id);
+                created.push(newTab().id);
+                const firstId = getTabs()[0].id;
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true, bubbles: true }));
+                assert('ctrl+1 jumps to the first tab', getActiveTab().id === firstId);
+                switchTab(created[1]);
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F1', ctrlKey: true, bubbles: true }));
+                assert('ctrl+F1 is not treated as ctrl+1', getActiveTab().id === created[1]);
+            } finally {
+                if (originalId !== null) switchTab(originalId);
+                for (const id of created) await closeTab(id, { force: true, remember: false });
+            }
+        });
+
         // CSP là null: chống XSS là việc của JS. Payload lọt vào preview là lỗi bảo mật.
         await section('preview sanitizes untrusted markdown', async () => {
             const savedValue = docText();
@@ -1494,6 +1573,14 @@ export async function runSelfCheck() {
                     && !/javascript:/i.test(html)
                     && !/srcdoc/i.test(html));
             }
+            // CSS trong Markdown phải bị loại: <style> áp lên cả app, style= che cửa sổ bằng overlay.
+            probe('<style>*{display:none!important}</style>');
+            renderMarkdown();
+            assert('css <style> block is dropped', !/<style/i.test(previewOutput.innerHTML));
+            probe('<div style="position:fixed;inset:0;z-index:2147483647">x</div>');
+            renderMarkdown();
+            assert('inline style attribute is dropped', !/\sstyle=/i.test(previewOutput.innerHTML));
+
             // Link ngoài mở tab mới kèm rel an toàn; anchor trong tài liệu thì không.
             probe('[ngoài](https://example.com) và [trong](#muc)');
             renderMarkdown();

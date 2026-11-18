@@ -276,12 +276,14 @@ class DocxBuilder {
         const runs = [];
         let numbered = false;
         // Khoảng cách đoạn tự đặt: không phụ thuộc contextualSpacing (Word và LO hiểu khác nhau).
+        // Word chỉ định nghĩa 9 cấp; list sâu hơn thì ghim vào cấp cuối.
+        const ilvl = Math.min(level, NUM_LEVELS - 1);
         const listProps = (withNumber) => ({
             style: 'ListParagraph',
             spacingBefore: 0,
             spacingAfter: 40,
-            // Word chỉ định nghĩa 9 cấp; list sâu hơn thì ghim vào cấp cuối.
-            ...(withNumber ? { numId, ilvl: Math.min(level, NUM_LEVELS - 1) } : {})
+            // Đoạn không đánh số vẫn phải thụt đúng cấp của mục.
+            ...(withNumber ? { numId, ilvl } : { indentLeft: 720 + ilvl * 720 })
         });
         const flush = () => {
             if (!runs.length) return;
@@ -292,7 +294,9 @@ class DocxBuilder {
         for (const child of [...li.childNodes]) {
             if (child.nodeType === 3) {
                 // Khoảng trắng thuần là xuống dòng HTML, không phải nội dung.
-                if (child.textContent.trim()) runs.push({ text: child.textContent, color: ctx.color });
+                // Xuống dòng mềm trong mục cũng chỉ là dấu cách, giữ \n sẽ thành <w:br/>.
+                const text = child.textContent.replace(/\s+/g, ' ');
+                if (text.trim()) runs.push({ text, color: ctx.color });
                 continue;
             }
             if (child.nodeType !== 1) continue;
@@ -310,13 +314,24 @@ class DocxBuilder {
             }
             if (/^(P|DIV|PRE|TABLE|BLOCKQUOTE|HR|DETAILS)$/.test(tag)) {
                 flush();
-                if (tag === 'P' && !numbered) {
+                if (tag === 'P') {
                     const pRuns = await this.inlineRuns(child, { color: ctx.color });
+                    // Đoạn tiếp của mục: giữ viền/cạnh của ngữ cảnh ngoài (ví dụ quote), thụt theo cấp mục.
+                    const props = numbered ? { ...ctx.para, ...listProps(false) } : listProps(true);
                     numbered = true;
-                    out.push(this.paragraph(pRuns, listProps(true)));
+                    out.push(this.paragraph(pRuns, props));
                 } else {
                     await this.block(child, out, ctx);
                 }
+                continue;
+            }
+            if (/^H[1-6]$/.test(tag)) {
+                // Heading trong mục: giữ đúng cấp heading, thụt theo cấp của mục.
+                const hRuns = await this.inlineRuns(child, { color: ctx.color });
+                out.push(this.paragraph(hRuns, {
+                    style: `Heading${tag.slice(1)}`,
+                    indentLeft: 720 + ilvl * 720
+                }));
                 continue;
             }
             runs.push(...await this.inlineRuns(child, { color: ctx.color }));
@@ -350,7 +365,7 @@ class DocxBuilder {
 
     async cellBlocks(cell, isHeader) {
         const children = [...cell.children]
-            .filter((c) => /^(P|UL|OL|PRE|TABLE|BLOCKQUOTE|DIV)$/.test(c.tagName));
+            .filter((c) => /^(P|UL|OL|PRE|TABLE|BLOCKQUOTE|DIV|H[1-6])$/.test(c.tagName));
         if (!children.length) {
             const runs = await this.inlineRuns(cell, isHeader ? { bold: true } : {});
             return [this.paragraph(runs, { spacingBefore: 40, spacingAfter: 40 })];
@@ -366,7 +381,9 @@ class DocxBuilder {
         const runs = [];
         for (const node of el.childNodes) {
             if (node.nodeType === 3) {
-                if (node.textContent) runs.push({ text: node.textContent, ...style });
+                // Xuống dòng mềm của Markdown chỉ là dấu cách; giữ \n sẽ thành <w:br/> trong Word.
+                const text = node.textContent.replace(/\s+/g, ' ');
+                if (text) runs.push({ text, ...style });
                 continue;
             }
             if (node.nodeType !== 1) continue;

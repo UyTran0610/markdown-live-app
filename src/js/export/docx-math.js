@@ -63,6 +63,18 @@ const VARIANT_OFFSETS = {
     monospace: [0x1D670, 0x1D68A]
 };
 
+// Bold/italic/sans/mono: dùng thuộc tính run của OMML (m:sty/m:scr), KHÔNG dùng codepoint
+// Mathematical Alphanumeric (U+1D4xx) — font của Word không có glyph đó nên chữ biến mất.
+const VARIANT_STYLES = {
+    bold: { sty: 'b' },
+    italic: { sty: 'i' },
+    'bold-italic': { sty: 'bi' },
+    'sans-serif': { scr: 'sans-serif', sty: 'p' },
+    'sans-serif-italic': { scr: 'sans-serif', sty: 'i' },
+    'sans-serif-bold': { scr: 'sans-serif', sty: 'b' },
+    monospace: { scr: 'monospace', sty: 'p' }
+};
+
 function elementChildren(el) {
     return Array.from(el.children || []);
 }
@@ -85,10 +97,14 @@ function variantChar(ch, variant) {
 }
 
 // Run của OMML: <m:r><m:rPr><m:sty/></m:rPr><m:t>..</m:t></m:r>
-function ommlRun(text, style) {
+// Thứ tự trong m:rPr: m:scr trước m:sty (Word đòi vậy).
+function ommlRun(text, style, script) {
     if (!text) return '';
-    const props = style ? `<m:rPr><m:sty m:val="${style}"/></m:rPr>` : '';
-    return `<m:r>${props}<m:t xml:space="preserve">${escapeXml(text)}</m:t></m:r>`;
+    const props = [];
+    if (script) props.push(`<m:scr m:val="${script}"/>`);
+    if (style) props.push(`<m:sty m:val="${style}"/>`);
+    const rPr = props.length ? `<m:rPr>${props.join('')}</m:rPr>` : '';
+    return `<m:r>${rPr}<m:t xml:space="preserve">${escapeXml(text)}</m:t></m:r>`;
 }
 
 function ommlRunPlain(text) {
@@ -204,11 +220,31 @@ function convertAccent(el, isUnder) {
     return `<m:acc><m:accPr><m:chr m:val="${escapeXml(chr)}"/></m:accPr><m:e>${base}</m:e></m:acc>`;
 }
 
+// KaTeX dựng môi trường aligned/align thành mtable columnalign="right left".
+// Đó là mảng công thức căn theo dấu "=", phải là m:eqArr; để m:m thì Word coi là ma trận
+// và các dòng lệch nhau (xem ECMA-376 m:eqArr và phần "align value").
+function isAlignedTable(align) {
+    return align.length === 2 && align[0] === 'right' && align[1] === 'left';
+}
+
+// Mỗi dòng là một m:e; dấu & trong m:t là điểm căn (align value) của Word.
+function convertEqArray(rows) {
+    const alignValue = '<m:r><m:t xml:space="preserve">&amp;</m:t></m:r>';
+    const body = rows.map((row) => {
+        const cells = elementChildren(row).filter((c) => c.tagName === 'mtd')
+            .map((cell) => convertChildren(cell));
+        return `<m:e>${cells.join(alignValue)}</m:e>`;
+    }).join('');
+    return '<m:eqArr><m:eqArrPr><m:baseJc m:val="center"/><m:maxDist m:val="0"/><m:objDist m:val="1"/>'
+        + `</m:eqArrPr>${body}</m:eqArr>`;
+}
+
 function convertTable(el) {
     const rows = elementChildren(el).filter((c) => c.tagName === 'mtr');
     const columns = rows.length ? elementChildren(rows[0]).filter((c) => c.tagName === 'mtd').length : 0;
     const align = (el.getAttribute('columnalign') || '').trim().split(/\s+/);
-    // Mỗi cột một mc để giữ căn lề riêng (môi trường aligned: right left).
+    if (isAlignedTable(align)) return convertEqArray(rows);
+    // Mỗi cột một mc để giữ căn lề riêng.
     const cols = Array.from({ length: columns }, (_, i) => {
         const a = align[i] || align[0] || 'center';
         const just = a === 'right' ? 'right' : a === 'left' ? 'left' : 'center';
@@ -230,6 +266,10 @@ function convertElement(el) {
         case 'mi': {
             const variant = el.getAttribute('mathvariant');
             const raw = textOf(el);
+            // Bold/italic/sans/mono: để Word tự vẽ bằng m:sty/m:scr.
+            const style = VARIANT_STYLES[variant];
+            if (style) return ommlRun(raw, style.sty, style.scr);
+            // double-struck/script/fraktur: giữ codepoint Unicode (ℝ, ℬ, ℯ có sẵn trong font).
             const converted = variant ? variantChar(raw, variant) : null;
             const text = converted || raw;
             // Chữ đơn là biến (nghiêng); chữ nhiều ký tự là tên hàm (đứng).

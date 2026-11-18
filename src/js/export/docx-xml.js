@@ -77,10 +77,14 @@ function runXml(run, ctx, isLink) {
     const props = runPropsXml(run, isLink);
     if (run.image) return `<w:r>${props}${drawingXml(run.image, ctx)}</w:r>`;
     if (run.break) return `<w:r>${props}<w:br/></w:r>`;
-    // w:t không giữ xuống dòng: tách theo \n rồi chèn w:br giữa các phần.
-    const parts = String(run.text ?? '').split('\n');
-    const body = parts
-        .map((part, i) => (i ? '<w:br/>' : '') + `<w:t xml:space="preserve">${escapeXml(part)}</w:t>`)
+    // w:t không giữ xuống dòng/tab: tách ra rồi chèn w:br hoặc w:tab.
+    const body = String(run.text ?? '')
+        .split(/(\r?\n|\t)/)
+        .map((part) => {
+            if (part === '\t') return '<w:tab/>';
+            if (/^\r?\n$/.test(part)) return '<w:br/>';
+            return part ? `<w:t xml:space="preserve">${escapeXml(part)}</w:t>` : '';
+        })
         .join('');
     return `<w:r>${props}${body}</w:r>`;
 }
@@ -201,11 +205,18 @@ export function buildDocumentXml(model) {
 
 const HEADING_SIZES = [40, 32, 28, 24, 22, 20];
 
+// Word dùng latentStyles để quyết định style built-in nào hiện trong UI (Styles pane, gallery).
+// Không khai báo thì Word tự ẩn "heading 3".."heading 9": export ra Word không thấy cấp heading.
+const HEADING_LATENT = [1, 2, 3, 4, 5, 6]
+    .map((n) => `<w:lsdException w:name="heading ${n}" w:semiHidden="0" w:uiPriority="9"`
+        + ' w:unhideWhenUsed="0" w:qFormat="1"/>')
+    .join('');
+
 function headingStyle(level, size) {
     const color = level === 6 ? '57606A' : '1F2328';
     return `<w:style w:type="paragraph" w:styleId="Heading${level}">`
         + `<w:name w:val="heading ${level}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>`
-        + `<w:uiPriority w:val="9"/><w:qFormat/>`
+        + '<w:uiPriority w:val="9"/><w:semiHidden w:val="0"/><w:unhideWhenUsed w:val="0"/><w:qFormat/>'
         + '<w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="240" w:after="120"/>'
         + `<w:outlineLvl w:val="${level - 1}"/></w:pPr>`
         + `<w:rPr><w:b/><w:color w:val="${color}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr>`
@@ -222,6 +233,8 @@ export function buildStylesXml() {
         + '</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>'
         + '<w:spacing w:after="120" w:line="276" w:lineRule="auto"/>'
         + '</w:pPr></w:pPrDefault></w:docDefaults>'
+        + '<w:latentStyles w:defLockedState="0" w:defUIPriority="99" w:defSemiHidden="0"'
+        + ` w:defUnhideWhenUsed="0" w:defQFormat="0" w:count="376">${HEADING_LATENT}</w:latentStyles>`
         + '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
         + headings
         + '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>'
@@ -261,8 +274,8 @@ function bulletLevel(level) {
 
 function decimalLevel(level) {
     const indent = 720 + level * 720;
-    // Cấp 0 -> %1., cấp 1 -> %1.%2., cấp 2 -> %1.%2.%3. ...
-    const text = Array.from({ length: level + 1 }, (_, i) => `%${i + 1}`).join('.') + '.';
+    // Mỗi cấp đếm riêng (%2. ở cấp 1), khớp preview; %1.%2. sẽ mượn số của list cha.
+    const text = `%${level + 1}.`;
     return `<w:lvl w:ilvl="${level}"><w:start w:val="1"/><w:numFmt w:val="decimal"/>`
         + `<w:lvlText w:val="${text}"/><w:lvlJc w:val="left"/>`
         + `<w:pPr><w:ind w:left="${indent}" w:hanging="360"/></w:pPr></w:lvl>`;

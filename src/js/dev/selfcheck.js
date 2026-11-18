@@ -816,12 +816,41 @@ export async function runSelfCheck() {
             assert('docx quote keeps a left border', xml.includes('<w:left w:val="single"'));
             assert('docx code block uses the CodeBlock style', xml.includes('<w:pStyle w:val="CodeBlock"/>'));
 
+            const wraps = document.createElement('div');
+            wraps.innerHTML = '<p>dòng một\ndòng hai</p><pre><code>a\tb</code></pre>';
+            const wrapXml = buildDocumentXml(await buildDocxModel(wraps, 'Xuống dòng'));
+            assert('docx turns a soft line break into a space',
+                wrapXml.includes('dòng một dòng hai') && !wrapXml.includes('<w:br/>'));
+            assert('docx keeps a tab as w:tab', wrapXml.includes('<w:tab/>'));
+
+            const tight = document.createElement('div');
+            tight.innerHTML = '<ul><li>dòng một\ndòng hai</li></ul>';
+            const tightXml = buildDocumentXml(await buildDocxModel(tight, 'Mục'));
+            assert('docx turns a soft line break in a list item into a space',
+                tightXml.includes('dòng một dòng hai') && !tightXml.includes('<w:br/>'));
+
             const bytes = buildDocxPackage(model);
             assert('docx package starts with the ZIP signature', bytes[0] === 0x50 && bytes[1] === 0x4B);
             const rels = buildDocumentRelsXml(model);
             assert('docx relationships list styles and numbering', rels.includes('styles.xml') && rels.includes('numbering.xml'));
             const styles = buildStylesXml();
             assert('docx styles define the heading styles', styles.includes('w:styleId="Heading1"'));
+            // Word/LO map style theo w:name: lệch tên là heading 1 ra "Heading 5".
+            const headingStyles = [1, 2, 3, 4, 5, 6].map((n) => {
+                const m = styles.match(new RegExp(`<w:style [^>]*w:styleId="Heading${n}">([\\s\\S]*?)</w:style>`));
+                return m ? m[1] : '';
+            });
+            assert('docx heading style names match their ids',
+                headingStyles.every((body, i) => body.includes(`<w:name w:val="heading ${i + 1}"/>`)));
+            const headingSizes = headingStyles.map((body) => Number((body.match(/<w:sz w:val="(\d+)"\/>/) || [])[1] || 0));
+            assert('docx heading sizes shrink from H1 to H6',
+                headingSizes.every((size, i) => size > 0 && (i === 0 || size < headingSizes[i - 1])));
+            // Word ẩn style heading built-in trong UI nếu không khai báo latentStyles.
+            assert('docx styles declare the heading styles visible in Word',
+                styles.includes('<w:latentStyles')
+                && [1, 2, 3, 4, 5, 6].every((n) => styles.includes(`<w:lsdException w:name="heading ${n}"`)
+                    && styles.includes(`w:name="heading ${n}" w:semiHidden="0"`))
+                && headingStyles.every((body) => body.includes('<w:semiHidden w:val="0"/>')));
             const numbering = buildNumberingXml(model);
             assert('docx numbering defines the bullet list', numbering.includes('<w:abstractNum w:abstractNumId="0">'));
             assert('docx numbering restarts each ordered list', numbering.includes('<w:startOverride w:val="1"/>'));
@@ -858,8 +887,8 @@ export async function runSelfCheck() {
                 numbering.includes('<w:lvl w:ilvl="8"><w:start w:val="1"/><w:numFmt w:val="bullet"/>'));
             assert('docx numbering defines nine decimal levels',
                 numbering.includes('<w:lvl w:ilvl="8"><w:start w:val="1"/><w:numFmt w:val="decimal"/>'));
-            assert('docx decimal level four shows the full path',
-                numbering.includes('<w:lvlText w:val="%1.%2.%3.%4."/>'));
+            assert('docx decimal level four counts its own level',
+                numbering.includes('<w:lvlText w:val="%4."/>'));
             assert('docx ordered list restarts every level',
                 (numbering.match(/<w:startOverride w:val="1"\/>/g) || []).length === 9);
 
@@ -877,6 +906,41 @@ export async function runSelfCheck() {
             veryDeep.innerHTML = nest(10);
             const veryDeepXml = buildDocumentXml(await buildDocxModel(veryDeep, 'Rất sâu'));
             assert('docx clamps a list deeper than nine levels', veryDeepXml.includes('<w:ilvl w:val="8"/>'));
+
+            const loose = document.createElement('div');
+            loose.innerHTML = '<ol><li><p>một</p><p>tiếp</p></li></ol>';
+            const looseXml = buildDocumentXml(await buildDocxModel(loose, 'Mục'));
+            assert('docx indents the second paragraph of a list item',
+                (looseXml.match(/w:pStyle w:val="ListParagraph"/g) || []).length === 2
+                && looseXml.includes('<w:ind w:left="720"/>'));
+
+            // Heading trong mục: phải giữ cấp heading, không gộp vào đoạn của mục.
+            const headingList = document.createElement('div');
+            headingList.innerHTML = '<ul><li><h2>Mục có heading</h2></li></ul>';
+            const headingListXml = buildDocumentXml(await buildDocxModel(headingList, 'Mục'));
+            assert('docx keeps the heading level of a heading inside a list item',
+                headingListXml.includes('<w:pStyle w:val="Heading2"/>'));
+
+            // List sâu hơn 9 cấp: thụt của đoạn tiếp phải bị ghim theo cấp cuối, không theo cấp gốc.
+            const nestLoose = (depth) => {
+                let inner = '<p>x</p><p>y</p>';
+                for (let i = 0; i < depth; i++) inner = `<ul><li>${inner}</li></ul>`;
+                return inner;
+            };
+            const deepLoose = document.createElement('div');
+            deepLoose.innerHTML = nestLoose(10);
+            const deepLooseXml = buildDocumentXml(await buildDocxModel(deepLoose, 'Rất sâu'));
+            assert('docx clamps the indent of a continuation paragraph in a deep list',
+                deepLooseXml.includes('<w:ind w:left="6480"/>')
+                && !deepLooseXml.includes('<w:ind w:left="7920"/>'));
+
+            // Đoạn tiếp của mục nằm trong quote: giữ viền trái của quote.
+            const quoted = document.createElement('div');
+            quoted.innerHTML = '<blockquote><ol><li><p>một</p><p>tiếp</p></li></ol></blockquote>';
+            const quotedXml = buildDocumentXml(await buildDocxModel(quoted, 'Trích'));
+            assert('docx keeps the quote border on a list continuation paragraph',
+                quotedXml.includes('<w:pBdr><w:left w:val="single"')
+                && quotedXml.includes('<w:ind w:left="720"/>'));
         });
 
         // Công thức phải thành equation native của Word (OMML), không phải ảnh.
@@ -900,6 +964,24 @@ export async function runSelfCheck() {
             const parsed = new DOMParser().parseFromString(xml, 'application/xml');
             assert('docx with a formula is well-formed XML', !parsed.querySelector('parsererror'));
             assert('docx declares the math namespace', xml.includes('xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"'));
+
+            // aligned phải là m:eqArr; m:m khiến Word coi là ma trận và các dòng lệch nhau.
+            const alignedHost = document.createElement('div');
+            alignedHost.innerHTML = katex.renderToString(
+                String.raw`\begin{aligned} a &= 1 \\ b &= 2 \end{aligned}`,
+                { throwOnError: false, displayMode: true, output: 'htmlAndMathml' });
+            const alignedOmml = mathmlToOmml(alignedHost.querySelector('.katex-mathml > math'));
+            assert('docx aligned equations become an equation array', !!alignedOmml && alignedOmml.includes('<m:eqArr>'));
+            assert('docx aligned equations are not exported as a matrix', !!alignedOmml && !alignedOmml.includes('<m:m>'));
+            assert('docx aligned equations keep the alignment point', !!alignedOmml && alignedOmml.includes('&amp;'));
+
+            // Chữ đậm: dùng m:sty, không dùng codepoint Mathematical Alphanumeric (Word thiếu glyph).
+            const boldHost = document.createElement('div');
+            boldHost.innerHTML = katex.renderToString(String.raw`\mathbf{B}`, { throwOnError: false, output: 'htmlAndMathml' });
+            const boldOmml = mathmlToOmml(boldHost.querySelector('.katex-mathml > math'));
+            assert('docx bold variables use the math bold style', !!boldOmml && boldOmml.includes('<m:sty m:val="b"/>'));
+            assert('docx bold variables keep the plain letter', !!boldOmml && boldOmml.includes('>B<'));
+            assert('docx avoids Mathematical Alphanumeric codepoints', !boldOmml || !boldOmml.includes('\u{1D401}'));
         });
 
         const standalone = buildStandaloneHtml('<p>x</p>', 'Tiêu đề <đẹp>');

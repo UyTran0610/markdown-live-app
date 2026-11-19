@@ -1590,6 +1590,8 @@ export async function runSelfCheck() {
                 probe('new\n');
                 handleEditorChange({ state: view.state });
                 fake.put(queuePath, 'disk\n');
+                // Đổi nội dung trên đĩa: mtime phải khác, app so mtime mới hỏi "File changed on disk".
+                fake.disk.get(queuePath).mtime += 1;
                 const firstSave = saveTab(queued);
                 const secondSave = saveTab(queued);
                 let secondDone = false;

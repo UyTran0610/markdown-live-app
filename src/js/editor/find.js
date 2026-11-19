@@ -18,11 +18,13 @@ import {
     replaceInput
 } from '../core/dom.js';
 import { subscribe } from '../io/documents.js';
+import { showToast } from '../core/toast.js';
 import { showEditorView } from '../ui/view-mode.js';
 import { Decoration, getView, setFindHighlights } from './cm.js';
 
 const MAX_MATCHES = 5000;   // trần số kết quả: regex trên tài liệu lớn không quét vô hạn
 const MAX_HIGHLIGHTS = 500;  // trần số match được tô trong editor (render tốn)
+const REPLACE_ALL_LIMIT = 100000;  // trần số match ghi trong một lần Replace All
 const SEARCH_DELAY = 120;   // debounce khi gõ vào ô Find
 
 let matches = [];
@@ -187,15 +189,16 @@ export function replaceFindCurrent() {
 export function replaceFindAll() {
     const v = getView();
     if (!v) return;
-    // Quét lại không trần: kết quả UI có thể dừng ở 5.000, Replace All thì không.
+    // Quét lại với trần cao hơn: kết quả UI có thể dừng ở 5.000, Replace All thì không.
     const text = v.state.doc.toString();
-    const result = findMatches(text, findInput.value, { ...currentOptions(), limit: Infinity });
+    const result = findMatches(text, findInput.value, { ...currentOptions(), limit: REPLACE_ALL_LIMIT });
     if (result.error || !result.matches.length) return;
     sourceText = text;
     // Changes phải tăng dần và không chồng nhau: matches đã đúng thứ tự đó.
     const changes = result.matches.map((m) => ({ from: m.from, to: m.to, insert: expandGroups(replaceInput.value, m) }));
     v.dispatch({ changes, userEvent: 'input' });
     runSearch(true);
+    if (result.truncated) showToast(`Replaced the first ${REPLACE_ALL_LIMIT} matches.`);
 }
 
 export function isFindDialogOpen() {

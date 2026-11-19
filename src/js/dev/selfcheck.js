@@ -1455,6 +1455,7 @@ export async function runSelfCheck() {
             const otherPath = 'C:\\selfcheck\\other.md';
             const draftPath = 'C:\\selfcheck\\draft.md';
             const keepPath = 'C:\\selfcheck\\keep.md';
+            const queuePath = 'C:\\selfcheck\\queue.md';
             const fake = makeFakeFs();
             fake.put(path, '# A\n');
             fake.put(draftPath, 'bản nháp\n');
@@ -1582,6 +1583,23 @@ export async function runSelfCheck() {
                 await withTimeout(closing2);
                 assert('cancelling the close prompt keeps the tab open',
                     getTabs().some((t) => t.id === keep.id));
+
+                // 10. Lần lưu thứ hai phải xếp sau lần đầu, không bị bỏ im lặng.
+                fake.put(queuePath, 'old\n');
+                const queued = openTab(queuePath, 'old\n');
+                probe('new\n');
+                handleEditorChange({ state: view.state });
+                fake.put(queuePath, 'disk\n');
+                const firstSave = saveTab(queued);
+                const secondSave = saveTab(queued);
+                let secondDone = false;
+                secondSave.then(() => { secondDone = true; });
+                await new Promise((resolve) => setTimeout(resolve, 20));
+                assert('a second save waits while the first is running', !secondDone);
+                await clickConfirm('primary');
+                assert('the first save completes', await withTimeout(firstSave) === 'saved');
+                assert('the queued save completes', await withTimeout(secondSave) === 'saved');
+                assert('the queued save writes the latest content', fake.read(queuePath) === 'new\n');
             } finally {
                 tauriStub.restore();
                 if (originalId !== null) switchTab(originalId);
@@ -1724,7 +1742,17 @@ export async function runSelfCheck() {
             assert('$\' and $& are expanded when replacing', docText() === 'abc [abc |foo]');
 
             findRegex.checked = false;
+            const many = Array(5100).fill('x').join(' ');
+            const capped = findMatches(many, 'x');
+            assert('search marks the 5,000 cap', capped.matches.length === 5000 && capped.truncated === true);
+            probe(many);
+            findInput.value = 'x';
+            replaceInput.value = 'y';
+            runFindSearch();
+            replaceFindAll();
+            assert('Replace All replaces every match past the cap', docText() === Array(5100).fill('y').join(' '));
             findInput.value = '';
+            replaceInput.value = '';
             closeFindDialog();
             probe(savedValue);
         });

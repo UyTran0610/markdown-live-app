@@ -468,23 +468,28 @@ function noteSaveDir(path) {
 }
 
 // Chặn Ctrl+S liên tiếp mở hai hộp thoại/ghi chồng lên nhau.
-let saving = false;
+let saveInFlight = null;
 
 export async function saveActiveDoc(options = {}) {
     return saveTab(getActiveTab(), options);
 }
 
-// Lưu một tab bất kỳ, trả 'saved' | 'discard' | 'cancelled' | 'failed' | 'busy'.
+// Lưu một tab bất kỳ, trả 'saved' | 'discard' | 'cancelled' | 'failed'.
 // Chỉ 'saved' và 'discard' được dẫn tới đóng tab (xem closeTab).
-// 'busy' = đang có lần lưu khác; 'discard' = người dùng bỏ bản nháp ở hộp thoại File is gone.
+// 'discard' = người dùng bỏ bản nháp ở hộp thoại File is gone.
 export async function saveTab(tab, options = {}) {
-    if (!tab || saving) return 'busy';
+    if (!tab) return 'cancelled';
+    // Lần lưu thứ hai phải chờ lần đầu, không được bỏ im lặng.
+    while (saveInFlight) await saveInFlight;
+    // Tab có thể bị đóng trong lúc chờ; đừng ghi lại bản đã đóng.
+    if (!tabs.includes(tab)) return 'cancelled';
     // Chụp nội dung TRƯỚC mọi thứ: tab lỗi (status !== 'ok') không ghi đè path
     // cũ nhưng vẫn gõ được; nội dung lấy từ live state qua tabText().
     if (tab.id === activeId) captureActive();
     // Tab sạch không cần ghi; ngoại lệ tab lỗi vẫn phải cho lưu.
     if (!needsSave(tab) && tab.status === 'ok' && !options.as) return 'saved';
-    saving = true;
+    let release;
+    saveInFlight = new Promise((resolve) => { release = resolve; });
     try {
         // Chụp nội dung TRƯỚC mọi await: người dùng gõ trong lúc hộp thoại mở thì đĩa nhận bản
         // đã chụp và tab vẫn phải dirty.
@@ -522,7 +527,7 @@ export async function saveTab(tab, options = {}) {
         // Chạy TRƯỚC nhánh ghi: 'gone' thì chuyển status 'unreadable' và đi nhánh Save As.
         if (!options.as && path && tab.status === 'ok') {
             const decision = await diskOkToWrite(tab);
-            // 'discard' đi LÊN qua giá trị trả về, không gọi closeTab() khi saving còn bật.
+            // 'discard' đi LÊN qua giá trị trả về, không gọi closeTab() khi lần lưu còn chạy.
             if (decision === 'discard') return 'discard';
             if (decision === 'stop') return 'cancelled';
             if (decision === 'saveas') tab.status = 'unreadable';
@@ -573,7 +578,8 @@ export async function saveTab(tab, options = {}) {
         saveSession();
         return 'saved';
     } finally {
-        saving = false;
+        saveInFlight = null;
+        release();
     }
 }
 
@@ -677,7 +683,7 @@ async function diskOkToWrite(tab) {
             message: `"${tab.path}"\nno longer exists on disk, and this tab has unsaved changes.`,
             actions: [{ id: 'saveas', label: 'Save as...' }, { id: 'close', label: 'Close tab' }]
         });
-        // KHÔNG gọi closeTab() ở đây: saving còn bật nên Save ở hộp thoại thứ hai luôn thất bại.
+        // KHÔNG gọi closeTab() ở đây: lần lưu còn chạy nên Save ở hộp thoại thứ hai luôn thất bại.
         if (choice === 'close') return 'discard';
         if (choice === 'saveas') return 'saveas';
         // Đóng hộp thoại = hủy lưu; im lặng thì người dùng tưởng đã lưu.

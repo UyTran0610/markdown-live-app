@@ -26,6 +26,7 @@ const MAX_HIGHLIGHTS = 500;  // trần số match được tô trong editor (ren
 const SEARCH_DELAY = 120;   // debounce khi gõ vào ô Find
 
 let matches = [];
+let matchesTruncated = false;
 let activeIndex = -1;
 let sourceText = '';        // ảnh chụp nội dung lúc tìm, dùng cho $' trong regex
 let searchError = '';
@@ -36,29 +37,35 @@ function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Tìm mọi match của query trong text; trả { matches, error }. */
-export function findMatches(text, query, { matchCase = false, useRegex = false } = {}) {
-    if (!query) return { matches: [], error: '' };
-    let re;
+function buildSearchRegex(query, { matchCase = false, useRegex = false } = {}) {
     try {
-        re = new RegExp(useRegex ? query : escapeRegExp(query), matchCase ? 'g' : 'gi');
+        return { re: new RegExp(useRegex ? query : escapeRegExp(query), matchCase ? 'g' : 'gi') };
     } catch (e) {
-        return { matches: [], error: 'Invalid regular expression' };
+        return { error: 'Invalid regular expression' };
     }
+}
+
+/** Tìm mọi match của query trong text; trả { matches, error, truncated }. */
+export function findMatches(text, query, { matchCase = false, useRegex = false, limit = MAX_MATCHES } = {}) {
+    if (!query) return { matches: [], error: '', truncated: false };
+    const { re, error } = buildSearchRegex(query, { matchCase, useRegex });
+    if (error) return { matches: [], error, truncated: false };
     const found = [];
+    let truncated = false;
     let m;
     while ((m = re.exec(text)) !== null) {
         // Regex rỗng không tự tiến lastIndex, phải đẩy tay để khỏi lặp vô hạn.
         if (m[0] === '') { re.lastIndex++; continue; }
+        // Chạm trần mà vẫn còn match: báo cho UI, đừng cắt im lặng.
+        if (found.length >= limit) { truncated = true; break; }
         found.push({
             from: m.index,
             to: m.index + m[0].length,
             hit: m[0],
             groups: useRegex ? m.slice(1) : null
         });
-        if (found.length >= MAX_MATCHES) break;
     }
-    return { matches: found, error: '' };
+    return { matches: found, error: '', truncated };
 }
 
 function currentOptions() {
@@ -71,6 +78,7 @@ function runSearch(resetActive = false) {
     sourceText = v.state.doc.toString();
     const result = findMatches(sourceText, findInput.value, currentOptions());
     matches = result.matches;
+    matchesTruncated = result.truncated;
     searchError = result.error;
     if (resetActive) activeIndex = -1;
     if (activeIndex >= matches.length) activeIndex = matches.length ? 0 : -1;
@@ -99,9 +107,10 @@ function renderCount() {
         findCount.classList.add('is-error');
         return;
     }
+    const more = matchesTruncated ? '+' : '';
     findCount.textContent = activeIndex < 0
-        ? `${matches.length} result${matches.length === 1 ? '' : 's'}`
-        : `${activeIndex + 1}/${matches.length}`;
+        ? `${matches.length}${more} result${matches.length === 1 ? '' : 's'}`
+        : `${activeIndex + 1}/${matches.length}${more}`;
 }
 
 function renderHighlights() {
@@ -177,9 +186,14 @@ export function replaceFindCurrent() {
 
 export function replaceFindAll() {
     const v = getView();
-    if (!v || !matches.length) return;
+    if (!v) return;
+    // Quét lại không trần: kết quả UI có thể dừng ở 5.000, Replace All thì không.
+    const text = v.state.doc.toString();
+    const result = findMatches(text, findInput.value, { ...currentOptions(), limit: Infinity });
+    if (result.error || !result.matches.length) return;
+    sourceText = text;
     // Changes phải tăng dần và không chồng nhau: matches đã đúng thứ tự đó.
-    const changes = matches.map((m) => ({ from: m.from, to: m.to, insert: expandGroups(replaceInput.value, m) }));
+    const changes = result.matches.map((m) => ({ from: m.from, to: m.to, insert: expandGroups(replaceInput.value, m) }));
     v.dispatch({ changes, userEvent: 'input' });
     runSearch(true);
 }
@@ -216,6 +230,7 @@ export function closeFindDialog() {
     if (!isFindDialogOpen()) return;
     findDialog.classList.add('hidden');
     matches = [];
+    matchesTruncated = false;
     activeIndex = -1;
     searchError = '';
     findCount.textContent = '';

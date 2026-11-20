@@ -161,7 +161,7 @@ function expandGroups(template, m) {
     return template.replace(/\$\$|\$&|\$'|\$(\d)/g, (all, digit) => {
         if (all === '$$') return '$';
         if (all === '$&') return m.hit;
-        if (all === "$'") return sourceText.slice(0, m.from);
+        if (all === "$'") return sourceText.slice(m.to);
         const group = m.groups[Number(digit) - 1];
         return group === undefined ? '' : group;
     });

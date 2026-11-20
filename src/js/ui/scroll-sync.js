@@ -4,7 +4,18 @@ import { btnSync, previewOutput } from '../core/dom.js';
 import { getView } from '../editor/cm.js';
 import { notifyPreviewScrolled } from '../preview/render.js';
 
-let isSyncScrollEnabled = true;
+const SYNC_STORAGE_KEY = 'markdown-live-sync-scroll';
+
+// Mặc định tắt; người dùng bật thì nhớ lựa chọn.
+function readSyncPreference() {
+    try {
+        return localStorage.getItem(SYNC_STORAGE_KEY) === 'true';
+    } catch (e) {
+        return false;
+    }
+}
+
+let isSyncScrollEnabled = readSyncPreference();
 
 let activeScrollSource = null;
 
@@ -24,9 +35,16 @@ let editorScrollTicking = false;
 
 let previewScrollTicking = false;
 
+function applySyncState() {
+    btnSync.classList.toggle('active', isSyncScrollEnabled);
+    // aria theo class .active: không set thì màn hình đọc luôn là pressed.
+    btnSync.setAttribute('aria-pressed', String(isSyncScrollEnabled));
+}
+
 export function initScrollSync() {
     const v = getView();
     if (!v) return;
+    applySyncState();
     // CodeMirror cuộn trong .cm-scroller; sự kiện chuột/bàn phím bám trên .cm-editor.
     const editor = v.dom;
     const scroller = v.scrollDOM;
@@ -73,8 +91,11 @@ export function initScrollSync() {
 
     btnSync.addEventListener('click', () => {
         isSyncScrollEnabled = !isSyncScrollEnabled;
-        btnSync.classList.toggle('active', isSyncScrollEnabled);
-        // aria theo class .active: không set thì màn hình đọc luôn là pressed.
-        btnSync.setAttribute('aria-pressed', String(isSyncScrollEnabled));
+        applySyncState();
+        try {
+            localStorage.setItem(SYNC_STORAGE_KEY, String(isSyncScrollEnabled));
+        } catch (e) {
+            // Bỏ qua nếu localStorage bị chặn.
+        }
     });
 }

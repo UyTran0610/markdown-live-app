@@ -112,6 +112,14 @@
 .cm-md-comment { color: var(--md-code-block); font-style: italic; }
 .cm-md-label { color: var(--md-ref-id); font-weight: 600; }
 
+/* Token ngôn ngữ trong fenced code (JS/CSS/HTML), màu khớp hljs GitHub. */
+.cm-code-keyword { color: var(--md-code-keyword); }
+.cm-code-string { color: var(--md-code-string); }
+.cm-code-number { color: var(--md-code-number); }
+.cm-code-comment { color: var(--md-code-comment); font-style: italic; }
+.cm-code-function { color: var(--md-code-function); }
+.cm-code-tag { color: var(--md-code-tag); }
+
 /* Kết quả tìm kiếm do overlay của app tô trong editor. */
 #cm-editor .cm-find-hit {
     background-color: var(--find-hit-bg);

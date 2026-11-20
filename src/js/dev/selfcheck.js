@@ -1242,7 +1242,7 @@ export async function runSelfCheck() {
 
         await section('editor syntax highlighting', async () => {
             // CodeMirror tự dựng cây cú pháp (Lezer) và gắn class CSS cho từng loại token.
-            const text = '# Tiêu đề\n\nđoạn **đậm** và `code` cùng [link](https://example.com)\n';
+            const text = '# Tiêu đề\n\nđoạn **đậm** và `code` cùng [link](https://example.com)\n\n```js\nconst x = "s";\n```\n';
             probe(text);
             // Pane ẩn (chế độ Preview) thì editor không render nên không có class để kiểm.
             if (!view.dom.clientWidth) {
@@ -1254,6 +1254,8 @@ export async function runSelfCheck() {
             assert('bold text gets its own class', view.dom.querySelectorAll('.cm-md-strong').length >= 1);
             assert('inline code gets its own class', view.dom.querySelectorAll('.cm-md-code').length >= 1);
             assert('link gets its own class', view.dom.querySelectorAll('.cm-md-link').length >= 1);
+            assert('fenced code keyword is highlighted', view.dom.querySelectorAll('.cm-code-keyword').length >= 1);
+            assert('fenced code string is highlighted', view.dom.querySelectorAll('.cm-code-string').length >= 1);
         });
 
         // Thanh trạng thái: số từ / dòng / ký tự + gutter số dòng + vạch chia mảnh.
@@ -1768,13 +1770,13 @@ export async function runSelfCheck() {
             replaceFindCurrent();
             assert('regex groups are expanded when replacing', docText() === 'value: name');
 
-            probe('abc foo');
+            probe('foo abc');
             findInput.value = 'foo';
             runFindSearch();
             findNextMatch();
             replaceInput.value = "[$'|$&]";
             replaceFindCurrent();
-            assert('$\' and $& are expanded when replacing', docText() === 'abc [abc |foo]');
+            assert('$\' and $& are expanded when replacing', docText() === '[ abc|foo] abc');
 
             findRegex.checked = false;
             const many = Array(5100).fill('x').join(' ');

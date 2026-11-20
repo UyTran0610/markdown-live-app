@@ -73,6 +73,14 @@
     --md-escape: #cf222e;
     --md-ref-id: #0969da;
 
+    /* Token ngôn ngữ trong fenced code của Editor (khớp hljs GitHub) */
+    --md-code-keyword: #d73a49;
+    --md-code-function: #6f42c1;
+    --md-code-number: #005cc5;
+    --md-code-string: #032f62;
+    --md-code-comment: #6a737d;
+    --md-code-tag: #22863a;
+
     /* GFM Alerts / Callouts (Preview) */
     --alert-note-color: #0969da;
     --alert-note-bg: rgba(9, 105, 218, 0.05);
@@ -149,6 +157,13 @@
 
     --md-escape: #ff7b72;
     --md-ref-id: #58a6ff;
+
+    --md-code-keyword: #ff7b72;
+    --md-code-function: #d2a8ff;
+    --md-code-number: #79c0ff;
+    --md-code-string: #a5d6ff;
+    --md-code-comment: #8b949e;
+    --md-code-tag: #7ee787;
 
     --alert-note-color: #58a6ff;
     --alert-note-bg: rgba(56, 139, 253, 0.15);

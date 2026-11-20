@@ -32,7 +32,9 @@ export const {
     indentLess,
     copyLineDown,
     markdown,
-    markdownKeymap,
+    javascriptLanguage,
+    cssLanguage,
+    htmlLanguage,
     syntaxHighlighting,
     HighlightStyle,
     indentUnit,
@@ -44,15 +46,6 @@ export const {
 const TAB_SIZE = 4;
 
 const TAB_SPACES = ' '.repeat(TAB_SIZE);
-
-// Bundle cũ còn trong cache thiếu extension mới: bỏ tính năng chứ không làm sập cả editor.
-const hasLineNumbers = typeof lineNumbers === 'function';
-const hasActiveLineGutter = typeof highlightActiveLineGutter === 'function';
-if (!hasLineNumbers || !hasActiveLineGutter) {
-    console.warn('Vendor bundle is outdated: rebuild src/vendor/codemirror.bundle.js to get line numbers and the active line gutter.');
-}
-const lineNumbersExtension = hasLineNumbers ? lineNumbers() : [];
-const activeLineGutterExtension = hasActiveLineGutter ? highlightActiveLineGutter() : [];
 
 // Màu cú pháp lấy từ --md-* trong css/tokens.css nên đổi theme chỉ là đổi biến CSS.
 const markdownHighlightStyle = HighlightStyle.define([
@@ -73,7 +66,13 @@ const markdownHighlightStyle = HighlightStyle.define([
     { tag: tags.escape, class: 'cm-md-escape' },
     { tag: tags.comment, class: 'cm-md-comment' },
     { tag: tags.processingInstruction, class: 'cm-md-comment' },
-    { tag: tags.labelName, class: 'cm-md-label' }
+    { tag: tags.labelName, class: 'cm-md-label' },
+    { tag: [tags.keyword, tags.controlKeyword, tags.moduleKeyword, tags.definitionKeyword, tags.operatorKeyword, tags.typeName], class: 'cm-code-keyword' },
+    { tag: [tags.string, tags.regexp, tags.attributeValue], class: 'cm-code-string' },
+    { tag: [tags.number, tags.bool, tags.atom, tags.null, tags.operator, tags.variableName, tags.propertyName, tags.attributeName, tags.definition(tags.variableName)], class: 'cm-code-number' },
+    { tag: [tags.comment, tags.lineComment, tags.blockComment, tags.meta], class: 'cm-code-comment' },
+    { tag: [tags.function(tags.variableName), tags.function(tags.propertyName), tags.className], class: 'cm-code-function' },
+    { tag: tags.tagName, class: 'cm-code-tag' }
 ]);
 
 // Chỉ bọc vùng chọn khi gõ; tự đóng ngoặc + nhảy qua dấu đóng do closeBrackets() lo.
@@ -284,8 +283,8 @@ const editorKeymap = Prec.highest(keymap.of([
     { key: 'Mod-d', run: handleEditorDuplicate }
 ]));
 
-// Enter/Backspace theo markup (list, fence, quote): dựa trên syntax tree, đúng hơn regex cũ.
-const markdownKeymapPrec = Prec.highest(keymap.of(markdownKeymap));
+// Enter/Backspace theo markup (list, fence, quote): markdown() tự thêm markdownKeymap
+// ở Prec.high, đủ thắng defaultKeymap.
 
 const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged && changeHandler) changeHandler(update);
@@ -306,18 +305,34 @@ export function readOnlyReconfigureEffect(readOnly) {
     return readOnlyCompartment.reconfigure([EditorState.readOnly.of(ro), EditorView.editable.of(!ro)]);
 }
 
+// Fence info (chuỗi đã cắt sau khoảng trắng) -> parser có sẵn trong bundle; ngôn ngữ khác để plain text.
+function markdownCodeLanguage(info) {
+    switch (info.toLowerCase()) {
+        case 'js':
+        case 'javascript':
+            return javascriptLanguage;
+        case 'css':
+            return cssLanguage;
+        case 'html':
+        case 'htm':
+            return htmlLanguage;
+        default:
+            return null;
+    }
+}
+
 // Extension giống nhau mọi tab (parser dùng chung, không mỗi tab một parser riêng).
 const sharedExtensions = [
     historyWithWordBoundary,
     drawSelection(),
     dropCursor(),
     placeholder('Type Markdown here...'),
-    lineNumbersExtension,
-    activeLineGutterExtension,
+    lineNumbers(),
+    highlightActiveLineGutter(),
     EditorState.tabSize.of(TAB_SIZE),
     indentUnit.of(TAB_SPACES),
     EditorView.lineWrapping,
-    markdown({ addKeymap: false, pasteURLAsLink: false, completeHTMLTags: false }),
+    markdown({ pasteURLAsLink: false, completeHTMLTags: false, codeLanguages: markdownCodeLanguage }),
     syntaxHighlighting(markdownHighlightStyle),
     closeBrackets(),
     inputHandler,
@@ -335,7 +350,6 @@ export function createEditorState(text = '', { readOnly = false, selStart = 0, s
         selection: { anchor, head },
         extensions: [
             ...sharedExtensions,
-            markdownKeymapPrec,
             editorKeymap,
             keymap.of(historyKeymap),
             keymap.of(closeBracketsKeymap),

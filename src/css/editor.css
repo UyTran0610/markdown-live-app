@@ -34,8 +34,9 @@
     scrollbar-gutter: stable;
 }
 
+/* Trái sát số dòng hơn: gutter chiếm ~27px, nội dung chỉ cần 12px là đủ tách. */
 #cm-editor .cm-content {
-    padding: 20px;
+    padding: 20px 20px 20px 12px;
 }
 
 #cm-editor .cm-line {
@@ -62,22 +63,27 @@
     box-shadow: inset 3px 0 0 var(--text-muted);
 }
 
-#cm-editor .cm-scroller::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+/* Thanh cuộn của editor dùng chung kiểu với Preview (xem css/base.css), không tô riêng. */
+
+/* Số dòng: gutter trong suốt, số phải phải, màu mờ để không tranh với nội dung. */
+#cm-editor .cm-gutters {
+    background-color: transparent;
+    border: none;
+    color: var(--text-muted);
 }
 
-#cm-editor .cm-scroller::-webkit-scrollbar-track {
-    background: transparent;
+#cm-editor .cm-lineNumbers .cm-gutterElement {
+    padding: 0 4px 0 8px;
+    min-width: 0;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
 }
 
-#cm-editor .cm-scroller::-webkit-scrollbar-thumb {
-    background: var(--text-muted);
-    border-radius: 5px;
-}
-
-#cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
-    background: var(--text-secondary);
+/* Dòng đang có con trỏ: số dòng đậm, tô màu accent + nền nhạt để nổi hẳn số khác. */
+#cm-editor .cm-activeLineGutter {
+    background-color: var(--btn-active-bg);
+    color: var(--btn-active-text);
+    font-weight: 700;
 }
 
 /* Màu cú pháp: class do HighlightStyle gán, màu lấy từ --md-* trong tokens.css. */

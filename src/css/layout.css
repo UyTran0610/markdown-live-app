@@ -14,13 +14,14 @@
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 }
 
-/* Thanh ngăn cách kéo được giữa Editor và Preview (chỉ hiện ở chế độ Split) */
+/* Thanh ngăn cách kéo được giữa Editor và Preview (chỉ hiện ở chế độ Split).
+   5px chỉ là vùng bấm; đường kẻ thật là vạch 1px ở ::after, giống các đường kẻ mỏng còn lại. */
 #pane-resizer {
     display: none;
     position: relative;
     flex: 0 0 5px;
     cursor: col-resize;
-    background: var(--border-color);
+    background: transparent;
     transition: background-color 0.15s;
     touch-action: none;
     z-index: 10;
@@ -36,8 +37,21 @@
     right: -3px;
 }
 
-#pane-resizer:hover,
-#pane-resizer.dragging {
+/* Vạch chia dọc 2px, canh giữa vùng bấm. */
+#pane-resizer::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: var(--border-color);
+    transition: background-color 0.15s;
+}
+
+#pane-resizer:hover::after,
+#pane-resizer.dragging::after {
     background: var(--btn-active-border);
 }
 
@@ -58,13 +72,14 @@ body.resizing .preview-pane {
     pointer-events: none;
 }
 
-/* Thanh chia ảo: pane đứng yên, chỉ thanh này bám chuột bằng transform (GPU, không reflow). */
+/* Thanh chia ảo: pane đứng yên, chỉ thanh này bám chuột bằng transform (GPU, không reflow).
+   Bề dày 1px khớp vạch chia thật. */
 #pane-resizer-ghost {
     position: fixed;
     display: none;
     top: 0;
     left: 0;
-    width: 5px;
+    width: 1px;
     background: var(--btn-active-border);
     pointer-events: none;
     z-index: 30;
@@ -105,11 +120,7 @@ body.view-preview .editor-pane {
     display: none;
 }
 
-body.view-editor .editor-pane {
-    border-right: none;
-}
-
-/* Thanh trạng thái: cao 22px, 4 mục; không dùng .btn vì không phải hàng nút. */
+/* Thanh trạng thái: cao 22px; không dùng .btn vì không phải hàng nút. */
 .status-bar {
     display: flex;
     align-items: center;
@@ -146,8 +157,8 @@ button.status-item:hover {
     color: var(--btn-text-hover);
 }
 
-/* Số ký tự đẩy sát phải thanh trạng thái. */
-#char-counter {
+/* Nhóm số liệu (từ / dòng / ký tự) đẩy sát phải thanh trạng thái. */
+#word-counter {
     margin-left: auto;
 }
 
@@ -162,18 +173,20 @@ button.status-item:hover {
     contain: layout style paint;
 }
 
-.editor-pane {
-    border-right: 1px solid var(--border-color);
-}
-
 /* Responsive (Chuyển sang dạng dọc trên màn hình nhỏ) */
 @media (max-width: 768px) {
     .workspace {
         flex-direction: column;
     }
-    .editor-pane {
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
+    /* Bố cục dọc: vạch chia nằm ngang, vẫn 1px như bố cục ngang. */
+    #pane-resizer::after {
+        top: 50%;
+        bottom: auto;
+        left: 0;
+        right: 0;
+        width: auto;
+        height: 1px;
+        transform: translateY(-50%);
     }
     /* Layout dọc: kéo lên sát mép trên -> Preview, xuống sát mép dưới -> Editor (ngưỡng 2%/98%).
        Giữ body.view-split để resizer ẩn khi đã vào preview/editor. */

@@ -22,8 +22,8 @@ const VIEW_EDGE_EDITOR_PERCENT = 98;
 // Trên ngưỡng này kéo bằng thanh ảo: reflow Editor + Preview mỗi frame tốn 473–766ms/frame.
 export const GHOST_DRAG_MIN_CHARS = 100000;
 
-// Bề dày thanh ảo, khớp #pane-resizer.
-const GHOST_BAR = 5;
+// Bề dày thanh ảo, khớp vạch chia của #pane-resizer.
+const GHOST_BAR = 2;
 
 export function computeSplitPercent(pointerX, workspaceWidth) {
     if (!(workspaceWidth > 0)) return 50;

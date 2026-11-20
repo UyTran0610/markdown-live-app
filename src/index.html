@@ -339,11 +339,13 @@
     <!-- Thanh chia ảo: kéo tài liệu lớn thì pane đứng yên, chỉ thanh này bám chuột (GPU, không reflow). -->
     <div id="pane-resizer-ghost" aria-hidden="true"></div>
 
-    <!-- Thanh trạng thái: EOL (bấm để đổi), vị trí con trỏ, mã hoá UTF-8, số ký tự (hiện cả ở Preview). -->
+    <!-- Thanh trạng thái: EOL (bấm để đổi), vị trí con trỏ, mã hoá UTF-8, số từ / dòng / ký tự. -->
     <footer class="status-bar" role="status" aria-label="Document status">
         <button id="status-eol" class="status-item" type="button" title="Line ending - click to switch (LF / CRLF)"></button>
         <span id="status-pos" class="status-item"></span>
         <span id="status-encoding" class="status-item">UTF-8</span>
+        <span id="word-counter" class="status-item">0 words</span>
+        <span id="line-counter" class="status-item">0 lines</span>
         <span id="char-counter" class="status-item">0 characters</span>
     </footer>
 

@@ -1,11 +1,42 @@
-// js/ui/status-bar.js — EOL (bấm để đổi), vị trí con trỏ và mã hoá.
+// js/ui/status-bar.js — EOL (bấm để đổi), vị trí con trỏ, mã hoá và số liệu tài liệu.
 // EOL cần thiết vì Save As mặc định ra LF, còn Windows thường muốn CRLF.
 
-import { statusEncoding, statusEol, statusPos } from '../core/dom.js';
+import { setCharCount, setLineCount, setWordCount, statusEncoding, statusEol, statusPos } from '../core/dom.js';
+import { countWords } from '../core/utils.js';
 import { getView, setSelectionHandler } from '../editor/cm.js';
 import { getActiveTab, setActiveEol, subscribe } from '../io/documents.js';
 
 const EOL_LABEL = { '\n': 'LF', '\r\n': 'CRLF' };
+
+// Số từ phải quét cả văn bản nên trễ một nhịp: gõ liên tục không dựng chuỗi lớn mỗi phím.
+const WORD_COUNT_DELAY = 200;
+
+let wordCountTimer = null;
+
+// Doc đã đếm từ; dùng identity của Text để biết nội dung có đổi không.
+let countedDoc = null;
+
+function recountWords() {
+    wordCountTimer = null;
+    const v = getView();
+    if (!v) return;
+    countedDoc = v.state.doc;
+    setWordCount(countWords(v.state.doc.toString()));
+}
+
+function scheduleWordCount(doc) {
+    if (doc === countedDoc) return;
+    if (wordCountTimer !== null) return;
+    wordCountTimer = setTimeout(recountWords, WORD_COUNT_DELAY);
+}
+
+/** Cập nhật số ký tự / dòng / từ của tài liệu đang mở. */
+export function updateDocStats(doc) {
+    if (!doc) return;
+    setCharCount(doc.length);
+    setLineCount(doc.lines);
+    scheduleWordCount(doc);
+}
 
 function caretPosition() {
     const v = getView();
@@ -23,6 +54,9 @@ export function updateStatusBar() {
     statusPos.textContent = `Ln ${line}, Col ${column}`;
     // Tab có thể đã được chuyển từ UTF-16/Windows-125x lúc đọc.
     statusEncoding.textContent = tab?.encoding || 'UTF-8';
+    // Số liệu theo tab đang mở: đổi tab phải cập nhật, không chỉ khi gõ.
+    const v = getView();
+    updateDocStats(v ? v.state.doc : null);
 }
 
 export function initStatusBar() {

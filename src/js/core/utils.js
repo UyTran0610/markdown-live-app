@@ -34,3 +34,38 @@ export function slugifyText(text, { fold = false } = {}) {
         .replace(/[^\p{L}\p{N}\s-]/gu, '')
         .replace(/\s+/g, '-');
 }
+
+// Ký tự tính vào từ: chữ cái, số, và mọi chữ ngoài ASCII (Latin mở rộng ệ ộ ữ, Cyrillic, CJK...).
+// Các khối ký hiệu (gạch dài, ngoặc kép cong, mũi tên, emoji) bị loại để không tính thành từ.
+function isWordChar(code) {
+    if (code >= 97 && code <= 122) return true;        // a-z
+    if (code >= 65 && code <= 90) return true;         // A-Z
+    if (code >= 48 && code <= 57) return true;         // 0-9
+    if (code < 0x00c0) return false;                   // ASCII còn lại: dấu câu, khoảng trắng
+    if (code >= 0x2000 && code <= 0x206f) return false; // General Punctuation: – — “ ” …
+    if (code >= 0x20a0 && code <= 0x20cf) return false; // Currency
+    if (code >= 0x2100 && code <= 0x2bff) return false; // Letterlike, mũi tên, toán học
+    if (code >= 0x1f000) return false;                 // Emoji
+    return true;
+}
+
+// Số từ: quét một lượt ký tự (nhanh hơn regex trên tài liệu lớn).
+// Dấu markdown (#, *, |) không tính là từ; dấu nháy và gạch nối chỉ giữ từ khi nằm giữa hai chữ.
+export function countWords(text) {
+    if (!text) return 0;
+    let count = 0;
+    let inWord = false;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (isWordChar(code)) {
+            if (!inWord) {
+                count++;
+                inWord = true;
+            }
+            continue;
+        }
+        if (inWord && (code === 39 || code === 45 || code === 0x2019) && isWordChar(text.charCodeAt(i + 1))) continue;
+        inWord = false;
+    }
+    return count;
+}

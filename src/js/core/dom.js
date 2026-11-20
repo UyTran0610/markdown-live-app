@@ -7,11 +7,25 @@ export const previewOutput = document.getElementById('preview-output');
 
 export const charCounter = document.getElementById('char-counter');
 
+export const wordCounter = document.getElementById('word-counter');
+
+export const lineCounter = document.getElementById('line-counter');
+
 // Ghi lại đúng giá trị cũ vẫn làm browser layout lại cả preview (đo được ~0,5s ở doc 400k),
 // nên chỉ ghi khi số ký tự thật sự đổi.
 export function setCharCount(chars) {
-    const text = `${chars} characters`;
+    const text = `${chars} character${chars === 1 ? '' : 's'}`;
     if (charCounter.textContent !== text) charCounter.textContent = text;
+}
+
+export function setWordCount(words) {
+    const text = `${words} word${words === 1 ? '' : 's'}`;
+    if (wordCounter.textContent !== text) wordCounter.textContent = text;
+}
+
+export function setLineCount(lines) {
+    const text = `${lines} line${lines === 1 ? '' : 's'}`;
+    if (lineCounter.textContent !== text) lineCounter.textContent = text;
 }
 
 export const btnSync = document.getElementById('btn-sync');

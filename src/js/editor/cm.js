@@ -19,8 +19,10 @@ export const {
     keymap,
     Compartment,
     drawSelection,
+    highlightActiveLineGutter,
     dropCursor,
     placeholder,
+    lineNumbers,
     history,
     historyKeymap,
     defaultKeymap,
@@ -42,6 +44,15 @@ export const {
 const TAB_SIZE = 4;
 
 const TAB_SPACES = ' '.repeat(TAB_SIZE);
+
+// Bundle cũ còn trong cache thiếu extension mới: bỏ tính năng chứ không làm sập cả editor.
+const hasLineNumbers = typeof lineNumbers === 'function';
+const hasActiveLineGutter = typeof highlightActiveLineGutter === 'function';
+if (!hasLineNumbers || !hasActiveLineGutter) {
+    console.warn('Vendor bundle is outdated: rebuild src/vendor/codemirror.bundle.js to get line numbers and the active line gutter.');
+}
+const lineNumbersExtension = hasLineNumbers ? lineNumbers() : [];
+const activeLineGutterExtension = hasActiveLineGutter ? highlightActiveLineGutter() : [];
 
 // Màu cú pháp lấy từ --md-* trong css/tokens.css nên đổi theme chỉ là đổi biến CSS.
 const markdownHighlightStyle = HighlightStyle.define([
@@ -301,6 +312,8 @@ const sharedExtensions = [
     drawSelection(),
     dropCursor(),
     placeholder('Type Markdown here...'),
+    lineNumbersExtension,
+    activeLineGutterExtension,
     EditorState.tabSize.of(TAB_SIZE),
     indentUnit.of(TAB_SPACES),
     EditorView.lineWrapping,

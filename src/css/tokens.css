@@ -41,6 +41,10 @@
     --editor-caret: #24292f;
     --editor-placeholder: #9aa4af;
     --editor-selection: rgba(79, 70, 229, 0.3);
+    /* Thanh cuộn chung cho cả Editor và Preview: mảnh, bo tròn, nhạt. */
+    --scrollbar-size: 10px;
+    --scrollbar-thumb: #c3cbd3;
+    --scrollbar-thumb-hover: #9aa4af;
     /* Tô match của widget tìm kiếm trên lớp cú pháp của Editor. */
     --find-hit-bg: rgba(234, 179, 8, 0.32);
 
@@ -119,6 +123,8 @@
     --editor-caret: #c9d1d9;
     --editor-placeholder: #6e7681;
     --editor-selection: rgba(99, 102, 241, 0.35);
+    --scrollbar-thumb: #39414b;
+    --scrollbar-thumb-hover: #4d5661;
     --find-hit-bg: rgba(234, 179, 8, 0.28);
 
     --toast-bg: #30363d;

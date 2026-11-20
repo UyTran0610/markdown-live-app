@@ -16,10 +16,12 @@ export {
     keymap,
     drawSelection,
     highlightActiveLine,
+    highlightActiveLineGutter,
     dropCursor,
     rectangularSelection,
     crosshairCursor,
     highlightSpecialChars,
+    lineNumbers,
     placeholder
 } from '@codemirror/view';
 export { EditorState, EditorSelection, Compartment, Facet, Annotation, Prec, Text, Transaction, StateField, StateEffect } from '@codemirror/state';

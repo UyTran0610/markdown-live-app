@@ -1,8 +1,8 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { confirmCancelBtn, confirmDialog, confirmPrimaryBtn, confirmSecondaryBtn, findInput, findRegex, infoAbout, infoBody, infoDialog, infoDoc, previewOutput, replaceInput, tableMenu, toast } from '../core/dom.js';
+import { charCounter, confirmCancelBtn, confirmDialog, confirmPrimaryBtn, confirmSecondaryBtn, findInput, findRegex, infoAbout, infoBody, infoDialog, infoDoc, lineCounter, previewOutput, replaceInput, tableMenu, toast, wordCounter } from '../core/dom.js';
 import { showToast } from '../core/toast.js';
-import { isSafeExternalUrl, slugifyText } from '../core/utils.js';
+import { countWords, isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
     EditorView,
     getDocText,
@@ -267,8 +267,8 @@ export async function runSelfCheck() {
         assert('small document drags live', usesGhostDrag(GHOST_DRAG_MIN_CHARS) === false);
         assert('large document drags with ghost bar', usesGhostDrag(GHOST_DRAG_MIN_CHARS + 1) === true);
         assert('ghost threshold is 100k characters', GHOST_DRAG_MIN_CHARS === 100000);
-        assert('ghost bar mid-range -> offset by half the width', ghostOffsetPx(50, 1000) === 497.5);
-        assert('ghost bar at left edge -> negative half-thickness offset', ghostOffsetPx(0, 1000) === -2.5);
+        assert('ghost bar mid-range -> offset by half the width', ghostOffsetPx(50, 1000) === 499);
+        assert('ghost bar at left edge -> negative half-thickness offset', ghostOffsetPx(0, 1000) === -1);
 
         // Render preview phải giãn debounce theo độ dài: tài liệu lớn render chậm hơn nhiều,
         // chạy giữa lúc gõ sẽ cướp main thread.
@@ -1254,6 +1254,39 @@ export async function runSelfCheck() {
             assert('bold text gets its own class', view.dom.querySelectorAll('.cm-md-strong').length >= 1);
             assert('inline code gets its own class', view.dom.querySelectorAll('.cm-md-code').length >= 1);
             assert('link gets its own class', view.dom.querySelectorAll('.cm-md-link').length >= 1);
+        });
+
+        // Thanh trạng thái: số từ / dòng / ký tự + gutter số dòng + vạch chia mảnh.
+        await section('status bar counts and line numbers', async () => {
+            assert('word count ignores markdown punctuation', countWords('# Title\n\n**bold** text') === 3);
+            assert('word count keeps contractions together', countWords("don't well-known") === 2);
+            assert('word count handles Vietnamese', countWords('xin chào Việt Nam') === 4);
+            assert('empty document has no words', countWords('') === 0);
+
+            probe('Một hai ba\nbốn năm\n');
+            handleEditorChange({ state: view.state });
+            // Số từ quét cả văn bản nên trễ một nhịp 200ms.
+            await new Promise((resolve) => setTimeout(resolve, 400));
+            assert('character count follows the document', charCounter.textContent === `${view.state.doc.length} characters`);
+            assert('line count follows the document', lineCounter.textContent === `${view.state.doc.lines} lines`);
+            assert('word count follows the document', wordCounter.textContent === '5 words');
+
+            if (!view.dom.clientWidth) {
+                skip('editor renders line numbers', 'pane is hidden');
+            } else {
+                const nums = Array.from(view.dom.querySelectorAll('.cm-lineNumbers .cm-gutterElement')).map((el) => el.textContent);
+                const firstVisible = view.state.doc.lineAt(view.viewport.from).number;
+                assert('editor renders line numbers', nums.includes(String(firstVisible)));
+                // Số dòng đang có con trỏ phải nổi bật hơn (đậm màu) để khớp với "Ln x" ở thanh trạng thái.
+                view.dispatch({ selection: { anchor: view.state.doc.line(2).from } });
+                const activeGutter = view.dom.querySelector('.cm-activeLineGutter');
+                assert('active line number is highlighted in the gutter', !!activeGutter && activeGutter.textContent === '2');
+            }
+
+            // Vạch chia mảnh: 1px hay 2px đều được, miễn là mảnh như các đường kẻ khác.
+            const divider = getComputedStyle(document.getElementById('pane-resizer'), '::after');
+            const thin = (v) => parseFloat(v) > 0 && parseFloat(v) <= 2;
+            assert('pane divider is a thin line', thin(divider.width) || thin(divider.height));
         });
 
         // Fuzz sửa văn bản: kiểm CodeMirror giữ đúng nội dung VÀ app vẫn theo kịp nội dung editor.

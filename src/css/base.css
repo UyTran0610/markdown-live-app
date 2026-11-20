@@ -25,3 +25,31 @@ body {
 
 /* prefers-reduced-motion: switchTheme() bỏ qua startViewTransition và body/header/pane đã có
    transition màu. Đừng thêm selector phổ quát 'html.theme-anim *' — sẽ transition hàng trăm span Preview. */
+
+/* Thanh cuộn chung cho mọi vùng cuộn: WebView2 mặc định vẽ kiểu Windows cổ điển (có mũi tên, nặng)
+   nên Preview lệch hẳn so với Editor. Không dùng scrollbar-width/scrollbar-color: Chromium bỏ qua
+   ::-webkit-scrollbar khi có hai thuộc tính đó. */
+::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Viền trong suốt 2px + content-box -> phần thấy còn 6px, mảnh và bo tròn. */
+::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}

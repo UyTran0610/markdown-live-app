@@ -1,9 +1,9 @@
 // js/editor/sync.js — Đồng bộ sau mỗi thay đổi editor: đếm ký tự, render preview, ghi vào store, lưu phiên.
 
-import { setCharCount } from '../core/dom.js';
 import { debounce } from '../core/utils.js';
 import { cacheActivePreview, saveSession, updateActiveContent } from '../io/documents.js';
 import { renderMarkdown } from '../preview/render.js';
+import { updateDocStats } from '../ui/status-bar.js';
 import { getDocLength, setChangeHandler } from './cm.js';
 import { refreshFindResults } from './find.js';
 
@@ -50,7 +50,7 @@ function scheduleSessionSave() {
 // Mọi đường sửa đều đi qua updateListener của CodeMirror nên đều xếp lưu nháp, không chỉ nhờ phím gõ.
 // Chỉ đọc doc.length (O(1)); chuỗi dựng lười ở các điểm cần.
 export function handleEditorChange(update) {
-    setCharCount(update.state.doc.length);
+    updateDocStats(update.state.doc);
     updateActiveContent(update.state);
     // Hộp thoại tìm đang mở: kết quả cũ hỏng theo nội dung mới.
     refreshFindResults();

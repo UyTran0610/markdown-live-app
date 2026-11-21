@@ -87,9 +87,20 @@ async function allowTempSibling(path) {
 const isTauriRuntime = () => !!window.__TAURI__;
 
 // Nhớ EOL của file rồi ghi lại đúng kiểu: textarea luôn LF, nếu không mở file CRLF rồi lưu
-// là đổi mọi dòng (git diff rác).
+// là đổi mọi dòng (git diff rác). File trộn lẫn thì lấy kiểu ĐÔNG HƠN, không phải
+// "thấy CRLF là CRLF" — một dòng lạ trong file LF sẽ khiến cả file bị ghi lại bằng CRLF.
 export function detectEol(text) {
-    return String(text).includes('\r\n') ? '\r\n' : '\n';
+    const s = String(text);
+    let crlf = 0;
+    let totalLf = 0;
+    for (let i = 0; i < s.length; i++) {
+        if (s.charCodeAt(i) === 10) {
+            totalLf++;
+            if (i > 0 && s.charCodeAt(i - 1) === 13) crlf++;
+        }
+    }
+    const loneLf = totalLf - crlf;
+    return crlf > loneLf ? '\r\n' : '\n';
 }
 
 // CR cũ (Classic Mac) cũng về LF, nếu không nó là ký tự thừa giữa hai dòng.
@@ -185,7 +196,7 @@ export async function readTextFile(path, notes = null) {
 // Giải mã bytes thành { text, encoding, converted }. Trả null nếu không dịch an toàn.
 // Hàm thuần (không báo toast) để self-check gọi được.
 export function decodeTextBytes(bytes) {
-    if (!bytes || bytes.length === 0) return { text: '', encoding: 'UTF-8', converted: false };
+    if (!bytes || bytes.length === 0) return { text: '', encoding: 'UTF-8', converted: false, replacedBytes: 0 };
 
     // BOM UTF-8: giữ U+FEFF cho tầng trên nhận biết bom (giữ hành vi cũ).
     if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
@@ -228,7 +239,7 @@ export function decodeTextBytes(bytes) {
             const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
             // NUL là byte hợp lệ của UTF-8 nhưng không có trong text: đó là file nhị phân
             // (ví dụ toàn 0x00), không phải tài liệu. Rơi xuống các nhánh heuristic.
-            if (!hasNulChar(text)) return { text, encoding: 'UTF-8', converted: false };
+            if (!hasNulChar(text)) return { text, encoding: 'UTF-8', converted: false, replacedBytes: 0 };
         } catch {
             // Xuống dưới: chuột không - decode nhận dạng heuristic.
         }
@@ -239,6 +250,12 @@ export function decodeTextBytes(bytes) {
             if (isPlausibleText(text)) return { text, encoding: 'UTF-16LE', converted: true };
         }
     }
+
+    // File UTF-8 chỉ hỏng MỘT byte: strict fail thì cả file rơi xuống Windows-1252 và mọi
+    // chữ có dấu hoá thành rác (rồi lần lưu sau ghi rác đó xuống đĩa). Thử UTF-8 nới lỏng
+    // TRƯỚC khi đoán bảng mã: nếu chỉ hỏng ít byte và có chữ nhiều byte thật thì coi là UTF-8.
+    const lossy = decodeUtf8Lossy(body);
+    if (lossy) return { text: lossy.text, encoding: 'UTF-8', converted: false, replacedBytes: lossy.bad };
 
     // Single-byte Windows cũ: ưu tiên windows-1252. Chỉ dùng windows-1258 khi file có dấu hiệu
     // riêng của CP1258 (chữ ă đ ơ ư + dấu thanh tổ hợp) hoặc khi 1252 giải mã hỏng nhiều hơn.
@@ -260,6 +277,34 @@ export function decodeTextBytes(bytes) {
 
 function decodeUtf8Strict(bytes) {
     return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+}
+
+// Ngưỡng byte hỏng chấp nhận được: dưới ~0,5% file, tối thiểu 4 byte cho file nhỏ.
+const UTF8_LOSSY_MAX_RATIO = 0.005;
+
+// UTF-8 nới lỏng: byte hỏng thành U+FFFD. Trả null nếu không phải UTF-8 hỏng nhẹ.
+// Điều kiện: phải có chữ nhiều byte thật (file single-byte sẽ không có) và số byte
+// hỏng phải nhỏ; nếu không thì đó là file Windows-125x, đoán bảng mã mới đúng.
+function decodeUtf8Lossy(bytes) {
+    if (!bytes || !bytes.length) return null;
+    let text;
+    try {
+        text = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true }).decode(bytes);
+    } catch {
+        return null;
+    }
+    if (hasNulChar(text) || hasControlChars(text)) return null;
+    const bad = countReplacementChars(text);
+    if (!bad) return null;
+    let multiByte = 0;
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (code > 0x7f && code !== 0xfffd) multiByte++;
+    }
+    if (!multiByte) return null;
+    const maxBad = Math.max(4, Math.floor(bytes.length * UTF8_LOSSY_MAX_RATIO));
+    if (bad > maxBad) return null;
+    return { text, bad };
 }
 
 function looksLikeUtf16Le(bytes) {

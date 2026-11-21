@@ -1,7 +1,7 @@
 // js/export/docx-xml.js — Sinh OOXML (WordprocessingML) cho file DOCX. Không dùng DOM.
 //
 // Model đầu vào:
-//   { title, blocks, rels, media, orderedListIds }
+//   { title, blocks, rels, media, orderedListIds, orderedListStarts }
 // block: { type: 'p' | 'table', ... } — xem các hàm build bên dưới.
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -283,13 +283,15 @@ function decimalLevel(level) {
 
 export function buildNumberingXml(model) {
     const listIds = model.orderedListIds || [];
+    const listStarts = model.orderedListStarts || [];
     const nums = ['<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'];
-    for (const id of listIds) {
-        // startOverride để mỗi danh sách đánh số bắt đầu lại từ 1.
+    listIds.forEach((id, i) => {
+        // startOverride để mỗi danh sách đánh số bắt đầu lại; số đầu lấy từ <ol start>.
+        const start = Number.isFinite(listStarts[i]) && listStarts[i] >= 0 ? listStarts[i] : 1;
         const overrides = Array.from({ length: NUM_LEVELS }, (_, lvl) =>
-            `<w:lvlOverride w:ilvl="${lvl}"><w:startOverride w:val="1"/></w:lvlOverride>`).join('');
+            `<w:lvlOverride w:ilvl="${lvl}"><w:startOverride w:val="${lvl === 0 ? start : 1}"/></w:lvlOverride>`).join('');
         nums.push(`<w:num w:numId="${id}"><w:abstractNumId w:val="1"/>${overrides}</w:num>`);
-    }
+    });
     const bullets = Array.from({ length: NUM_LEVELS }, (_, i) => bulletLevel(i)).join('');
     const decimals = Array.from({ length: NUM_LEVELS }, (_, i) => decimalLevel(i)).join('');
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'

@@ -7,7 +7,7 @@ import { slugifyText } from '../core/utils.js';
 import { processGFMAlerts } from './alerts.js';
 import { cacheMermaidResult, mermaidCache } from './mermaid-cache.js';
 import { MERMAID_SANITIZE_CONFIG } from './sanitize.js';
-import { cyrb53, findBlockHtml, storeBlockHtml, patchBlocks, resetBlocks, snapshotBlocks } from './blocks.js';
+import { cyrb53, findBlockHtml, storeBlockHtml, patchBlocks, resetBlocks, resetLiveBlocks, snapshotBlocks } from './blocks.js';
 
 // Gán id slug cho heading để link neo [mục](#muc) hoạt động; marked v14 bỏ headerIds.
 // id phải duy nhất; chỉ đọc textContent nên không thêm đường XSS.
@@ -110,7 +110,8 @@ function renderBlockHtml(token) {
         // Chỉ cho http(s)/mailto/tel/callto/ftp hoặc URL tương đối (chặn javascript:...).
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|callto|ftp):|[^a-zA-Z]|[a-zA-Z+.\-]+(?:[^a-zA-Z+.:]|$))/i,
         // CSS trong Markdown áp lên cả app: <style> làm trắng cửa sổ, style= che bằng overlay.
-        FORBID_TAGS: ['style'],
+        // <form> giữ lại thì bấm nút submit làm cửa sổ tải lại/trắng; <input> phải giữ cho task list.
+        FORBID_TAGS: ['style', 'form'],
         FORBID_ATTR: ['style']
     });
     const tpl = document.createElement('template');
@@ -119,12 +120,22 @@ function renderBlockHtml(token) {
     return { html: tpl.innerHTML };
 }
 
+// Vân tay của một khối. PHẢI trộn cả định nghĩa link: marked nuốt dòng `[d]: https://…`
+// nên token.raw không đổi khi đổi địa chỉ, và khối cũ sẽ được dùng lại với link sai.
+// Hàm này export để self-check băm y hệt cách render băm (lệch công thức là test sai).
+export function blockFingerprint(linksKey, token) {
+    return cyrb53(linksKey + token.raw);
+}
+
 // Tách tài liệu thành block {hash, html}; hash của raw section quyết định cache.
 // Block lỗi chỉ tệ đi thành văn bản thô, không kéo theo cả preview (lexer lỗi mới rơi về catch ngoài).
 function lexAndRender(rawText) {
     const tokens = marked.lexer(rawText);
+    // Link reference ([docs][d]) lấy địa chỉ từ dòng định nghĩa ở chỗ khác -> trộn links
+    // vào vân tay của MỌI khối, không chỉ khối chứa dòng định nghĩa.
+    const linksKey = JSON.stringify(tokens.links || {});
     return tokens.map((token) => {
-        const hash = cyrb53(token.raw);
+        const hash = blockFingerprint(linksKey, token);
         const cached = findBlockHtml(hash);
         if (cached !== undefined) return { hash, html: cached };
         let html;
@@ -267,11 +278,14 @@ function flushMermaidRun() {
     const genBefore = previewScrollGen;
     const versionBefore = renderVersion;
     pendingMermaidJobs++;
+    // Mermaid thay source bằng SVG: chụp source TRƯỚC khi vẽ, nếu không khoá cache
+    // lại là chính text của SVG và lần sau không bao giờ trúng cache.
+    const sources = nodes.map((node) => node.textContent || '');
     mermaid.run({ nodes, suppressErrors: true }).then(() => {
-        nodes.forEach((node) => {
+        nodes.forEach((node, i) => {
             // Mermaid sinh SVG chưa qua lọc: lọc lại trước khi tin và cache.
             node.innerHTML = DOMPurify.sanitize(node.innerHTML, MERMAID_SANITIZE_CONFIG);
-            const code = node.textContent;
+            const code = sources[i];
             if (code && node.innerHTML) cacheMermaidResult(code, node.innerHTML);
         });
         // Tab preview cache giữ block HTML (không kèm SVG Mermaid) nên không cần bỏ khi vẽ xong;
@@ -353,15 +367,17 @@ function drawIcons(inserted) {
 export function renderMarkdown({ force = false } = {}) {
     renderVersion++;
 
-    const rawText = getDocText();
+    // Độ dài đọc O(1); getDocText() dựng lại cả văn bản nên chỉ gọi khi thật sự cần.
+    const docLength = getDocLength();
     const previousPreviewScrollTop = previewOutput.scrollTop;
 
-    if (!force && rawText.length > PREVIEW_MAX_CHARS) {
-        showTooLargeNotice(rawText.length);
-        setCharCount(rawText.length);
+    if (!force && docLength > PREVIEW_MAX_CHARS) {
+        showTooLargeNotice(docLength);
+        setCharCount(docLength);
         return;
     }
 
+    const rawText = getDocText();
     // try/catch quanh marked.parse: vendor chưa tải xong thì hiện văn bản thô, không đụng innerHTML.
     let blocks;
     try {
@@ -420,10 +436,11 @@ export function renderCachedHtml(blocks, scrollTop) {
     restorePreviewScrollTop(scrollTop);
 }
 
-// Đổi theme: bỏ mọi khối đã cache, dựng lại từ đầu để Mermaid vẽ lại đúng màu.
-export function invalidateBlockCache() {
+// Đổi theme: cache HTML không mang màu nên GIỮ cache, chỉ bỏ node đang sống để dựng lại.
+// Màu nằm trong SVG Mermaid nên cache Mermaid phải xoá riêng (clearMermaidCache ở theme/theme.js).
+export function invalidateLiveBlocks() {
     renderVersion++;
-    resetBlocks();
+    resetLiveBlocks();
 }
 
 // scroll-sync gọi khi người dùng cuộn (wheel/keydown/touchstart trên preview):

@@ -1,15 +1,17 @@
 // js/ui/status-bar.js — EOL (bấm để đổi), vị trí con trỏ, mã hoá và số liệu tài liệu.
 // EOL cần thiết vì Save As mặc định ra LF, còn Windows thường muốn CRLF.
 
-import { setCharCount, setLineCount, setWordCount, statusEncoding, statusEol, statusPos } from '../core/dom.js';
+import { setCharCount, setLineCount, setWordCount, setWordCountUnknown, statusEncoding, statusEol, statusPos } from '../core/dom.js';
 import { countWords } from '../core/utils.js';
 import { getView, setSelectionHandler } from '../editor/cm.js';
 import { getActiveTab, setActiveEol, subscribe } from '../io/documents.js';
 
 const EOL_LABEL = { '\n': 'LF', '\r\n': 'CRLF' };
 
-// Số từ phải quét cả văn bản nên trễ một nhịp: gõ liên tục không dựng chuỗi lớn mỗi phím.
-const WORD_COUNT_DELAY = 200;
+// Số từ phải quét cả văn bản nên chờ gõ NGỪNG hẳn rồi mới đếm; quá ngưỡng thì bỏ qua,
+// quét mỗi lần gõ là dồn ép main thread trên tài liệu lớn.
+const WORD_COUNT_DELAY = 400;
+const WORD_COUNT_MAX_CHARS = 1000000;
 
 let wordCountTimer = null;
 
@@ -25,8 +27,19 @@ function recountWords() {
 }
 
 function scheduleWordCount(doc) {
-    if (doc === countedDoc) return;
-    if (wordCountTimer !== null) return;
+    if (!doc || doc === countedDoc) return;
+    // Quá lớn: không đếm, nhưng phải huỷ lượt đang chờ và báo rõ là không có số.
+    if (doc.length > WORD_COUNT_MAX_CHARS) {
+        if (wordCountTimer !== null) {
+            clearTimeout(wordCountTimer);
+            wordCountTimer = null;
+        }
+        countedDoc = doc;
+        setWordCountUnknown();
+        return;
+    }
+    // Debounce thật: mỗi lần gõ đẩy lại mốc, chỉ đếm khi người dùng ngừng.
+    if (wordCountTimer !== null) clearTimeout(wordCountTimer);
     wordCountTimer = setTimeout(recountWords, WORD_COUNT_DELAY);
 }
 

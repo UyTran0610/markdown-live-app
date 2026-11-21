@@ -10,6 +10,10 @@
     border-radius: 6px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     font-size: 0.9rem;
+    /* Tin dài (đường dẫn .md-live.tmp) phải xuống dòng và không tràn ra ngoài cửa sổ. */
+    max-width: min(520px, calc(100vw - 40px));
+    white-space: pre-line;
+    overflow-wrap: anywhere;
     transition: opacity 0.3s, transform 0.3s, background-color 0.2s, color 0.2s;
     z-index: 1000;
 }

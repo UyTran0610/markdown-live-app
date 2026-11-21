@@ -117,6 +117,11 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
+      # Chạy test Rust TRƯỚC khi build: bộ lọc đuôi file và đường ghi hỏng là thứ
+      # sai là bản phát hành đi, không phải lúc chạy thử.
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       # Tự động chuyển đổi icon.png ở root thành các kích cỡ & icon.ico cho Windows
       # - name: Generate App Icons
       #   run: npm run tauri icon icon.png

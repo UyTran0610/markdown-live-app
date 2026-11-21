@@ -1,7 +1,7 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
 import { charCounter, confirmCancelBtn, confirmDialog, confirmPrimaryBtn, confirmSecondaryBtn, findInput, findRegex, infoAbout, infoBody, infoDialog, infoDoc, lineCounter, previewOutput, replaceInput, tableMenu, toast, wordCounter } from '../core/dom.js';
-import { showToast } from '../core/toast.js';
+import { showToast, toastDuration } from '../core/toast.js';
 import { countWords, isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
     EditorView,
@@ -52,8 +52,9 @@ import { makeExclusive } from '../export/menu.js';
 import { closeTab, getActiveTab, getTabs, isTabDirty, isMarkdownPath, deserializeSession, diskRevision, needsSave, newTab, saveTab, serializeSession, sessionKeepsContent, setTabReadOnly, suggestSavePath, switchTab, tabText, untitledName } from '../io/documents.js';
 import { sessionFingerprint } from '../io/session-store.js';
 import { escapeHtml } from '../ui/confirm-dialog.js';
-import { assignHeadingIds, flushLazyRenders, PREVIEW_MAX_CHARS, renderMarkdown, snapshotPreviewBlocks } from '../preview/render.js';
-import { cyrb53, diffBlocks, findBlockHtml, resetBlocks, storeBlockHtml } from '../preview/blocks.js';
+import { assignHeadingIds, blockFingerprint, flushLazyRenders, PREVIEW_MAX_CHARS, renderMarkdown, snapshotPreviewBlocks, whenMermaidIdle } from '../preview/render.js';
+import { diffBlocks, findBlockHtml, resetBlocks, storeBlockHtml } from '../preview/blocks.js';
+import { mermaidCache } from '../preview/mermaid-cache.js';
 import { MERMAID_SANITIZE_CONFIG } from '../preview/sanitize.js';
 import { isInfoDialogOpen } from '../ui/about.js';
 import { dropIndex, disambiguateTabName, tabScrollState } from '../ui/tabs.js';
@@ -210,10 +211,18 @@ export async function runSelfCheck() {
         assert('filename drops characters forbidden in file names', deriveExportBaseName('# a/b:c*d?e"f<g>h|i') === 'abcdefghi');
         assert('filename ignores heading inside code fence', deriveExportBaseName('```md\n# comment\n```\n\n# Real Title') === 'real-title');
 
+        // Tin dài (đường dẫn file .md-live.tmp) phải còn trên màn hình đủ lâu để đọc.
+        assert('a short toast keeps the 2.5s minimum', toastDuration('Saved') === 2500);
+        assert('a long toast stays up about 60ms per character', toastDuration('x'.repeat(200)) === 12000);
+        assert('a very long toast is capped', toastDuration('x'.repeat(2000)) === 25000);
+
         // EOL: file Windows là CRLF, textarea là LF; nhớ kiểu file để lần lưu không đổi mọi dòng.
         assert('eol detects a CRLF file', detectEol('a\r\nb') === '\r\n');
         assert('eol detects an LF file', detectEol('a\nb') === '\n');
         assert('eol detects a single-line file', detectEol('abc') === '\n');
+        // File trộn lẫn: lấy kiểu ĐÔNG HƠN, không phải "thấy CRLF là CRLF".
+        assert('eol follows the majority style of a mixed file', detectEol('a\nb\nc\r\n') === '\n');
+        assert('eol keeps CRLF when CRLF is the majority', detectEol('a\r\nb\r\nc\n') === '\r\n');
         assert('eol normalizes CRLF and lone CR to LF', toLf('a\r\nb\rc') === 'a\nb\nc');
         assert('eol writes back the file CRLF', applyEol('a\nb', '\r\n') === 'a\r\nb');
         assert('eol keeps LF as-is', applyEol('a\nb', '\n') === 'a\nb');
@@ -507,12 +516,24 @@ export async function runSelfCheck() {
                 !!dels && dels.encoding === 'UTF-8' && dels.converted === false
                 && dels.encoding !== 'Windows-1252' && dels.encoding !== 'Windows-1258');
 
+            // File UTF-8 chỉ hỏng MỘT byte: không được rơi về Windows-1252 (mọi chữ có dấu hoá thành rác).
+            const broken = new Uint8Array([...new TextEncoder().encode('Tiếng Việt đẹp quá'), 0xff]);
+            const brokenText = decodeTextBytes(broken);
+            assert('utf-8 file with one broken byte -> still opens as UTF-8',
+                !!brokenText && brokenText.encoding === 'UTF-8' && brokenText.converted === false);
+            assert('utf-8 file with one broken byte -> the accented letters survive',
+                !!brokenText && brokenText.text.includes('Tiếng Việt đẹp quá'));
+            assert('utf-8 file with one broken byte -> the replaced byte count is reported',
+                !!brokenText && brokenText.replacedBytes === 1);
+
             // Windows-125x cũ: giữ đúng chữ, không U+FFFD, nhãn encoding phải đúng.
             const win1252 = decodeTextBytes(bytes(0x63, 0x61, 0x66, 0xe9, 0x0a));
             assert('windows-1252 file -> keeps the é accent', !!win1252 && win1252.text.indexOf('\u00e9') !== -1);
             assert('windows-1252 file -> no U+FFFD characters', !!win1252 && win1252.text.indexOf('\ufffd') === -1);
             assert('windows-1252 file -> reports the conversion', !!win1252 && win1252.converted === true);
             assert('windows-1252 file -> is labelled Windows-1252', !!win1252 && win1252.encoding === 'Windows-1252');
+            // File single-byte KHÔNG có chữ nhiều byte thật thì không được đoán thành UTF-8 hỏng.
+            assert('windows-1252 file -> not mistaken for a broken UTF-8', !!win1252 && win1252.converted === true);
             // 0xEC/0xF2: 1252 ra 'ì'/'ò' dựng sẵn, 1258 ra chữ + dấu kết hợp -> phải chọn 1252.
             const win1252Accent = decodeTextBytes(bytes(0x69, 0xec, 0x20, 0x6f, 0xf2));
             assert('windows-1252 file -> keeps the precomposed ì and ò',
@@ -647,16 +668,22 @@ export async function runSelfCheck() {
                 window.__TAURI__ = realTauri;
             }
         });
-        // readOnly phải sống cùng session, nếu không mỗi lần khởi động lại mở khoá gõ.
-        await section('session keeps the read-only flag', async () => {
+        // Session cũ từng khoá tab lớn và không có cách nào mở lại -> restore luôn mở khoá.
+        await section('session drops the old read-only flag', async () => {
             const ro = deserializeSession(JSON.stringify({
                 activeId: 1, tabs: [{ id: 1, path: 'C:\\big.md', name: 'big.md', content: 'x', dirty: false, eol: '\n', bom: false, readOnly: true }]
             }));
-            assert('session keeps the read-only flag of a large tab', ro.tabs[0].readOnly === true);
+            assert('old session with a read-only tab -> restored as editable', ro.tabs[0].readOnly === false);
             const normal = deserializeSession(JSON.stringify({
                 activeId: 1, tabs: [{ id: 1, path: 'C:\\a.md', name: 'a.md', content: 'x', dirty: false, eol: '\n', bom: false }]
             }));
             assert('session missing read-only -> defaults to editable', normal.tabs[0].readOnly === false);
+            // Session cũ đọc từ IndexedDB là object: không cần stringify rồi parse lại.
+            const fromObject = deserializeSession({
+                activeId: 1, tabs: [{ id: 1, path: '/a.md', name: 'a.md', content: '# A', dirty: false, eol: '\n', bom: false }]
+            });
+            assert('session accepts an object as well as a JSON string',
+                !!fromObject && fromObject.tabs.length === 1 && fromObject.tabs[0].content === '# A');
         });
 
         // Tự đóng do closeBrackets() + bọc * _ ~ $; Enter theo markdownKeymap. Mô phỏng gõ qua inputHandler facet.
@@ -891,6 +918,21 @@ export async function runSelfCheck() {
                 numbering.includes('<w:lvlText w:val="%4."/>'));
             assert('docx ordered list restarts every level',
                 (numbering.match(/<w:startOverride w:val="1"\/>/g) || []).length === 9);
+
+            // <ol start="5"> phải ra số 5 trong Word, không phải 1.
+            const started = document.createElement('div');
+            started.innerHTML = '<ol start="5"><li>a</li><li>b</li></ol>';
+            const startedModel = await buildDocxModel(started, 'Bắt đầu');
+            assert('docx keeps the start value of an ordered list', startedModel.orderedListStarts[0] === 5);
+            const startedNumbering = buildNumberingXml(startedModel);
+            assert('docx numbering starts the list at 5',
+                startedNumbering.includes('<w:lvlOverride w:ilvl="0"><w:startOverride w:val="5"/></w:lvlOverride>'));
+            assert('docx numbering keeps the nested levels at 1',
+                (startedNumbering.match(/<w:startOverride w:val="1"\/>/g) || []).length === 8);
+            const plainList = document.createElement('div');
+            plainList.innerHTML = '<ol><li>a</li></ol>';
+            assert('docx list without a start value defaults to 1',
+                (await buildDocxModel(plainList, 'Mặc định')).orderedListStarts[0] === 1);
 
             const nest = (depth) => {
                 let inner = 'x';
@@ -1161,9 +1203,11 @@ export async function runSelfCheck() {
                 again.map((n) => n.textContent.trim()).join('|')
                 === 'Alpha para một|Beta para SỬA|Gamma para ba|Delta para bốn|Epsilon para năm');
             if (window.marked) {
+                // Băm y hệt cách render băm: dùng chính blockFingerprint để test không lệch.
+                const tokens = window.marked.lexer(edited);
+                const linksKey = JSON.stringify(tokens.links || {});
                 const order = snapshotPreviewBlocks().map((b) => b.hash);
-                const expected = window.marked.lexer(edited)
-                    .map((t) => cyrb53(t.raw));
+                const expected = tokens.map((t) => blockFingerprint(linksKey, t));
                 assert('block cache keeps the document order', order.join(',') === expected.join(','));
             } else {
                 skip('block cache keeps the document order', 'marked not loaded');
@@ -1208,6 +1252,9 @@ export async function runSelfCheck() {
         });
 
         assert('heading slug drops punctuation', slugifyText('Tiêu đề Mục 2!') === 'tiêu-đề-mục-2');
+        // Dấu thanh tổ hợp (NFD) là chữ: bỏ nó thì neo của tiêu đề Việt/Hindi lệch.
+        assert('heading slug keeps combining marks', slugifyText('Tiêu đề'.normalize('NFD')) === 'tiêu-đề'.normalize('NFD'));
+        assert('heading slug keeps Devanagari marks', slugifyText('हिन्दी'.normalize('NFD')) === 'हिन्दी'.normalize('NFD'));
         await section('block #12', async () => {
             const host = document.createElement('div');
             host.innerHTML = '<h2>Giới thiệu</h2><h2>Giới thiệu</h2>';
@@ -1669,6 +1716,27 @@ export async function runSelfCheck() {
             }
         });
 
+        // Bộ nhớ: khi tab đã có EditorState thì tab.content là bản sao thừa của cả văn bản.
+        await section('a tab drops the duplicate content copy once it has an editor state', async () => {
+            const originalId = getActiveTab() ? getActiveTab().id : null;
+            const created = [];
+            try {
+                const tab = newTab();
+                created.push(tab.id);
+                if (originalId !== null) switchTab(originalId);
+                // Giống tab vừa nạp từ đĩa: có content nhưng chưa có state.
+                tab.content = '# Nội dung\n';
+                tab.savedContent = '# Nội dung\n';
+                tab.state = null;
+                switchTab(tab.id);
+                assert('a tab with an editor state keeps no duplicate content copy', tab.content === '');
+                assert('the live text still comes from the editor state', tabText(tab) === '# Nội dung\n');
+            } finally {
+                if (originalId !== null) switchTab(originalId);
+                for (const id of created) await closeTab(id, { force: true, remember: false });
+            }
+        });
+
         // Ctrl+1..9 nhảy tới tab thứ N: e.key của phím số là '1'..'9', không phải 'Digit1'.
         await section('ctrl+digit jumps to a tab', async () => {
             const originalId = getActiveTab() ? getActiveTab().id : null;
@@ -1688,7 +1756,7 @@ export async function runSelfCheck() {
             }
         });
 
-        // CSP là null: chống XSS là việc của JS. Payload lọt vào preview là lỗi bảo mật.
+        // CSP chặn script từ xa; chống XSS vẫn là việc của JS (DOMPurify). Payload lọt vào preview là lỗi bảo mật.
         await section('preview sanitizes untrusted markdown', async () => {
             const savedValue = docText();
             const payloads = [
@@ -1717,6 +1785,14 @@ export async function runSelfCheck() {
             probe('<div style="position:fixed;inset:0;z-index:2147483647">x</div>');
             renderMarkdown();
             assert('inline style attribute is dropped', !/\sstyle=/i.test(previewOutput.innerHTML));
+            // <form> phải bị loại: bấm nút submit làm cửa sổ tải lại hoặc trắng.
+            probe('<form action="https://evil.example"><input type="text"><button>go</button></form>');
+            renderMarkdown();
+            assert('html <form> is dropped', !/<form/i.test(previewOutput.innerHTML));
+            // <input> thì phải giữ: task list cần nó.
+            probe('- [ ] việc cần làm');
+            renderMarkdown();
+            assert('task list checkbox (input) is kept', !!previewOutput.querySelector('input[type="checkbox"]'));
 
             // Link ngoài mở tab mới kèm rel an toàn; anchor trong tài liệu thì không.
             probe('[ngoài](https://example.com) và [trong](#muc)');
@@ -1740,6 +1816,55 @@ export async function runSelfCheck() {
             } else {
                 skip('mermaid svg is sanitized again: no script', 'DOMPurify not loaded');
             }
+            probe(savedValue);
+            renderMarkdown();
+        });
+
+        // Link reference ([docs][d]) lấy địa chỉ từ dòng định nghĩa: đổi định nghĩa phải cập nhật preview.
+        await section('preview follows reference link definitions', async () => {
+            const savedValue = docText();
+            probe('See [docs][d] here.\n\n[d]: https://old.example\n');
+            renderMarkdown();
+            assert('reference link resolves to its definition',
+                !!previewOutput.querySelector('a[href="https://old.example"]'));
+            probe('See [docs][d] here.\n\n[d]: https://new.example\n');
+            renderMarkdown();
+            assert('changing the definition updates the preview link',
+                !!previewOutput.querySelector('a[href="https://new.example"]')
+                && !previewOutput.querySelector('a[href="https://old.example"]'));
+            probe(savedValue);
+            renderMarkdown();
+        });
+
+        // Cache Mermaid phải khoá theo MÃ NGUỒN: đọc textContent sau khi vẽ là text của SVG.
+        await section('mermaid cache is keyed by the diagram source', async () => {
+            if (typeof mermaid === 'undefined') {
+                skip('mermaid cache is keyed by the diagram source', 'mermaid not loaded');
+                return;
+            }
+            const savedValue = docText();
+            const source = 'graph TD;\n  A-->B;';
+            probe('```mermaid\n' + source + '\n```');
+            renderMarkdown();
+            // Đọc mã nguồn TRƯỚC khi Mermaid vẽ: sau khi vẽ thì textContent là text của SVG.
+            const pre = previewOutput.querySelector('pre.mermaid');
+            const code = pre ? pre.textContent : '';
+            flushLazyRenders();
+            await whenMermaidIdle();
+            if (!previewOutput.querySelector('pre.mermaid svg')) {
+                skip('mermaid cache is keyed by the diagram source', 'mermaid did not render in this environment');
+                probe(savedValue);
+                renderMarkdown();
+                return;
+            }
+            assert('mermaid cache is keyed by the diagram source', !!code && mermaidCache.has(code));
+            // Dựng lại từ đầu (node Mermaid mới): lần này phải lấy SVG từ cache.
+            resetBlocks();
+            renderMarkdown();
+            flushLazyRenders();
+            await whenMermaidIdle();
+            assert('mermaid diagram comes from the cache on the second draw',
+                previewOutput.querySelector('pre.mermaid')?.dataset.mermaidCached === 'true');
             probe(savedValue);
             renderMarkdown();
         });

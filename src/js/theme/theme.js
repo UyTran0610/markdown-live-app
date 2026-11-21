@@ -63,8 +63,8 @@ export function initTheme() {
             // xong mới chụp sẽ đứng cả trang) nhưng PHẢI sau applyTheme.
             clearMermaidCache();
             invalidatePreviewCaches({ blocks: true });
-            // renderActivePreview dựng lại toàn bộ khối (invalidateBlockCache) để Mermaid vẽ lại đúng theme.
-            renderActivePreview();
+            // Editor view không hiện preview: dựng lại lúc chuyển sang chế độ có preview.
+            if (!document.body.classList.contains('view-editor')) renderActivePreview();
         });
     }
 
@@ -80,7 +80,7 @@ export function initTheme() {
                 switchTheme(event.matches ? 'dark' : 'light', false);
                 clearMermaidCache();
                 invalidatePreviewCaches({ blocks: true });
-                renderActivePreview();
+                if (!document.body.classList.contains('view-editor')) renderActivePreview();
             }
         });
     }

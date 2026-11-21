@@ -33,6 +33,12 @@ const ALERT_COLORS = {
 // Bullet list dùng chung numId; mỗi danh sách đánh số có numId riêng để đánh số lại từ 1.
 const BULLET_NUM_ID = 1;
 
+// <ol start="5"> bắt đầu từ 5; thiếu hoặc sai thì mặc định 1.
+function orderedListStart(el) {
+    const n = parseInt(el.getAttribute('start'), 10);
+    return Number.isFinite(n) && n >= 0 ? n : 1;
+}
+
 // Nhận diện ảnh theo chữ ký byte: Word chỉ ăn PNG/JPEG/GIF/BMP.
 function detectImageType(bytes) {
     if (bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
@@ -98,6 +104,8 @@ class DocxBuilder {
         this.mediaIds = new Map();
         this.externalImageIds = new Map();
         this.orderedListIds = [];
+        // Số thứ tự đầu tiên của từng danh sách đánh số (<ol start="5"> -> 5).
+        this.orderedListStarts = [];
         this.nextRelId = 3;
     }
 
@@ -107,7 +115,8 @@ class DocxBuilder {
             blocks: this.blocks,
             rels: this.rels,
             media: this.media,
-            orderedListIds: this.orderedListIds
+            orderedListIds: this.orderedListIds,
+            orderedListStarts: this.orderedListStarts
         };
     }
 
@@ -142,9 +151,10 @@ class DocxBuilder {
         return id;
     }
 
-    newOrderedListId() {
+    newOrderedListId(start = 1) {
         const id = this.orderedListIds.length + 2;
         this.orderedListIds.push(id);
+        this.orderedListStarts.push(start);
         return id;
     }
 
@@ -265,7 +275,7 @@ class DocxBuilder {
     }
 
     async list(el, out, ctx, level) {
-        const numId = el.tagName === 'OL' ? this.newOrderedListId() : BULLET_NUM_ID;
+        const numId = el.tagName === 'OL' ? this.newOrderedListId(orderedListStart(el)) : BULLET_NUM_ID;
         for (const li of el.children) {
             if (li.tagName !== 'LI') continue;
             await this.listItem(li, out, ctx, level, numId);

@@ -4,7 +4,7 @@ import { btnImport, btnSave, btnSaveAll, btnSaveAs, previewOutput } from '../cor
 import { showToast } from '../core/toast.js';
 import { createEditorState, getView, readOnlyReconfigureEffect, setEditorState } from '../editor/cm.js';
 import { allowTextFiles, chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
-import { renderCachedHtml, renderMarkdown, snapshotPreviewBlocks, invalidateBlockCache } from '../preview/render.js';
+import { renderCachedHtml, renderMarkdown, snapshotPreviewBlocks, invalidateLiveBlocks } from '../preview/render.js';
 import { confirmAction } from '../ui/confirm-dialog.js';
 import { loadSession, migrateLegacySession, whenSessionWritten, writeSession } from './session-store.js';
 
@@ -50,6 +50,16 @@ export function isMarkdownPath(path) {
     return MARKDOWN_EXTS.includes(name.slice(dot + 1));
 }
 
+// Vân tay của nội dung ĐANG SỐNG: cache cạnh sessionCache nên tab không đổi thì
+// không phải quét lại toàn bộ văn bản ở mỗi lần serialize (mỗi lần lưu).
+function liveFingerprint(tab, doc, cur) {
+    const cache = tab.sessionCache;
+    if (cache && cache.doc === doc && cache.content === cur && cache.hash) return cache.hash;
+    const hash = hashText(cur);
+    tab.sessionCache = { doc, content: cur, hash };
+    return hash;
+}
+
 // Tab sống: so Doc bất biến bằng eq() nên gõ rồi undo về bản đã lưu tự hết dirty.
 // Text.eq bỏ qua nhánh cây dùng chung nên thường rẻ; hash chỉ giữ cho tab khôi phục chưa có state.
 // Fallback (hash) phải trả O(n) mỗi keystroke nên cache theo doc identity: updateActiveContent
@@ -67,7 +77,7 @@ export function isTabDirty(tab) {
     else if (tab.savedContent !== null) result = true;
     else {
         const len = typeof cur === 'string' ? cur.length : -1;
-        result = !(tab.savedHash && tab.savedLen === len && tab.savedHash === hashText(cur));
+        result = !(tab.savedHash && tab.savedLen === len && tab.savedHash === liveFingerprint(tab, doc, cur));
     }
     dirtyCache = { doc, content: tab.content, savedContent: tab.savedContent, savedHash: tab.savedHash, savedLen: tab.savedLen, result };
     return result;
@@ -202,11 +212,16 @@ function restoreTabIntoEditor(tab) {
     const v = getView();
     if (!v) return;
     // Chưa có state (tab mới, hoặc vừa nạp lại từ đĩa) thì dựng state mới.
-    if (!tab.state) tab.state = createEditorState(tab.content, { readOnly: tab.readOnly === true, selStart: tab.selStart, selEnd: tab.selEnd });
+    const fresh = !tab.state;
+    if (fresh) tab.state = createEditorState(tab.content, { readOnly: tab.readOnly === true, selStart: tab.selStart, selEnd: tab.selEnd });
     if (tab.savedDoc === null || tab.savedDoc === undefined) {
-        if (tab.savedContent !== null && tab.content === tab.savedContent) tab.savedDoc = tab.state.doc;
+        // So nội dung ĐANG SỐNG với bản đã lưu (tab.content có thể đã bị xoá để nhẹ RAM).
+        const live = fresh ? tab.content : tabText(tab);
+        if (tab.savedContent !== null && live === tab.savedContent) tab.savedDoc = tab.state.doc;
         else if (tab.savedContent === '') tab.savedDoc = tab.state.doc.slice(0, 0);
     }
+    // State đã giữ trọn văn bản: tab.content là bản sao thừa -> xoá cho nhẹ RAM.
+    if (fresh) tab.content = '';
     setEditorState(tab.state);
     // scrollSnapshot giữ đúng vị trí sau setState (ước lượng chiều cao dòng chưa render);
     // session khôi phục từ IDB không có snapshot thì fallback scrollTop thô.
@@ -228,10 +243,10 @@ export function cacheActivePreview() {
     tab.preview = { doc: tab.state.doc, blocks: snapshotPreviewBlocks(), scroll: previewOutput.scrollTop };
 }
 
-// blocks=true chỉ cho đổi theme: blockCache không chứa màu, nhưng Mermaid SVG thì có.
+// blocks=true chỉ cho đổi theme: cache HTML không chứa màu (chỉ SVG Mermaid mới có).
 export function invalidatePreviewCaches({ blocks = false } = {}) {
     tabs.forEach((tab) => { tab.preview = null; });
-    if (blocks) invalidateBlockCache();
+    if (blocks) invalidateLiveBlocks();
 }
 
 // Render preview tab đang mở; view-mode gọi khi chuyển sang chế độ có preview.
@@ -641,6 +656,10 @@ function applyDiskText(tab, decoded, { keepDraft = false, lead = '', notes = nul
     const parts = [];
     if (lead) parts.push(lead);
     if (decoded.converted) parts.push(`"${tab.name}" was ${decoded.encoding}; it will be saved as UTF-8.`);
+    // File UTF-8 hỏng vài byte: nói rõ bao nhiêu byte đã bị thay, không thì mất chữ mà không ai biết.
+    if (decoded.replacedBytes) {
+        parts.push(`"${tab.name}" had ${decoded.replacedBytes} invalid byte${decoded.replacedBytes === 1 ? '' : 's'} replaced while reading it as UTF-8.`);
+    }
     const note = parts.join(' ');
     if (notes) notes.push(note);
     else if (note) showToast(note);
@@ -648,7 +667,23 @@ function applyDiskText(tab, decoded, { keepDraft = false, lead = '', notes = nul
 }
 
 async function reloadTabFromDisk(tab) {
+    // Chụp identity của doc TRƯỚC khi đọc: đọc trên ổ mạng/USB mất lâu, người dùng gõ
+    // trong lúc đó sẽ đổi doc -> không được xoá phần vừa gõ.
+    const docBefore = tab.state ? tab.state.doc : null;
     const decoded = await readTextFile(tab.path);
+    const docAfter = tab.state ? tab.state.doc : null;
+    if (docBefore !== null && docAfter !== docBefore) {
+        const choice = await confirmAction({
+            title: 'File changed on disk',
+            message: `"${tab.path}"\nwas changed by another program while it was being read.`,
+            actions: [{ id: 'keep', label: 'Keep my version' }, { id: 'disk', label: 'Load from disk' }]
+        });
+        if (choice !== 'disk') {
+            // Giữ bản của người dùng; nhớ mtime đã bỏ qua để Alt+Tab không hỏi lại y hệt.
+            tab.diskIgnoredMtime = mtimeOf(await statFile(tab.path));
+            return false;
+        }
+    }
     if (!applyDiskText(tab, decoded, { lead: `Reloaded "${tab.name}" from disk.` })) {
         tab.status = 'unreadable';
         tab.diskMtime = null;
@@ -774,13 +809,19 @@ export function serializeSession({ discardUnsaved = false } = {}) {
             if (overflow && !tab.path) return null;
             // File-backed khổng lồ: không lưu content, mở lại đọc từ đĩa; bỏ bản nháp.
             const keep = !overflow && sessionKeepsContent(tab, discardUnsaved);
+            // Dirty TRƯỚC: isTabDirty cache vân tay + nội dung, phần dưới dùng lại
+            // (nếu không thì doc.toString() chạy hai lần cho cùng một văn bản).
+            const dirty = keep && isTabDirty(tab);
             let content = null;
             if (keep) {
-                if (tab.state && tab.sessionCache && tab.sessionCache.doc === tab.state.doc) {
-                    content = tab.sessionCache.content;
+                const liveDoc = tab.state ? tab.state.doc : null;
+                const cache = tab.sessionCache;
+                if (cache && cache.doc === liveDoc && typeof cache.content === 'string') {
+                    content = cache.content;
                 } else {
                     content = tabText(tab);
-                    if (tab.state) tab.sessionCache = { doc: tab.state.doc, content };
+                    // Hash để trống: vân tay của doc cũ không dùng được cho doc mới.
+                    tab.sessionCache = { doc: liveDoc, content, hash: null };
                 }
             }
             // Hash chụp một lần rồi giữ lại tab: serialize sau không hash lại savedContent.
@@ -800,8 +841,8 @@ export function serializeSession({ discardUnsaved = false } = {}) {
                 eol: tab.eol,
                 bom: tab.bom,
                 encoding: tab.encoding,
-                // readOnly: tab lớn KHÔNG còn bị khoá; chỉ giữ cờ nếu session cũ có.
-                readOnly: tab.readOnly === true,
+                // readOnly: bản cũ từng khoá tab lớn; nay luôn mở khoá khi khôi phục.
+                readOnly: false,
                 // status + diskMtime: 'unreadable' chặn Ctrl+S ghi đè file thật bằng bản rỗng.
                 status: tab.status,
                 diskMtime: tab.diskMtime,
@@ -809,7 +850,7 @@ export function serializeSession({ discardUnsaved = false } = {}) {
                 // reload: tab lỗi hoặc tab khổng lồ đọc lại đĩa ở lần chạy sau; không thành tab rỗng vĩnh viễn.
                 reload: tab.status !== 'ok' || overflow,
                 // Không lưu savedContent (nhân đôi dung lượng); dirty là boolean đủ để hiện dấu.
-                dirty: keep && isTabDirty(tab),
+                dirty,
                 // savedHash/savedLen đã cache lúc Save/disk-load: không hash lại mỗi lần serialize.
                 savedHash,
                 savedLen,
@@ -823,8 +864,10 @@ export function serializeSession({ discardUnsaved = false } = {}) {
 
 // Trả null nếu JSON hỏng -> caller dựng session mới thay vì crash lúc khởi động.
 // Id phải là số nguyên dương, khác nhau; id xấu được cấp lại từ fallbackId.
+// Nhận cả object lẫn chuỗi JSON: session đọc từ IndexedDB là object, stringify lại
+// rồi parse là copy toàn bộ tab một lần nữa (chậm lúc khởi động).
 export function deserializeSession(raw, fallbackId = 1) {
-    const data = JSON.parse(raw);
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return null;
     const usedIds = new Set();
     const restored = data.tabs.map((t) => {
@@ -855,7 +898,9 @@ export function deserializeSession(raw, fallbackId = 1) {
             diskEol: t.eol === '\r\n' ? '\r\n' : '\n',
             bom: t.bom === true,
             encoding: typeof t.encoding === 'string' && t.encoding ? t.encoding : 'UTF-8',
-            readOnly: t.readOnly === true,
+            // Session cũ từng khoá tab lớn và không có cách nào mở lại -> luôn mở khoá.
+            // setTabReadOnly() vẫn còn để test dùng.
+            readOnly: false,
             status: t.status === 'unreadable' || t.status === 'missing' ? t.status : 'ok',
             diskMtime: Number.isFinite(t.diskMtime) ? t.diskMtime : null,
             pinned: t.pinned === true,
@@ -895,7 +940,7 @@ async function loadRestoredSession() {
     if (stored) {
         recentPaths = stored.recent.filter((p) => typeof p === 'string' && p).slice(0, RECENT_LIMIT);
         defaultEol = stored.defaultEol === '\r\n' ? '\r\n' : '\n';
-        return deserializeSession(JSON.stringify(stored));
+        return deserializeSession(stored);
     }
 
     // Lần đầu sau khi đổi tầng lưu: ghi sang IndexedDB TRƯỚC rồi mới xoá key localStorage.

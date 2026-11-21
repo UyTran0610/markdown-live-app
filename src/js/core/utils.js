@@ -30,8 +30,9 @@ export function slugifyText(text, { fold = false } = {}) {
             .replace(/đ/gi, 'd')                // đ không bị tách trong NFD nên phải thay riêng
             .normalize('NFC');
     }
+    // \p{M} = dấu thanh tổ hợp: bỏ nó thì tiêu đề NFD (Việt/Hindi/Thái) mất dấu và neo lệch.
     return s.trim().toLowerCase()
-        .replace(/[^\p{L}\p{N}\s-]/gu, '')
+        .replace(/[^\p{L}\p{N}\p{M}\s-]/gu, '')
         .replace(/\s+/g, '-');
 }
 

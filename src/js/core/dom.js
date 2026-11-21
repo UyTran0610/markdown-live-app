@@ -23,6 +23,11 @@ export function setWordCount(words) {
     if (wordCounter.textContent !== text) wordCounter.textContent = text;
 }
 
+// Tài liệu quá lớn thì không đếm từ: hiện gạch thay vì một số sai.
+export function setWordCountUnknown() {
+    if (wordCounter.textContent !== '—') wordCounter.textContent = '—';
+}
+
 export function setLineCount(lines) {
     const text = `${lines} line${lines === 1 ? '' : 's'}`;
     if (lineCounter.textContent !== text) lineCounter.textContent = text;

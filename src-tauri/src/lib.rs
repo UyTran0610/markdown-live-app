@@ -41,6 +41,16 @@ fn allow_path(app: &AppHandle, path: &str) -> bool {
     app.fs_scope().allow_file(path).is_ok()
 }
 
+// Path từ command line: phải là file văn bản có thật, đúng như allow_text_files.
+// Không có bước này thì argv (double-click file, mở file kèm) có thể duyệt scope
+// cho bất kỳ file nào, kể cả file nhị phân ngoài danh sách đuôi.
+fn allow_text_path(app: &AppHandle, path: &str) -> bool {
+    if !has_text_ext(path) || !Path::new(path).is_file() {
+        return false;
+    }
+    allow_path(app, path)
+}
+
 // Đuôi văn bản, hoặc không đuôi (README, LICENSE) — khớp isMarkdownPath() bên JS:
 // tên file không đuôi, hoặc bắt đầu bằng '.', được coi là văn bản; còn lại đuôi sau dấu '.'
 // cuối cùng phải nằm trong TEXT_EXTS (nên "a.md.bak" và "trailing." đều bị từ chối).
@@ -103,9 +113,11 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let paths = file_args(argv);
             // Instance thứ hai mở file: duyệt scope ngay, không chờ webview.
-            for path in &paths {
-                allow_path(app, path);
-            }
+            // Chỉ file văn bản tồn tại mới được duyệt (giống allow_text_files).
+            let paths: Vec<String> = paths
+                .into_iter()
+                .filter(|path| allow_text_path(app, path))
+                .collect();
             if let Some(window) = app.get_webview_window("main") {
                 // set_focus() không bật được cửa sổ đang thu nhỏ: phải unminimize + show trước.
                 let _ = window.unminimize();
@@ -133,11 +145,13 @@ pub fn run() {
         ])
         .setup(|app| {
             let paths = file_args(std::env::args());
+            // File association: OS mở app với file cụ thể -> duyệt scope ngay.
+            // Chỉ file văn bản tồn tại mới được duyệt và mở.
+            let paths: Vec<String> = paths
+                .into_iter()
+                .filter(|path| allow_text_path(app.handle(), path))
+                .collect();
             if !paths.is_empty() {
-                // File association: OS mở app với file cụ thể -> duyệt scope ngay.
-                for path in &paths {
-                    allow_path(app.handle(), path);
-                }
                 *app.state::<InitialPaths>().0.lock().unwrap() = paths;
             }
             // Nhả Ctrl+F cho web để widget tìm kiếm của app nhận được phím.

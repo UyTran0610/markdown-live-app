@@ -6,12 +6,12 @@ import { notifyPreviewScrolled } from '../preview/render.js';
 
 const SYNC_STORAGE_KEY = 'markdown-live-sync-scroll';
 
-// Mặc định tắt; người dùng bật thì nhớ lựa chọn.
+// Mặc định BẬT (README ghi vậy); chỉ khi người dùng tắt thì lưu 'false'.
 function readSyncPreference() {
     try {
-        return localStorage.getItem(SYNC_STORAGE_KEY) === 'true';
+        return localStorage.getItem(SYNC_STORAGE_KEY) !== 'false';
     } catch (e) {
-        return false;
+        return true;
     }
 }
 

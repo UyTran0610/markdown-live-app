@@ -121,6 +121,50 @@ npm run tauri dev
 npm run tauri build
 ```
 
+#### Dev Harnesses: Self-check & Perf
+
+Two developer harnesses live in `src/js/dev/`. They are imported dynamically, so they cost nothing on a normal launch: each one is only loaded when its query flag is present in the URL.
+
+| Flag | Harness | What it checks |
+| :--- | :--- | :--- |
+| `?selfcheck` | `src/js/dev/selfcheck.js` | Correctness. Runs ~530 assertions over the editor, the preview renderer, the session store, encoding / EOL handling, the file-safety rules and the HTML / DOC / DOCX export pipelines, then prints one `PASS` / `FAIL` / `SKIP` line per assertion. |
+| `?perf` | `src/js/dev/perfcheck.js` | Performance. Builds documents of 20k / 100k / 200k / 400k characters, runs 5 rounds of each, and prints a `console.table` with render, layout, editor, scroll, typing, session-save and divider-drag timings. |
+
+**Run them from a browser (no rebuild needed)**
+
+The frontend is plain static files, so any static server over `src/` works:
+
+```bash
+# from the repository root
+npx --yes serve src -l 8765
+# or, without npm:
+python -m http.server 8765 --directory src
+```
+
+Then open the app with the flag appended:
+
+- Self-check: <http://localhost:8765/index.html?selfcheck>
+- Perf: <http://localhost:8765/index.html?perf>
+
+Open DevTools (`F12`) **before** loading the page: the harness starts on load and writes its report to the console, while a toast in the app shows the summary (`Self-check: 534/534 PASS`, `Perf: 4 sizes × 5 runs (see console.table)`).
+
+> [!TIP]
+> Prefer the browser for the self-check. The harness swaps `window.__TAURI__` for a fake filesystem so it can test the save / close data-safety paths, and that stub can only be installed where no real Tauri global exists. Inside the app those sections are reported as `SKIP` instead of `PASS`.
+>
+> The browser keeps its own IndexedDB session, so running the harnesses there never touches the tabs of your installed app.
+
+**Run them inside the app window**
+
+With the app running (`npm run tauri dev`), open DevTools (`Ctrl`/`Cmd` + `Shift` + `I`) and run this in the console — the window reloads with the flag and the harness starts:
+
+```js
+location.search = '?selfcheck';   // or '?perf'
+```
+
+- The self-check replaces the document in the editor while it runs, then restores the original text, selection, scroll position and preview afterwards. Save your own draft first.
+- The perf harness works in a temporary read-only tab, closes it afterwards and restores your previous view mode. It never writes to your tabs.
+- Perf numbers depend on the machine, so the harness reports averages without a PASS/FAIL threshold. Compare a run before and after a change on the same machine.
+
 ---
 
 ## How to Use

@@ -121,6 +121,50 @@ npm run tauri dev
 npm run tauri build
 ```
 
+#### Bộ kiểm tra cho lập trình viên: Self-check & Perf
+
+Hai bộ kiểm tra nằm ở `src/js/dev/`. Chúng được import động nên không tốn chi phí gì khi chạy bình thường: mỗi bộ chỉ được nạp khi URL có đúng cờ truy vấn của nó.
+
+| Cờ | Bộ kiểm tra | Kiểm tra gì |
+| :--- | :--- | :--- |
+| `?selfcheck` | `src/js/dev/selfcheck.js` | Tính đúng đắn. Chạy khoảng 530 assertion trên editor, bộ render preview, session store, xử lý mã hoá/EOL, các quy tắc an toàn file và pipeline xuất HTML/DOC/DOCX, rồi in từng dòng `PASS` / `FAIL` / `SKIP`. |
+| `?perf` | `src/js/dev/perfcheck.js` | Hiệu năng. Dựng tài liệu 20k / 100k / 200k / 400k ký tự, chạy 5 lượt mỗi cỡ rồi in `console.table` gồm thời gian render, layout, editor, cuộn, gõ phím, lưu session và kéo divider. |
+
+**Chạy bằng trình duyệt (không cần build lại)**
+
+Frontend chỉ là các file tĩnh thuần, nên bất kỳ static server nào phục vụ thư mục `src/` đều dùng được:
+
+```bash
+# từ thư mục gốc của repository
+npx --yes serve src -l 8765
+# hoặc không cần npm:
+python -m http.server 8765 --directory src
+```
+
+Sau đó mở app kèm cờ truy vấn:
+
+- Self-check: <http://localhost:8765/index.html?selfcheck>
+- Perf: <http://localhost:8765/index.html?perf>
+
+Mở DevTools (`F12`) **trước** khi tải trang: bộ kiểm tra chạy ngay khi trang nạp và in báo cáo ra console, đồng thời app hiện một toast tóm tắt (`Self-check: 534/534 PASS`, `Perf: 4 sizes × 5 runs (see console.table)`).
+
+> [!TIP]
+> Nên chạy self-check bằng trình duyệt. Bộ kiểm tra thay `window.__TAURI__` bằng một hệ thống file giả để kiểm tra các đường dẫn an toàn khi lưu/đóng; stub này chỉ cài được ở nơi không có global Tauri thật. Bên trong app, các mục đó được ghi là `SKIP` thay vì `PASS`.
+>
+> Trình duyệt có IndexedDB riêng, nên chạy bộ kiểm tra ở đây không đụng tới các tab của bản app bạn đã cài.
+
+**Chạy ngay trong cửa sổ app**
+
+Khi app đang chạy (`npm run tauri dev`), mở DevTools (`Ctrl`/`Cmd` + `Shift` + `I`) và chạy dòng này trong console — cửa sổ sẽ tải lại kèm cờ và bộ kiểm tra bắt đầu chạy:
+
+```js
+location.search = '?selfcheck';   // hoặc '?perf'
+```
+
+- Self-check tạm thay nội dung tài liệu trong editor khi chạy, rồi khôi phục lại nội dung, vùng chọn, vị trí cuộn và preview sau khi xong. Hãy lưu bản nháp của bạn trước.
+- Bộ perf làm việc trong một tab tạm ở chế độ read-only, đóng tab đó sau khi xong và trả lại chế độ xem trước đó. Nó không ghi gì vào các tab của bạn.
+- Số đo hiệu năng phụ thuộc máy, nên bộ đo chỉ in giá trị trung bình, không đặt ngưỡng PASS/FAIL. Hãy so sánh một lượt đo trước và sau khi thay đổi trên cùng một máy.
+
 ---
 
 ## Cách sử dụng

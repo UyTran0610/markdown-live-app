@@ -282,6 +282,14 @@ The exported `.docx` file is a real Office Open XML package (the format Microsof
 
 ## Architecture Overview
 
+<div align="center">
+
+<img src="images/markdown_live_architecture_overview.svg" alt="Markdown Live - Architecture overview: a WebView frontend (Editor, Preview, Export, Documents) calling a Tauri v2 Rust backend" width="680" />
+
+<sub><b>Architecture overview</b>: the WebView frontend talks to the Rust backend only for file access and native window features</sub>
+
+</div>
+
 Markdown Live is engineered with memory efficiency and near-instant responsiveness in mind. The application adopts a hybrid architecture:
 - **Core Runtime:** Tauri v2 (Rust backend) guarantees a compact binary footprint, native clipboard management and low-overhead system API integrations. A single-instance plugin keeps one window alive and routes files opened later into it as new tabs.
 - **Frontend Layer:** Built entirely with Vanilla JavaScript/HTML5/CSS3. Without heavy Single Page Application (SPA) frameworks, all dependencies are bundled locally (`vendor/`) without relying on external CDNs.

@@ -282,6 +282,14 @@ File `.docx` sau khi xuất là gói Office Open XML thật (đúng định dạ
 
 ## Tổng quan kiến trúc
 
+<div align="center">
+
+<img src="images/markdown_live_architecture_overview.svg" alt="Markdown Live - Tổng quan kiến trúc: frontend WebView (Editor, Preview, Export, Documents) gọi backend Rust Tauri v2" width="680" />
+
+<sub><b>Tổng quan kiến trúc</b>: frontend WebView chỉ gọi backend Rust khi cần truy cập file và tính năng cửa sổ native</sub>
+
+</div>
+
 Markdown Live được thiết kế với mục tiêu tối ưu hiệu năng bộ nhớ và tốc độ phản hồi. Ứng dụng sử dụng kiến trúc hybrid:
 - **Core Runtime:** Tauri v2 (Rust backend) đảm bảo kích thước binary nhỏ gọn, quản lý clipboard native và API hệ thống với mức tiêu hao tài nguyên thấp. Plugin single-instance giữ một cửa sổ duy nhất và chuyển các file mở sau đó vào đó dưới dạng tab mới.
 - **Frontend Layer:** Hoàn toàn bằng Vanilla JavaScript/HTML5/CSS3. Không sử dụng Single Page Application (SPA) framework nặng nề, toàn bộ dependencies thư viện được lưu trữ cục bộ (`vendor/`), không phụ thuộc mạng CDN ngoài.

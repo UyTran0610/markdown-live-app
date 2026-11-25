@@ -1,0 +1,80 @@
+<svg width="100%" viewBox="0 0 680 496" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Markdown Live simplified architecture</title>
+<desc>The WebView frontend contains the Editor, Preview, Export and Documents. Editor feeds Preview, Preview feeds Export, and Documents exchanges content with Editor and drives Preview. Documents and Export call down to the Tauri v2 Rust backend, which provides the window, file access, dialogs, clipboard and link opening.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#898781" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .cont { fill:#fcfcfb; stroke:#b4b2a9; stroke-width:.5; stroke-dasharray:5 4; }
+    .ctitle { fill:#0b0b0b; font-size:14px; font-weight:500; }
+    .fbox { fill:#eeedfe; stroke:#534ab7; stroke-width:.5; }
+    .bbox { fill:#e1f5ee; stroke:#0f6e56; stroke-width:.5; }
+    .h { font-size:14px; font-weight:500; text-anchor:middle; dominant-baseline:central; }
+    .s { font-size:12px; text-anchor:middle; dominant-baseline:central; }
+    .fh { fill:#3c3489; } .fs { fill:#534ab7; }
+    .bh { fill:#085041; } .bs { fill:#0f6e56; }
+    .a { fill:none; stroke:#898781; stroke-width:1.5; }
+    .lbl { font-size:11px; fill:#5f5e5a; }
+    .end { text-anchor:end; }
+    @media (prefers-color-scheme: dark) {
+      .cont { fill:#1f1f1d; stroke:#6b6a64; }
+      .ctitle { fill:#f0efe8; }
+      .fbox { fill:#26215c; stroke:#afa9ec; }
+      .bbox { fill:#04342c; stroke:#5dcaa5; }
+      .fh { fill:#cecbf6; } .fs { fill:#afa9ec; }
+      .bh { fill:#9fe1cb; } .bs { fill:#5dcaa5; }
+      .a { stroke:#9c9a92; }
+      .lbl { fill:#b4b2a9; }
+    }
+  </style>
+</defs>
+
+<!-- Containers -->
+<rect class="cont" x="20" y="24" width="640" height="224" rx="16"/>
+<text class="ctitle" x="40" y="50">Frontend (WebView, vanilla JS)</text>
+<rect class="cont" x="20" y="300" width="640" height="126" rx="16"/>
+<text class="ctitle" x="40" y="326">Backend (Tauri v2, Rust)</text>
+
+<!-- Frontend boxes -->
+<rect class="fbox" x="60" y="70" width="160" height="56" rx="8"/>
+<text class="h fh" x="140" y="88">Editor</text>
+<text class="s fs" x="140" y="106">CodeMirror 6, find</text>
+
+<rect class="fbox" x="260" y="70" width="160" height="56" rx="8"/>
+<text class="h fh" x="340" y="88">Preview</text>
+<text class="s fs" x="340" y="106">Cached, lazy blocks</text>
+
+<rect class="fbox" x="460" y="70" width="160" height="56" rx="8"/>
+<text class="h fh" x="540" y="88">Export</text>
+<text class="s fs" x="540" y="106">HTML, Word, PDF</text>
+
+<rect class="fbox" x="60" y="170" width="360" height="56" rx="8"/>
+<text class="h fh" x="240" y="188">Documents</text>
+<text class="s fs" x="240" y="206">Tabs, save, session (IndexedDB)</text>
+
+<!-- Backend box -->
+<rect class="bbox" x="60" y="346" width="560" height="56" rx="8"/>
+<text class="h bh" x="340" y="364">Tauri core and plugins</text>
+<text class="s bs" x="340" y="382">Window, files, dialog, clipboard, open link</text>
+
+<!-- Frontend arrows -->
+<line class="a" x1="220" y1="98" x2="258" y2="98" marker-end="url(#arrow)"/>
+<line class="a" x1="420" y1="98" x2="458" y2="98" marker-end="url(#arrow)"/>
+<line class="a" x1="140" y1="128" x2="140" y2="168" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line class="a" x1="340" y1="168" x2="340" y2="128" marker-end="url(#arrow)"/>
+
+<!-- Frontend -> Backend arrows -->
+<line class="a" x1="240" y1="228" x2="240" y2="344" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line class="a" x1="540" y1="128" x2="540" y2="344" marker-end="url(#arrow)"/>
+
+<!-- Arrow labels -->
+<text class="lbl" x="250" y="278">open, save files</text>
+<text class="lbl end" x="532" y="278">save HTML, Word</text>
+
+<!-- Legend -->
+<text class="lbl" x="20" y="450">Double-headed arrow = two-way read and write.</text>
+<text class="lbl" x="20" y="466">Session drafts live in the WebView's own IndexedDB, so they never go through Rust.</text>
+<text class="lbl" x="20" y="482">PDF is printed by the WebView itself (window.print()), so it does not go through Rust either.</text>
+</svg>

@@ -1,8 +1,6 @@
 // js/theme/theme.js — Theme Sáng / Tối: áp dụng, lưu lựa chọn, theo theme hệ thống.
 
 import { btnTheme, themeCssLinks } from '../core/dom.js';
-import { invalidatePreviewCaches, renderActivePreview } from '../io/documents.js';
-import { clearMermaidCache } from '../preview/mermaid-cache.js';
 
 const THEME_STORAGE_KEY = 'markdown-live-theme';
 
@@ -16,6 +14,8 @@ function syncWindowTheme(theme) {
     } catch (e) {}
 }
 
+// Đổi theme chỉ đổi CSS: Preview đổi màu qua link theme nạp sẵn, còn biểu đồ Mermaid luôn
+// vẽ bằng theme sáng nên không cần vẽ lại hay xoá cache biểu đồ.
 function applyTheme(theme, persist) {
     document.documentElement.setAttribute('data-theme', theme);
     syncWindowTheme(theme);
@@ -23,11 +23,6 @@ function applyTheme(theme, persist) {
     // Bật/tắt media của link theme đã nạp sẵn: đồng bộ, không fetch, nên Preview đổi màu cùng lúc.
     for (const link of themeCssLinks) {
         link.media = link.getAttribute('data-theme-css') === theme ? 'all' : 'not all';
-    }
-
-    const dark = theme === 'dark';
-    if (typeof mermaid !== 'undefined') {
-        mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
     }
 
     if (persist) {
@@ -59,12 +54,6 @@ export function initTheme() {
         btnTheme.addEventListener('click', () => {
             const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
             switchTheme(nextTheme, true);
-            // Xoá cache vì SVG mang màu theme cũ. Render nằm NGOÀI startViewTransition (chờ mermaid
-            // xong mới chụp sẽ đứng cả trang) nhưng PHẢI sau applyTheme.
-            clearMermaidCache();
-            invalidatePreviewCaches({ blocks: true });
-            // Editor view không hiện preview: dựng lại lúc chuyển sang chế độ có preview.
-            if (!document.body.classList.contains('view-editor')) renderActivePreview();
         });
     }
 
@@ -78,9 +67,6 @@ export function initTheme() {
 
             if (!hasManualPreference) {
                 switchTheme(event.matches ? 'dark' : 'light', false);
-                clearMermaidCache();
-                invalidatePreviewCaches({ blocks: true });
-                if (!document.body.classList.contains('view-editor')) renderActivePreview();
             }
         });
     }

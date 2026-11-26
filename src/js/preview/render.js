@@ -7,7 +7,7 @@ import { slugifyText } from '../core/utils.js';
 import { processGFMAlerts } from './alerts.js';
 import { cacheMermaidResult, mermaidCache } from './mermaid-cache.js';
 import { MERMAID_SANITIZE_CONFIG } from './sanitize.js';
-import { cyrb53, findBlockHtml, storeBlockHtml, patchBlocks, resetBlocks, resetLiveBlocks, snapshotBlocks } from './blocks.js';
+import { cyrb53, findBlockHtml, storeBlockHtml, patchBlocks, resetBlocks, snapshotBlocks } from './blocks.js';
 
 // Gán id slug cho heading để link neo [mục](#muc) hoạt động; marked v14 bỏ headerIds.
 // id phải duy nhất; chỉ đọc textContent nên không thêm đường XSS.
@@ -434,13 +434,6 @@ export function renderCachedHtml(blocks, scrollTop) {
     // Cache block giữ <i data-lucide> thô: dựng lại từ cache thì phải thay bằng SVG.
     drawIcons(inserted);
     restorePreviewScrollTop(scrollTop);
-}
-
-// Đổi theme: cache HTML không mang màu nên GIỮ cache, chỉ bỏ node đang sống để dựng lại.
-// Màu nằm trong SVG Mermaid nên cache Mermaid phải xoá riêng (clearMermaidCache ở theme/theme.js).
-export function invalidateLiveBlocks() {
-    renderVersion++;
-    resetLiveBlocks();
 }
 
 // scroll-sync gọi khi người dùng cuộn (wheel/keydown/touchstart trên preview):

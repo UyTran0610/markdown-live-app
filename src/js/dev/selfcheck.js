@@ -1,6 +1,6 @@
 // js/dev/selfcheck.js — Self-check nhanh, mở app với ?selfcheck.
 
-import { charCounter, confirmCancelBtn, confirmDialog, confirmPrimaryBtn, confirmSecondaryBtn, findInput, findRegex, infoAbout, infoBody, infoDialog, infoDoc, lineCounter, previewOutput, replaceInput, tableMenu, toast, wordCounter } from '../core/dom.js';
+import { btnTheme, charCounter, confirmCancelBtn, confirmDialog, confirmPrimaryBtn, confirmSecondaryBtn, findInput, findRegex, infoAbout, infoBody, infoDialog, infoDoc, lineCounter, previewOutput, replaceInput, tableMenu, toast, wordCounter } from '../core/dom.js';
 import { showToast, toastDuration } from '../core/toast.js';
 import { countWords, isSafeExternalUrl, slugifyText } from '../core/utils.js';
 import {
@@ -1865,6 +1865,46 @@ export async function runSelfCheck() {
             await whenMermaidIdle();
             assert('mermaid diagram comes from the cache on the second draw',
                 previewOutput.querySelector('pre.mermaid')?.dataset.mermaidCached === 'true');
+            probe(savedValue);
+            renderMarkdown();
+        });
+
+        // Đổi theme chỉ đổi CSS: biểu đồ Mermaid luôn vẽ theme sáng nên không được vẽ lại.
+        await section('theme switch keeps the mermaid diagram untouched', async () => {
+            if (typeof mermaid === 'undefined' || !btnTheme) {
+                skip('theme switch keeps the mermaid diagram untouched', 'mermaid or theme button not available');
+                return;
+            }
+            const savedValue = docText();
+            const savedTheme = document.documentElement.getAttribute('data-theme');
+            probe('```mermaid\ngraph TD;\n  A-->B;\n```');
+            renderMarkdown();
+            flushLazyRenders();
+            await whenMermaidIdle();
+            const svg = previewOutput.querySelector('pre.mermaid svg');
+            if (!svg) {
+                skip('theme switch keeps the mermaid diagram untouched', 'mermaid did not render in this environment');
+                probe(savedValue);
+                renderMarkdown();
+                return;
+            }
+            const nodeFill = svg.querySelector('.node rect');
+            const fillRgb = (nodeFill ? getComputedStyle(nodeFill).fill : '').match(/\d+/g);
+            const isLight = !!fillRgb && (Number(fillRgb[0]) + Number(fillRgb[1]) + Number(fillRgb[2])) / 3 > 200;
+            assert('mermaid diagram is painted with the light theme', isLight);
+
+            btnTheme.click();
+            // View Transitions chạy bất đồng bộ: chờ theme đổi xong rồi mới so node.
+            for (let i = 0; i < 40 && document.documentElement.getAttribute('data-theme') === savedTheme; i++) {
+                await new Promise((r) => setTimeout(r, 50));
+            }
+            const newTheme = document.documentElement.getAttribute('data-theme');
+            assert('theme switch really changes the theme', !!newTheme && newTheme !== savedTheme);
+            assert('theme switch does not redraw the mermaid diagram',
+                previewOutput.querySelector('pre.mermaid svg') === svg);
+
+            // Trả theme về như cũ: nút Theme ghi lựa chọn vào localStorage.
+            if (document.documentElement.getAttribute('data-theme') !== savedTheme) btnTheme.click();
             probe(savedValue);
             renderMarkdown();
         });

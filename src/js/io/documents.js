@@ -4,7 +4,7 @@ import { btnImport, btnSave, btnSaveAll, btnSaveAs, previewOutput } from '../cor
 import { showToast } from '../core/toast.js';
 import { createEditorState, getView, readOnlyReconfigureEffect, setEditorState } from '../editor/cm.js';
 import { allowTextFiles, chooseSavePath, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readTextFile, sameFilePath, statFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
-import { renderCachedHtml, renderMarkdown, snapshotPreviewBlocks, invalidateLiveBlocks } from '../preview/render.js';
+import { renderCachedHtml, renderMarkdown, snapshotPreviewBlocks } from '../preview/render.js';
 import { confirmAction } from '../ui/confirm-dialog.js';
 import { loadSession, migrateLegacySession, whenSessionWritten, writeSession } from './session-store.js';
 
@@ -235,18 +235,11 @@ function restoreTabIntoEditor(tab) {
 }
 
 // Cache preview theo tab (key = doc identity) để đổi tab không chạy lại marked/sanitize.
-// Phải invalidate khi đổi theme (blocks=true); tab preview không kèm SVG Mermaid nên
-// lượt Mermaid vẽ xong muộn không cần bỏ cache nào.
+// Tab preview không kèm SVG Mermaid nên lượt Mermaid vẽ xong muộn không cần bỏ cache nào.
 export function cacheActivePreview() {
     const tab = getActiveTab();
     if (!tab || !tab.state) return;
     tab.preview = { doc: tab.state.doc, blocks: snapshotPreviewBlocks(), scroll: previewOutput.scrollTop };
-}
-
-// blocks=true chỉ cho đổi theme: cache HTML không chứa màu (chỉ SVG Mermaid mới có).
-export function invalidatePreviewCaches({ blocks = false } = {}) {
-    tabs.forEach((tab) => { tab.preview = null; });
-    if (blocks) invalidateLiveBlocks();
 }
 
 // Render preview tab đang mở; view-mode gọi khi chuyển sang chế độ có preview.

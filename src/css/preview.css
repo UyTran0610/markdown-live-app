@@ -97,6 +97,16 @@
     border: none !important;
 }
 
+/* Mermaid luôn vẽ bằng theme sáng: ở theme tối cần nền sáng cho biểu đồ vẫn đọc được.
+   Chỉ áp cho khối đã có SVG; khối chưa vẽ vẫn hiện mã nguồn như code block bình thường.
+   color tối đi kèm nền sáng: xuất Word lấy màu chữ nhãn từ màu kế thừa của khối,
+   không set thì nhãn ra gần trắng và mất trên nền node sáng. */
+[data-theme="dark"] .mermaid:has(svg) {
+    background: #ffffff !important;
+    color: #24292f;
+    border-radius: 8px;
+}
+
 .markdown-body li:has(> input[type="checkbox"]) {
     list-style-type: none;
     margin-left: -1.2em;

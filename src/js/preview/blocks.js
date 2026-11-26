@@ -59,12 +59,6 @@ export function resetBlocks() {
     cacheChars = 0;
 }
 
-// Bỏ node đang sống nhưng GIỮ cache HTML: cache không chứa màu nên đổi theme không cần xoá.
-// Lượt render sau dựng lại node từ cache (không chạy lại marked/sanitize).
-export function resetLiveBlocks() {
-    currentBlocks = null;
-}
-
 // Bản chụp cho tab cache: chỉ hash + html, không giữ nodes.
 export function snapshotBlocks() {
     return currentBlocks ? currentBlocks.map(({ hash, html }) => ({ hash, html })) : [];

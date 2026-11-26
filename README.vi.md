@@ -47,7 +47,7 @@ Trình soạn thảo Markdown hai chiều thời gian thực hoạt động đ�
 - **Xuất đa định dạng:** HTML độc lập (`.html`), Word (`.doc` và `.docx`, sơ đồ Mermaid chuyển thành ảnh) hoặc PDF vector (giữ khả năng chọn/copy văn bản).
 - **Tab & an toàn dữ liệu:** Mở nhiều file thành nhiều tab, hỗ trợ kéo để đổi thứ tự, ghim tab và menu chuột phải. Bản nháp, thứ tự tab và chế độ xem gần nhất được tự động lưu và khôi phục ở lần mở tiếp theo, còn file bị chương trình khác sửa sẽ được phát hiện trước khi có thể bị ghi đè.
 - **Tìm & thay thế:** Panel tìm kiếm nổi ở góc trên bên phải vùng nội dung, hỗ trợ phân biệt hoa thường, biểu thức chính quy, Replace / Replace All và tham chiếu nhóm `$1`…`$9`.
-- **Chủ đề Sáng/Tối:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ giữa các phiên.
+- **Chủ đề Sáng/Tối:** Tự động nhận diện theme hệ thống, cho phép chuyển đổi thủ công và ghi nhớ giữa các phiên. Sơ đồ Mermaid luôn dùng theme sáng (ở chủ đề tối, biểu đồ nằm trên nền sáng) nên đổi chủ đề không phải vẽ lại biểu đồ.
 
 ---
 

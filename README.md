@@ -47,7 +47,7 @@ A standalone, offline-first, real-time bidirectional Markdown editor packaged on
 - **Multi-Format Export:** Standalone HTML (`.html`), Word (`.doc` and `.docx`, with Mermaid diagrams converted to images) or vector PDF (selectable text).
 - **Tabs & Data Safety:** Open multiple files as tabs, with drag-to-reorder, pinning and a right-click menu. Drafts, tab order and your last view mode are saved automatically and restored on the next launch, and files changed outside the app are detected before they can be overwritten.
 - **Find & Replace:** A floating search panel at the top right of the content area, with match case, regular expressions, Replace / Replace All and `$1`…`$9` group references.
-- **Light/Dark Theme:** Automatic system theme detection with manual override, persisted between sessions.
+- **Light/Dark Theme:** Automatic system theme detection with manual override, persisted between sessions. Mermaid diagrams always use the light theme (in dark mode they sit on a light panel), so switching the theme never re-draws them.
 
 ---
 

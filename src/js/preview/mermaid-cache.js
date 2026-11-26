@@ -1,6 +1,6 @@
 // js/preview/mermaid-cache.js — Cache SVG Mermaid theo mã nguồn để khỏi vẽ lại.
 
-// Xoá khi đổi theme vì màu SVG gắn với theme lúc vẽ.
+// Mermaid luôn vẽ bằng theme sáng nên cache không phụ thuộc theme app: đổi theme không cần xoá.
 export const mermaidCache = new Map();
 
 // ponytail: giới hạn theo số mục + tổng ký tự để tránh phình bộ nhớ; nâng cấp sau: LRU theo bytes thực tế.
@@ -24,9 +24,4 @@ export function cacheMermaidResult(code, html) {
         mermaidCacheChars -= oldest.length + (oldHtml ? oldHtml.length : 0);
         mermaidCache.delete(oldest);
     }
-}
-
-export function clearMermaidCache() {
-    mermaidCache.clear();
-    mermaidCacheChars = 0;
 }

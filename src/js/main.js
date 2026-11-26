@@ -10,7 +10,7 @@ import { initDocuments, restoreSession } from './io/documents.js';
 import { initPreviewLinks } from './preview/links.js';
 import { renderMarkdown, createLazyMathExtension } from './preview/render.js';
 import { initSanitizer } from './preview/sanitize.js';
-import { getCurrentTheme, initTheme } from './theme/theme.js';
+import { initTheme } from './theme/theme.js';
 import { initAbout } from './ui/about.js';
 import { initConfirmDialog } from './ui/confirm-dialog.js';
 import { initDialogs } from './ui/dialogs.js';
@@ -53,7 +53,8 @@ let ready = Promise.resolve();
 window.addEventListener('DOMContentLoaded', async () => {
     try {
         if (typeof mermaid !== 'undefined') {
-            mermaid.initialize({ startOnLoad: false, theme: getCurrentTheme() === 'dark' ? 'dark' : 'default' });
+            // Mermaid LUÔN dùng theme sáng: đổi theme app không vẽ lại biểu đồ.
+            mermaid.initialize({ startOnLoad: false, theme: 'default' });
         }
 
         if (typeof marked !== 'undefined') {

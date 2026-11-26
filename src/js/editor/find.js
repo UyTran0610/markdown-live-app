@@ -169,8 +169,20 @@ function expandGroups(template, m) {
 
 export function replaceFindCurrent() {
     const v = getView();
+    if (!v) return;
+    // Vị trí match là ảnh chụp lúc tìm: nội dung vừa đổi thì chúng đã hỏng.
+    // Quét lại tài liệu sống (như replaceFindAll) để không thay nhầm đoạn khác.
+    const text = v.state.doc.toString();
+    sourceText = text;
+    const result = findMatches(text, findInput.value, currentOptions());
+    matches = result.matches;
+    matchesTruncated = result.truncated;
+    searchError = result.error;
     const m = matches[activeIndex];
-    if (!v || !m) return;
+    if (!m) {
+        render();
+        return;
+    }
     const insert = expandGroups(replaceInput.value, m);
     const anchor = m.from + insert.length;
     v.dispatch({
@@ -231,6 +243,11 @@ export function openFindDialog({ focus = 'find' } = {}) {
 
 export function closeFindDialog() {
     if (!isFindDialogOpen()) return;
+    // Huỷ lượt tìm đang chờ: nếu không, nó chạy sau khi đóng và tô lại highlight.
+    if (searchTimer !== null) {
+        clearTimeout(searchTimer);
+        searchTimer = null;
+    }
     findDialog.classList.add('hidden');
     matches = [];
     matchesTruncated = false;

@@ -52,21 +52,30 @@ function isWordChar(code) {
 
 // Số từ: quét một lượt ký tự (nhanh hơn regex trên tài liệu lớn).
 // Dấu markdown (#, *, |) không tính là từ; dấu nháy và gạch nối chỉ giữ từ khi nằm giữa hai chữ.
+// Quét theo CODE POINT (không phải UTF-16) để emoji nằm ngoài BMP bị loại đúng:
+// 😀 là 0x1F600, đọc từng nửa surrogate sẽ ra 0xD83D và bị tính nhầm là chữ.
 export function countWords(text) {
     if (!text) return 0;
     let count = 0;
     let inWord = false;
-    for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
+    for (let i = 0; i < text.length;) {
+        const code = text.codePointAt(i);
+        const size = code > 0xffff ? 2 : 1;
         if (isWordChar(code)) {
             if (!inWord) {
                 count++;
                 inWord = true;
             }
+            i += size;
             continue;
         }
-        if (inWord && (code === 39 || code === 45 || code === 0x2019) && isWordChar(text.charCodeAt(i + 1))) continue;
+        const next = text.codePointAt(i + size);
+        if (inWord && (code === 39 || code === 45 || code === 0x2019) && isWordChar(next || 0)) {
+            i += size;
+            continue;
+        }
         inWord = false;
+        i += size;
     }
     return count;
 }

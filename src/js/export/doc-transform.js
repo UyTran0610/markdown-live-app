@@ -1,5 +1,7 @@
 // js/export/doc-transform.js — Biến đổi DOM cho file DOC: gỡ id thừa, blockquote / alert thành bảng.
 
+import { ALERT_COLORS, alertTypeOf } from './alert-colors.js';
+
 // Word biến mọi id thành bookmark, nên gỡ id heading không có link neo (#...) trỏ tới khi xuất DOC.
 export function stripUnusedHeadingIds(container) {
     const linked = new Set();
@@ -31,24 +33,15 @@ export function styleDataTablesForDoc(container) {
     });
 }
 
-// Màu viền/tiêu đề từng loại GFM Alert khi xuất DOC (Word không hiểu CSS variable).
-const DOC_ALERT_COLORS = {
-    note: '#0969da',
-    tip: '#1a7f37',
-    important: '#8250df',
-    warning: '#9a6700',
-    caution: '#d1242f'
-};
+// Màu viền/tiêu đề từng loại GFM Alert khi xuất DOC: dùng chung với DOCX (alert-colors.js).
 
 // Word gộp các blockquote liền kề thành một thanh viền: mỗi cái thành bảng 1 ô + đoạn đệm phía sau,
 // duyệt ngược để blockquote lồng nhau xử lý từ trong ra ngoài.
 export function convertQuotesForDoc(container) {
     const quotes = Array.from(container.querySelectorAll('blockquote')).reverse();
     quotes.forEach((bq) => {
-        const alertClass = Array.from(bq.classList)
-            .find((c) => /^markdown-alert-(note|tip|important|warning|caution)$/.test(c));
-        const type = alertClass ? alertClass.replace('markdown-alert-', '') : '';
-        const borderColor = type ? DOC_ALERT_COLORS[type] : '#d0d7de';
+        const type = alertTypeOf(bq);
+        const borderColor = type ? ALERT_COLORS[type] : '#d0d7de';
         const textColor = type ? '#24292f' : '#57606a';
         const background = type ? 'background:#f6f8fa;' : '';
 

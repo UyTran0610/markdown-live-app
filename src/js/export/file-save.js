@@ -490,6 +490,7 @@ export async function writeTextFile(path, contents, eol = '\n', bom = false) {
 }
 
 // Tauri: hộp thoại Save As + fs; ngoài Tauri: <a download>. Trả path đã ghi hoặc null.
+// eol/bom do đây ghi: một chỗ duy nhất, không tự thêm BOM tay ở nơi gọi.
 export async function saveTextFile(contents, baseName, ext, mimeType, eol = '\n', bom = false) {
     if (hasTauriBridge()) {
         const path = await chooseSavePath(baseName + '.' + ext, [ext]);
@@ -502,7 +503,8 @@ export async function saveTextFile(contents, baseName, ext, mimeType, eol = '\n'
         showToast('Could not save the file: the app\'s file-saving plugin is missing.');
         return null;
     }
-    downloadBlob(new Blob([contents], { type: mimeType }), baseName + '.' + ext);
+    const body = bom ? '\uFEFF' + applyEol(contents, eol) : applyEol(contents, eol);
+    downloadBlob(new Blob([body], { type: mimeType }), baseName + '.' + ext);
     return null;
 }
 

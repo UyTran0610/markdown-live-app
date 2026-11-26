@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Self-check chạy app trong trình duyệt ẩn (Edge có sẵn trên runner) nên không cần
+      # mở cửa sổ Tauri. Có FAIL thì CI đỏ, không đợi tới lúc phát hành.
+      - name: Run the JavaScript self-check
+        run: node scripts/run-selfcheck.js
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml

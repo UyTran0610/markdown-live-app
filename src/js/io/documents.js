@@ -789,69 +789,78 @@ function noteRecentPath(path) {
 // Hàm thuần: selfcheck gọi được.
 // discardUnsaved: bỏ bản nháp khỏi snapshot, không đụng tab đang sống (flush lỗi thì còn nguyên).
 export function serializeSession({ discardUnsaved = false } = {}) {
+    // Bản nháp Untitled quá lớn không lưu được: đếm lại để báo người dùng, không lặng lẽ mất.
+    let droppedDrafts = 0;
+    const records = tabs.map((tab) => {
+        // Độ dài đọc O(1) từ state/content, không toString: quyết định bỏ session content khổng lồ.
+        const liveLen = tab.state ? tab.state.doc.length : (typeof tab.content === 'string' ? tab.content.length : 0);
+        const overflow = sessionKeepsContent(tab, discardUnsaved) && liveLen > SESSION_CONTENT_MAX;
+        // Untitled khổng lồ: không có đĩa để đọc lại, bỏ hẳn bản ghi (đếm để báo người dùng).
+        if (overflow && !tab.path) {
+            droppedDrafts++;
+            return null;
+        }
+        // File-backed khổng lồ: không lưu content, mở lại đọc từ đĩa; bỏ bản nháp.
+        const keep = !overflow && sessionKeepsContent(tab, discardUnsaved);
+        // Dirty TRƯỚC: isTabDirty cache vân tay + nội dung, phần dưới dùng lại
+        // (nếu không thì doc.toString() chạy hai lần cho cùng một văn bản).
+        const dirty = keep && isTabDirty(tab);
+        let content = null;
+        if (keep) {
+            const liveDoc = tab.state ? tab.state.doc : null;
+            const cache = tab.sessionCache;
+            if (cache && cache.doc === liveDoc && typeof cache.content === 'string') {
+                content = cache.content;
+            } else {
+                content = tabText(tab);
+                // Hash để trống: vân tay của doc cũ không dùng được cho doc mới.
+                tab.sessionCache = { doc: liveDoc, content, hash: null };
+            }
+        }
+        // Hash chụp một lần rồi giữ lại tab: serialize sau không hash lại savedContent.
+        let savedHash = null, savedLen = null;
+        if (keep) {
+            savedHash = tab.savedContent === null ? (tab.savedHash || null) : (tab.savedHash ?? hashText(tab.savedContent));
+            savedLen = tab.savedContent === null ? (Number.isFinite(tab.savedLen) ? tab.savedLen : null) : (tab.savedLen ?? tab.savedContent.length);
+            if (tab.savedContent !== null) { tab.savedHash = savedHash; tab.savedLen = savedLen; }
+        }
+        return {
+            id: tab.id,
+            path: tab.path,
+            name: tab.name,
+            // null = không lưu content, đọc lại từ đĩa (khác '' là tab rỗng thật).
+            content,
+            // eol/bom/encoding phải sống cùng session, nếu không lần lưu sau đổi CRLF thành LF, mất BOM, và status bar hiện sai mã hoá.
+            eol: tab.eol,
+            bom: tab.bom,
+            encoding: tab.encoding,
+            // readOnly: bản cũ từng khoá tab lớn; nay luôn mở khoá khi khôi phục.
+            readOnly: false,
+            // status + diskMtime: 'unreadable' chặn Ctrl+S ghi đè file thật bằng bản rỗng.
+            status: tab.status,
+            diskMtime: tab.diskMtime,
+            pinned: tab.pinned === true,
+            // reload: tab lỗi hoặc tab khổng lồ đọc lại đĩa ở lần chạy sau; không thành tab rỗng vĩnh viễn.
+            reload: tab.status !== 'ok' || overflow,
+            // Không lưu savedContent (nhân đôi dung lượng); dirty là boolean đủ để hiện dấu.
+            dirty,
+            // savedHash/savedLen đã cache lúc Save/disk-load: không hash lại mỗi lần serialize.
+            savedHash,
+            savedLen,
+            scrollTop: tab.scrollTop,
+            selStart: tab.selStart,
+            selEnd: tab.selEnd
+        };
+    }).filter((rec) => rec !== null);
+
     return {
         activeId,
         recent: recentPaths,
         // EOL mặc định của tab mới sống cùng session.
         defaultEol,
-        tabs: tabs.map((tab) => {
-            // Độ dài đọc O(1) từ state/content, không toString: quyết định bỏ session content khổng lồ.
-            const liveLen = tab.state ? tab.state.doc.length : (typeof tab.content === 'string' ? tab.content.length : 0);
-            const overflow = sessionKeepsContent(tab, discardUnsaved) && liveLen > SESSION_CONTENT_MAX;
-            // Untitled khổng lồ: không có đĩa để đọc lại, bỏ hẳn bản ghi (người dùng đã chọn ở plan).
-            if (overflow && !tab.path) return null;
-            // File-backed khổng lồ: không lưu content, mở lại đọc từ đĩa; bỏ bản nháp.
-            const keep = !overflow && sessionKeepsContent(tab, discardUnsaved);
-            // Dirty TRƯỚC: isTabDirty cache vân tay + nội dung, phần dưới dùng lại
-            // (nếu không thì doc.toString() chạy hai lần cho cùng một văn bản).
-            const dirty = keep && isTabDirty(tab);
-            let content = null;
-            if (keep) {
-                const liveDoc = tab.state ? tab.state.doc : null;
-                const cache = tab.sessionCache;
-                if (cache && cache.doc === liveDoc && typeof cache.content === 'string') {
-                    content = cache.content;
-                } else {
-                    content = tabText(tab);
-                    // Hash để trống: vân tay của doc cũ không dùng được cho doc mới.
-                    tab.sessionCache = { doc: liveDoc, content, hash: null };
-                }
-            }
-            // Hash chụp một lần rồi giữ lại tab: serialize sau không hash lại savedContent.
-            let savedHash = null, savedLen = null;
-            if (keep) {
-                savedHash = tab.savedContent === null ? (tab.savedHash || null) : (tab.savedHash ?? hashText(tab.savedContent));
-                savedLen = tab.savedContent === null ? (Number.isFinite(tab.savedLen) ? tab.savedLen : null) : (tab.savedLen ?? tab.savedContent.length);
-                if (tab.savedContent !== null) { tab.savedHash = savedHash; tab.savedLen = savedLen; }
-            }
-            return {
-                id: tab.id,
-                path: tab.path,
-                name: tab.name,
-                // null = không lưu content, đọc lại từ đĩa (khác '' là tab rỗng thật).
-                content,
-                // eol/bom/encoding phải sống cùng session, nếu không lần lưu sau đổi CRLF thành LF, mất BOM, và status bar hiện sai mã hoá.
-                eol: tab.eol,
-                bom: tab.bom,
-                encoding: tab.encoding,
-                // readOnly: bản cũ từng khoá tab lớn; nay luôn mở khoá khi khôi phục.
-                readOnly: false,
-                // status + diskMtime: 'unreadable' chặn Ctrl+S ghi đè file thật bằng bản rỗng.
-                status: tab.status,
-                diskMtime: tab.diskMtime,
-                pinned: tab.pinned === true,
-                // reload: tab lỗi hoặc tab khổng lồ đọc lại đĩa ở lần chạy sau; không thành tab rỗng vĩnh viễn.
-                reload: tab.status !== 'ok' || overflow,
-                // Không lưu savedContent (nhân đôi dung lượng); dirty là boolean đủ để hiện dấu.
-                dirty,
-                // savedHash/savedLen đã cache lúc Save/disk-load: không hash lại mỗi lần serialize.
-                savedHash,
-                savedLen,
-                scrollTop: tab.scrollTop,
-                selStart: tab.selStart,
-                selEnd: tab.selEnd
-            };
-        }).filter((rec) => rec !== null)
+        // Số bản nháp Untitled quá lớn không lưu được: lần sau báo người dùng.
+        droppedDrafts,
+        tabs: records
     };
 }
 
@@ -905,7 +914,7 @@ export function deserializeSession(raw, fallbackId = 1) {
             sessionCache: null
         };
     });
-    return { activeId: data.activeId, tabs: restored };
+    return { activeId: data.activeId, droppedDrafts: data.droppedDrafts || 0, tabs: restored };
 }
 
 // true = đã commit xuống IndexedDB; onCloseRequested chỉ destroy cửa sổ khi nhận true,
@@ -973,6 +982,10 @@ export async function restoreSession() {
         if (restored) {
             restored.tabs.forEach((tab) => { tabs.push(tab); nextId = Math.max(nextId, tab.id + 1); });
             activeId = tabs.some((tab) => tab.id === restored.activeId) ? restored.activeId : tabs[0].id;
+            // Bản nháp Untitled quá lớn không lưu được: nói rõ thay vì im lặng mất.
+            if (restored.droppedDrafts > 0) {
+                notes.push(`${restored.droppedDrafts} unsaved draft(s) were too large to restore and were lost.`);
+            }
         } else if (migrateLegacy()) {
             activeId = getActiveTab().id;
         } else {

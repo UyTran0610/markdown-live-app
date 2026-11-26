@@ -3,8 +3,10 @@
 import { previewOutput } from '../core/dom.js';
 import { getDocText } from '../editor/cm.js';
 import { showToast } from '../core/toast.js';
+import { reportExportIssues } from './export-context.js';
 import { deriveDocumentTitle, deriveExportBaseName, saveTextFile } from './file-save.js';
 import { convertKatexForDoc } from './math-mathml.js';
+import { inlineRemoteImages } from './images.js';
 import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
 
 // CSS tối giản nhúng trong HTML: phải kèm sup/sub/kbd/mark/details, checkbox task list và Mermaid.
@@ -62,24 +64,32 @@ export async function exportHtml() {
         return;
     }
     showToast("Generating HTML file...");
-
-    // Clone Preview đã render xong, giữ nguyên SVG Mermaid (không cần chuyển PNG).
-    renderMarkdown({ force: true });
-    flushLazyRenders();
-    await whenMermaidIdle(8000);
-    const clone = previewOutput.cloneNode(true);
-
-    stripLucideIcons(clone);
-
-    // KaTeX -> MathML thuần vì file không mang CSS của KaTeX.
-    convertKatexForDoc(clone);
-
-    const html = buildStandaloneHtml(clone.innerHTML, deriveDocumentTitle(text));
+    // try/catch quanh TOÀN BỘ: lỗi ở bước dựng nội dung cũng phải báo, không được im lặng.
     try {
+        // Clone Preview đã render xong, giữ nguyên SVG Mermaid (không cần chuyển PNG).
+        renderMarkdown({ force: true });
+        flushLazyRenders();
+        await whenMermaidIdle(8000);
+        const clone = previewOutput.cloneNode(true);
+
+        stripLucideIcons(clone);
+
+        // Ảnh từ mạng nhúng thành data URL: file HTML tự chứa, mở ở máy khác không cần mạng.
+        const { failed } = await inlineRemoteImages(previewOutput, clone);
+
+        // KaTeX -> MathML thuần vì file không mang CSS của KaTeX.
+        convertKatexForDoc(clone);
+
+        const html = buildStandaloneHtml(clone.innerHTML, deriveDocumentTitle(text));
         const saved = await saveTextFile(html, deriveExportBaseName(text), 'html', 'text/html;charset=utf-8');
-        if (saved) showToast("HTML file exported!");
+        if (saved) {
+            showToast("HTML file exported!");
+            reportExportIssues([
+                failed ? `${failed} remote image(s) could not be embedded and stay linked.` : ''
+            ]);
+        }
     } catch (err) {
         console.error('HTML export failed:', err);
-        showToast("An error occurred while exporting the HTML file.");
+        showToast("Could not export the HTML file. See the console for details.");
     }
 }

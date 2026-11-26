@@ -91,7 +91,7 @@ export function createLazyMathExtension() {
                     return undefined;
                 },
                 renderer(token) {
-                    return `<div class="math-slot" data-display="1">${escapeHtmlText(token.text)}</div>\n`;
+                    return `<div class="math-slot" data-display="${token.displayMode ? 1 : 0}">${escapeHtmlText(token.text)}</div>\n`;
                 }
             }
         ]
@@ -123,8 +123,21 @@ function renderBlockHtml(token) {
 // Vân tay của một khối. PHẢI trộn cả định nghĩa link: marked nuốt dòng `[d]: https://…`
 // nên token.raw không đổi khi đổi địa chỉ, và khối cũ sẽ được dùng lại với link sai.
 // Hàm này export để self-check băm y hệt cách render băm (lệch công thức là test sai).
+// linksKey giống nhau ở MỌI khối của một lượt render: băm một lần rồi các khối dùng lại,
+// nếu không phải ghép chuỗi dài linksKey vào từng khối (O(số khối × độ dài linksKey)).
+let lastLinksKey = null;
+let lastLinksHash = '';
+
+function linksHashOf(linksKey) {
+    if (linksKey !== lastLinksKey) {
+        lastLinksKey = linksKey;
+        lastLinksHash = cyrb53(linksKey);
+    }
+    return lastLinksHash;
+}
+
 export function blockFingerprint(linksKey, token) {
-    return cyrb53(linksKey + token.raw);
+    return cyrb53(linksHashOf(linksKey) + token.raw);
 }
 
 // Tách tài liệu thành block {hash, html}; hash của raw section quyết định cache.
@@ -264,6 +277,50 @@ function enhanceNode(el, kind) {
     }
 }
 
+// CSS trong SVG của Mermaid là CSS của CẢ TRANG: selector không giới hạn thì áp lên app.
+// Mermaid tự namespace phần lớn rule theo id của diagram, nhưng rule lồng trong @media
+// thì không -> ghim mọi selector vào id của svg để CSS chỉ ăn trong diagram.
+let svgScopeCounter = 0;
+
+function collectScopedRules(rules, prefix, scopeId) {
+    const out = [];
+    for (const rule of rules) {
+        if (rule.type === CSSRule.STYLE_RULE) {
+            const selectors = rule.selectorText.split(',').map((s) => s.trim()).filter(Boolean);
+            if (!selectors.length) continue;
+            const scoped = selectors.map((s) => (s.startsWith(prefix) || s.startsWith(scopeId) ? s : prefix + ' ' + s));
+            out.push(scoped.join(', ') + ' { ' + rule.style.cssText + ' }');
+        } else if (rule.cssRules && rule.conditionText) {
+            // @media / @supports: giữ phần trong, bỏ phần ngoài phạm vi diagram.
+            const inner = collectScopedRules(rule.cssRules, prefix, scopeId);
+            if (!inner.length) continue;
+            out.push((rule.type === CSSRule.MEDIA_RULE ? '@media' : '@supports') + ' ' + rule.conditionText + ' { ' + inner.join(' ') + ' }');
+        }
+    }
+    return out;
+}
+
+function scopeCssToSvg(svg) {
+    const styleEl = svg.querySelector('style');
+    if (!styleEl) return;
+    let scopeId = svg.getAttribute('id');
+    if (!scopeId) {
+        scopeId = 'mermaid-svg-' + (++svgScopeCounter);
+        svg.setAttribute('id', scopeId);
+    }
+    const prefix = '#' + CSS.escape(scopeId);
+    const sheet = new CSSStyleSheet();
+    try {
+        sheet.replaceSync(styleEl.textContent || '');
+    } catch (err) {
+        styleEl.remove();
+        return;
+    }
+    const kept = collectScopedRules(sheet.cssRules, prefix, scopeId);
+    if (kept.length) styleEl.textContent = kept.join('\n');
+    else styleEl.remove();
+}
+
 function flushMermaidRun() {
     clearTimeout(mermaidDebounce);
     mermaidDebounce = null;
@@ -284,7 +341,13 @@ function flushMermaidRun() {
     mermaid.run({ nodes, suppressErrors: true }).then(() => {
         nodes.forEach((node, i) => {
             // Mermaid sinh SVG chưa qua lọc: lọc lại trước khi tin và cache.
-            node.innerHTML = DOMPurify.sanitize(node.innerHTML, MERMAID_SANITIZE_CONFIG);
+            // Dựng trong template RỜI trước: CSS của SVG là CSS cả trang, phải ghim
+            // vào diagram trước khi chèn vào DOM để không áp lên app trong 1 khung hình.
+            const tpl = document.createElement('template');
+            tpl.innerHTML = DOMPurify.sanitize(node.innerHTML, MERMAID_SANITIZE_CONFIG);
+            const svg = tpl.content.querySelector('svg');
+            if (svg) scopeCssToSvg(svg);
+            node.innerHTML = tpl.innerHTML;
             const code = sources[i];
             if (code && node.innerHTML) cacheMermaidResult(code, node.innerHTML);
         });

@@ -7,8 +7,10 @@ import { previewOutput } from '../core/dom.js';
 import { getDocText } from '../editor/cm.js';
 import { showToast } from '../core/toast.js';
 import { deriveDocumentTitle, deriveExportBaseName, saveBinaryFile } from './file-save.js';
+import { documentBaseDir, reportExportIssues } from './export-context.js';
 import { renderMarkdown, whenMermaidIdle, flushLazyRenders } from '../preview/render.js';
 import {
+    convertInlineSvgsToPng,
     convertMermaidToImages,
     prepareDocImages
 } from './images.js';
@@ -16,7 +18,7 @@ import { CONTENT_WIDTH_TWIP } from './docx-xml.js';
 import { buildDocxModel, buildDocxPackage, DOCX_MIME } from './docx-build.js';
 
 // Bề rộng cột bảng: bảng markdown rộng theo nội dung, nên tỉ lệ cột đo ở Preview là tỉ lệ thật.
-// Clone chưa vào DOM nên phải đo trên bảng gốc rồi quy đổi sang twip.
+// Clone chưa vào DOM nên phải đo trên bảng gốc rồi đổi sang twip.
 function measureTableWidths(origTable) {
     const rows = origTable.rows;
     if (!rows || !rows.length) return null;
@@ -62,36 +64,49 @@ export async function exportDocx() {
         return;
     }
     showToast("Generating DOCX file...");
-
-    renderMarkdown({ force: true });
-    flushLazyRenders();
-    await whenMermaidIdle(8000);
-
-    const clone = previewOutput.cloneNode(true);
-    clone.querySelectorAll('svg').forEach((el) => el.remove());
-
-    await prepareDocImages(previewOutput, clone);
-    await convertMermaidToImages(previewOutput, clone);
-
-    // Công thức: giữ nguyên MathML của KaTeX để chuyển sang OMML (công thức native Word).
-    // Ảnh PNG chỉ dùng khi chuyển OMML thất bại, nên cần phần tử gốc đang nằm trong DOM.
-    const origKatex = previewOutput.querySelectorAll('span.katex');
-    const cloneKatex = clone.querySelectorAll('span.katex');
-    const mathOriginals = new Map();
-    cloneKatex.forEach((el, i) => {
-        if (origKatex[i]) mathOriginals.set(el, origKatex[i]);
-    });
-
-    const model = await buildDocxModel(clone, deriveDocumentTitle(text), {
-        mathOriginal: (el) => mathOriginals.get(el) || null,
-        tableWidths: collectTableWidths(previewOutput, clone)
-    });
-    const bytes = buildDocxPackage(model);
+    // try/catch quanh TOÀN BỘ: lỗi ở bước dựng nội dung cũng phải báo, không được im lặng.
     try {
+        renderMarkdown({ force: true });
+        flushLazyRenders();
+        await whenMermaidIdle(8000);
+
+        const clone = previewOutput.cloneNode(true);
+        // Chỉ bỏ icon Lucide. SVG của người viết phải GIỮ (đổi sang PNG bên dưới).
+        clone.querySelectorAll('svg.lucide').forEach((el) => el.remove());
+
+        const imgFailed = await prepareDocImages(previewOutput, clone);
+        // SVG của người viết -> PNG SAU prepareDocImages: thay SVG bằng <img> làm danh sách
+        // ảnh của clone lệch với preview, ảnh sau đó sẽ lấy sai kích thước.
+        const svgFailed = await convertInlineSvgsToPng(previewOutput, clone);
+        const mermaidFailed = await convertMermaidToImages(previewOutput, clone);
+
+        // Công thức: giữ nguyên MathML của KaTeX để chuyển sang OMML (công thức native Word).
+        // Ảnh PNG chỉ dùng khi chuyển OMML thất bại, nên cần phần tử gốc đang nằm trong DOM.
+        const origKatex = previewOutput.querySelectorAll('span.katex');
+        const cloneKatex = clone.querySelectorAll('span.katex');
+        const mathOriginals = new Map();
+        cloneKatex.forEach((el, i) => {
+            if (origKatex[i]) mathOriginals.set(el, origKatex[i]);
+        });
+
+        const model = await buildDocxModel(clone, deriveDocumentTitle(text), {
+            mathOriginal: (el) => mathOriginals.get(el) || null,
+            tableWidths: collectTableWidths(previewOutput, clone),
+            baseDir: documentBaseDir()
+        });
+        const bytes = buildDocxPackage(model);
         const saved = await saveBinaryFile(bytes, deriveExportBaseName(text), 'docx', DOCX_MIME, 'Word file');
-        if (saved) showToast("DOCX file exported!");
+        if (saved) {
+            showToast("DOCX file exported!");
+            reportExportIssues([
+                mermaidFailed ? `${mermaidFailed} diagram(s) were exported as source code.` : '',
+                imgFailed ? `${imgFailed} image(s) could not be converted.` : '',
+                svgFailed ? `${svgFailed} SVG(s) could not be converted.` : '',
+                ...model.warnings
+            ]);
+        }
     } catch (err) {
         console.error('DOCX export failed:', err);
-        showToast("An error occurred while exporting the DOCX file.");
+        showToast("Could not export the DOCX file. See the console for details.");
     }
 }

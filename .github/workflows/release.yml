@@ -85,7 +85,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src/index.html
+          git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src/index.html package.json
           if ! git diff --cached --quiet; then
             git commit -m "chore: bump version to $VERSION [skip ci]"
             git push origin HEAD:"$BRANCH"
@@ -121,6 +121,11 @@ jobs:
       # sai là bản phát hành đi, không phải lúc chạy thử.
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # Self-check là bộ test JS duy nhất của repo: chạy trong trình duyệt ẩn (Edge có sẵn
+      # trên runner), có FAIL thì dừng trước khi build bản phát hành.
+      - name: Run the JavaScript self-check
+        run: node scripts/run-selfcheck.js
 
       # Tự động chuyển đổi icon.png ở root thành các kích cỡ & icon.ico cho Windows
       # - name: Generate App Icons

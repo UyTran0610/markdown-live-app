@@ -49,6 +49,8 @@ function resolveExistingPath(candidates, fileDescription) {
 const TAURI_CONF = resolveExistingPath(['src-tauri/tauri.conf.json', 'tauri.conf.json'], 'tauri.conf.json');
 const CARGO_TOML = resolveExistingPath(['src-tauri/Cargo.toml', 'Cargo.toml'], 'Cargo.toml');
 const INDEX_HTML = resolveExistingPath(['index.html', 'src/index.html'], 'index.html');
+// package.json là tuỳ chọn: repo nào không có thì bỏ qua, không được làm hỏng lệnh.
+const PACKAGE_JSON = ['package.json'].map((rel) => path.join(ROOT, rel)).find((p) => fs.existsSync(p)) || null;
 
 function parseTauriConf(content) {
   try {
@@ -118,6 +120,14 @@ function syncIndexHtmlVersion(content, version) {
   return content;
 }
 
+// package.json giữ cùng số phiên bản để không bị lệch với tauri.conf.json.
+function syncPackageJsonVersion(content, version) {
+  const pkg = JSON.parse(content);
+  if (pkg.version === version) return content;
+  pkg.version = version;
+  return JSON.stringify(pkg, null, 2) + '\n';
+}
+
 function main() {
   const args = process.argv.slice(2);
   const setIdx = args.indexOf('--set');
@@ -157,6 +167,12 @@ function main() {
   writeFileAtomic(INDEX_HTML, indexHtml);
 
   console.log(`[sync-version] Synced cache-busting ?v=${version} into ${path.relative(ROOT, INDEX_HTML)}`);
+
+  if (PACKAGE_JSON) {
+    const pkg = syncPackageJsonVersion(readFile(PACKAGE_JSON), version);
+    writeFileAtomic(PACKAGE_JSON, pkg);
+    console.log(`[sync-version] Synced version ${version} into ${path.relative(ROOT, PACKAGE_JSON)}`);
+  }
 }
 
 main();

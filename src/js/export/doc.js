@@ -4,8 +4,10 @@ import { previewOutput } from '../core/dom.js';
 import { getDocText } from '../editor/cm.js';
 import { showToast } from '../core/toast.js';
 import { convertQuotesForDoc, stripUnusedHeadingIds, styleDataTablesForDoc } from './doc-transform.js';
+import { reportExportIssues } from './export-context.js';
 import { deriveExportBaseName, saveTextFile } from './file-save.js';
 import {
+    convertInlineSvgsToPng,
     convertMermaidToImages,
     prepareDocImages
 } from './images.js';
@@ -49,37 +51,50 @@ export async function exportDoc() {
         return;
     }
     showToast("Generating DOC file...");
-
-    renderMarkdown({ force: true });
-    flushLazyRenders();
-    await whenMermaidIdle(8000);
-    const clone = previewOutput.cloneNode(true);
-
-    stripUnusedHeadingIds(clone);
-
-    clone.querySelectorAll('svg').forEach((el) => el.remove());
-    clone.querySelectorAll('input[type="checkbox"]').forEach((el) => {
-        el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
-    });
-
-    // Ảnh về đúng kích thước hiển thị (SVG -> PNG), Mermaid -> PNG.
-    await prepareDocImages(previewOutput, clone, { withStyle: true });
-    await convertMermaidToImages(previewOutput, clone, { withStyle: true });
-
-    // Công thức -> PNG như Mermaid; công thức lỗi tự rơi về MathML trong hàm này.
-    await convertKatexToImagesForDoc(previewOutput, clone);
-
-    // Chạy cuối: convertQuotesForDoc() chỉ dời node nên thứ tự tài liệu không đổi.
-    // Viền bảng phải gắn TRƯỚC khung quote, để ô của bảng khung chỉ còn viền trái.
-    styleDataTablesForDoc(clone);
-    convertQuotesForDoc(clone);
-
-    const html = buildWordHtml(clone.innerHTML);
+    // try/catch quanh TOÀN BỘ: lỗi ở bước dựng nội dung cũng phải báo, không được im lặng.
     try {
-        const saved = await saveTextFile('\ufeff' + html, deriveExportBaseName(text), 'doc', 'application/msword');
-        if (saved) showToast("DOC file exported!");
+        renderMarkdown({ force: true });
+        flushLazyRenders();
+        await whenMermaidIdle(8000);
+        const clone = previewOutput.cloneNode(true);
+
+        stripUnusedHeadingIds(clone);
+
+        // Chỉ bỏ icon Lucide. SVG của người viết đổi sang PNG (Word không nhúng SVG tốt).
+        clone.querySelectorAll('svg.lucide').forEach((el) => el.remove());
+
+        clone.querySelectorAll('input[type="checkbox"]').forEach((el) => {
+            el.replaceWith(document.createTextNode(el.checked ? '\u2611 ' : '\u2610 '));
+        });
+
+        // Ảnh về đúng kích thước hiển thị (SVG -> PNG), Mermaid -> PNG.
+        const imgFailed = await prepareDocImages(previewOutput, clone, { withStyle: true });
+        // SVG của người viết -> PNG SAU prepareDocImages: thay SVG bằng <img> làm danh sách
+        // ảnh của clone lệch với preview, ảnh sau đó sẽ lấy sai kích thước.
+        const svgFailed = await convertInlineSvgsToPng(previewOutput, clone, { withStyle: true });
+        const mermaidFailed = await convertMermaidToImages(previewOutput, clone, { withStyle: true });
+
+        // Công thức -> PNG như Mermaid; công thức lỗi tự rơi về MathML trong hàm này.
+        await convertKatexToImagesForDoc(previewOutput, clone);
+
+        // Chạy cuối: convertQuotesForDoc() chỉ dời node nên thứ tự tài liệu không đổi.
+        // Viền bảng phải gắn TRƯỚC khung quote, để ô của bảng khung chỉ còn viền trái.
+        styleDataTablesForDoc(clone);
+        convertQuotesForDoc(clone);
+
+        const html = buildWordHtml(clone.innerHTML);
+        // BOM do saveTextFile ghi (bom=true): một chỗ duy nhất, không tự thêm tay.
+        const saved = await saveTextFile(html, deriveExportBaseName(text), 'doc', 'application/msword', '\n', true);
+        if (saved) {
+            showToast("DOC file exported!");
+            reportExportIssues([
+                mermaidFailed ? `${mermaidFailed} diagram(s) were exported as source code.` : '',
+                imgFailed ? `${imgFailed} image(s) could not be converted.` : '',
+                svgFailed ? `${svgFailed} SVG(s) could not be converted.` : ''
+            ]);
+        }
     } catch (err) {
         console.error('DOC export failed:', err);
-        showToast("An error occurred while exporting the DOC file.");
+        showToast("Could not export the DOC file. See the console for details.");
     }
 }

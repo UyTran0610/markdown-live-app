@@ -52,17 +52,6 @@ const VARIANT_MAP = {
     }
 };
 
-// Biến thể đổi theo khoảng cách mã Unicode (bold/italic/sans/mono).
-const VARIANT_OFFSETS = {
-    bold: [0x1D400, 0x1D41A],
-    italic: [0x1D434, 0x1D44E],
-    'bold-italic': [0x1D468, 0x1D482],
-    'sans-serif': [0x1D5A0, 0x1D5BA],
-    'sans-serif-bold': [0x1D5D4, 0x1D5EE],
-    'sans-serif-italic': [0x1D608, 0x1D622],
-    monospace: [0x1D670, 0x1D68A]
-};
-
 // Bold/italic/sans/mono: dùng thuộc tính run của OMML (m:sty/m:scr), KHÔNG dùng codepoint
 // Mathematical Alphanumeric (U+1D4xx) — font của Word không có glyph đó nên chữ biến mất.
 const VARIANT_STYLES = {
@@ -84,15 +73,10 @@ function textOf(el) {
 }
 
 // Chuyển chữ sang ký tự Unicode của biến thể (ví dụ \mathbb{R} -> ℝ).
+// Chỉ còn các biến thể có sẵn codepoint Unicode; bold/italic/sans/mono do VARIANT_STYLES lo.
 function variantChar(ch, variant) {
     const table = VARIANT_MAP[variant];
     if (table && table[ch]) return table[ch];
-    const offsets = VARIANT_OFFSETS[variant];
-    if (offsets) {
-        const code = ch.charCodeAt(0);
-        if (code >= 65 && code <= 90) return String.fromCodePoint(offsets[0] + code - 65);
-        if (code >= 97 && code <= 122) return String.fromCodePoint(offsets[1] + code - 97);
-    }
     return null;
 }
 

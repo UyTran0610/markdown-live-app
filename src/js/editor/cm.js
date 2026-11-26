@@ -9,7 +9,7 @@ import { cmHost } from '../core/dom.js';
 const CM = window.CodeMirror;
 if (!CM) throw new Error('Missing src/vendor/codemirror.bundle.js: CodeMirror 6 was not loaded.');
 
-export const {
+const {
     EditorView,
     EditorState,
     Decoration,
@@ -42,6 +42,9 @@ export const {
     closeBracketsKeymap,
     tags
 } = CM;
+
+// Chỉ 4 symbol CodeMirror được module khác dùng; phần còn lại là chi tiết riêng của file này.
+export { EditorView, Decoration, undo, redo };
 
 const TAB_SIZE = 4;
 
@@ -123,6 +126,8 @@ export function focusEditor() {
 /** Thay đoạn [from, to] bằng `insert`; con trỏ đặt theo selectFrom/selectTo. */
 export function replaceRange(from, to, insert, selectFrom = null, selectTo = null) {
     const v = requireView();
+    // readOnly KHÔNG chặn dispatch: chặn ở đây một chỗ cho mọi lệnh sửa.
+    if (v.state.readOnly) return false;
     const anchor = selectFrom === null ? from + insert.length : selectFrom;
     const head = selectTo === null ? anchor : selectTo;
     v.dispatch({
@@ -131,6 +136,7 @@ export function replaceRange(from, to, insert, selectFrom = null, selectTo = nul
         scrollIntoView: true,
         userEvent: 'input'
     });
+    return true;
 }
 
 /** Bọc / gỡ định dạng quanh vùng chọn (**, *, ~~, `, $). */

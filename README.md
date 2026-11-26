@@ -136,8 +136,10 @@ The frontend is plain static files, so any static server over `src/` works:
 
 ```bash
 # from the repository root
-npx --yes serve src -l 8765
+npm run serve            # node scripts/serve-static.js, no extra dependency
 # or, without npm:
+npx --yes serve src -l 8765
+# or, with Python:
 python -m http.server 8765 --directory src
 ```
 
@@ -147,6 +149,14 @@ Then open the app with the flag appended:
 - Perf: <http://localhost:8765/index.html?perf>
 
 Open DevTools (`F12`) **before** loading the page: the harness starts on load and writes its report to the console, while a toast in the app shows the summary (`Self-check: 534/534 PASS`, `Perf: 4 sizes × 5 runs (see console.table)`).
+
+**Run the self-check headless (what CI does)**
+
+```bash
+npm run selfcheck        # node scripts/run-selfcheck.js
+```
+
+It serves `src/`, opens `index.html?selfcheck` in a headless Edge / Chrome, reads the result from the page and exits non-zero when an assertion fails or is skipped. The same command runs in `.github/workflows/ci.yml` and in the release workflow, so a broken session store or export pipeline fails the build instead of shipping.
 
 > [!TIP]
 > Prefer the browser for the self-check. The harness swaps `window.__TAURI__` for a fake filesystem so it can test the save / close data-safety paths, and that stub can only be installed where no real Tauri global exists. Inside the app those sections are reported as `SKIP` instead of `PASS`.

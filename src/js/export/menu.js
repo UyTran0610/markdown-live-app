@@ -62,6 +62,10 @@ const runExport = makeExclusive(async (run) => {
     setExportDisabled(true);
     try {
         await run();
+    } catch (err) {
+        // Chốt chặn cuối: module xuất đã tự báo lỗi, nhưng lỗi ở chính bước này vẫn phải lên tiếng.
+        console.error('[export] failed:', err);
+        showToast('The export failed. See the console for details.');
     } finally {
         setExportDisabled(false);
     }

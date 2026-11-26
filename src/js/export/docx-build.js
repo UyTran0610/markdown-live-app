@@ -3,7 +3,8 @@
 // Không phụ thuộc trạng thái app (chỉ dùng API DOM) để self-check gọi được ngoài editor.
 
 import { createZip } from './docx-zip.js';
-import { fitDocImageSize, getDocImageSize, imageToPngDataUrl } from './images.js';
+import { ALERT_COLORS_XML, alertTypeOf } from './alert-colors.js';
+import { detectImageType, downloadImageBytes, fitDocImageSize, getDocImageSize, imageToPngDataUrl } from './images.js';
 import { findKatexMath, katexTexSource, mathmlToOmml, mathmlToOmmlPara } from './docx-math.js';
 import { renderKatexToPng } from './math-image.js';
 import {
@@ -21,14 +22,8 @@ import {
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-// Màu viền của từng loại GFM Alert (không có dấu # để ghép vào XML).
-const ALERT_COLORS = {
-    note: '0969DA',
-    tip: '1A7F37',
-    important: '8250DF',
-    warning: '9A6700',
-    caution: 'D1242F'
-};
+// Màu viền của từng loại GFM Alert (không có dấu # để ghép vào XML): dùng chung với DOC.
+const ALERT_COLORS = ALERT_COLORS_XML;
 
 // Bullet list dùng chung numId; mỗi danh sách đánh số có numId riêng để đánh số lại từ 1.
 const BULLET_NUM_ID = 1;
@@ -39,22 +34,7 @@ function orderedListStart(el) {
     return Number.isFinite(n) && n >= 0 ? n : 1;
 }
 
-// Nhận diện ảnh theo chữ ký byte: Word chỉ ăn PNG/JPEG/GIF/BMP.
-function detectImageType(bytes) {
-    if (bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
-        return { ext: 'png', mime: 'image/png' };
-    }
-    if (bytes.length > 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
-        return { ext: 'jpeg', mime: 'image/jpeg' };
-    }
-    if (bytes.length > 4 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
-        return { ext: 'gif', mime: 'image/gif' };
-    }
-    if (bytes.length > 2 && bytes[0] === 0x42 && bytes[1] === 0x4D) {
-        return { ext: 'bmp', mime: 'image/bmp' };
-    }
-    return null;
-}
+// Nhận diện ảnh theo chữ ký byte: dùng detectImageType() trong images.js.
 
 function decodeDataUrl(src) {
     const match = /^data:([^,]*?)(;base64)?,(.*)$/s.exec(src);
@@ -106,6 +86,8 @@ class DocxBuilder {
         this.orderedListIds = [];
         // Số thứ tự đầu tiên của từng danh sách đánh số (<ol start="5"> -> 5).
         this.orderedListStarts = [];
+        // Cảnh báo cho người dùng (ảnh không nhúng được...).
+        this.warnings = [];
         this.nextRelId = 3;
     }
 
@@ -116,7 +98,8 @@ class DocxBuilder {
             rels: this.rels,
             media: this.media,
             orderedListIds: this.orderedListIds,
-            orderedListStarts: this.orderedListStarts
+            orderedListStarts: this.orderedListStarts,
+            warnings: this.warnings
         };
     }
 
@@ -250,9 +233,7 @@ class DocxBuilder {
     }
 
     async blockquote(el, out, ctx) {
-        const alertClass = Array.from(el.classList)
-            .find((c) => /^markdown-alert-(note|tip|important|warning|caution)$/.test(c));
-        const type = alertClass ? alertClass.replace('markdown-alert-', '') : '';
+        const type = alertTypeOf(el);
         const borderColor = type ? ALERT_COLORS[type] : 'D0D7DE';
         const quoteCtx = {
             para: {
@@ -486,7 +467,8 @@ class DocxBuilder {
     // --- Ảnh ---
 
     async imageRun(el) {
-        const src = el.currentSrc || el.getAttribute('src') || '';
+        const raw = el.getAttribute('src') || '';
+        const src = el.currentSrc || raw;
         if (!src) return null;
         const alt = el.getAttribute('alt') || '';
         const size = getDocImageSize(el);
@@ -494,9 +476,18 @@ class DocxBuilder {
         const cx = Math.max(1, Math.round(fit.width * EMU_PER_PX));
         const cy = Math.max(1, Math.round(fit.height * EMU_PER_PX));
 
+        // Ảnh trong file: app chỉ được mở file VĂN BẢN nên không đọc được ảnh cục bộ.
+        // Trỏ Word tới file trên đĩa (đường dẫn tuyệt đối) thay vì lặng lẽ bỏ ảnh.
+        if (raw && !/^(data:|https?:)/i.test(raw)) {
+            const target = this.localImageTarget(raw);
+            if (target) return { image: { linkId: this.addExternalImage(target), cx, cy, alt } };
+            this.warnings.push(`Local image was not embedded: ${raw}`);
+            return null;
+        }
+
         const part = await this.resolveImage(src, fit);
         if (!part) {
-            // Tải lỗi (CORS): trỏ thẳng URL, Word tự tải ảnh.
+            // Tải lỗi (CORS, hết thời gian): trỏ thẳng URL, Word tự tải.
             if (/^https?:/i.test(src)) {
                 return { image: { linkId: this.addExternalImage(src), cx, cy, alt } };
             }
@@ -505,6 +496,24 @@ class DocxBuilder {
         }
         const relId = this.addMedia(part.bytes, part.ext, part.mime, src);
         return { image: { relId, cx, cy, alt } };
+    }
+
+    // Đường dẫn tuyệt đối của ảnh cục bộ (file:///C:/...) để Word tự mở.
+    localImageTarget(raw) {
+        let rel = raw;
+        try {
+            rel = decodeURIComponent(raw);
+        } catch (e) {
+            // href hỏng: dùng nguyên chuỗi.
+        }
+        if (/^file:/i.test(rel)) return rel;
+        const base = this.options.baseDir;
+        const isAbsolute = /^[a-zA-Z]:[\\/]/.test(rel) || rel.startsWith('/') || rel.startsWith('\\\\');
+        const path = isAbsolute || !base
+            ? rel
+            : base.replace(/[\\/]+$/, '') + (rel.includes('\\') ? '\\' : '/') + rel;
+        if (!/^[a-zA-Z]:[\\/]/.test(path)) return null;
+        return 'file:///' + path.replace(/\\/g, '/');
     }
 
     async resolveImage(src, fit) {
@@ -516,17 +525,12 @@ class DocxBuilder {
             return rasterToPng(src, fit);
         }
         if (!/^https?:/i.test(src)) return null;
-        try {
-            const res = await fetch(src);
-            if (!res.ok) return null;
-            const bytes = new Uint8Array(await res.arrayBuffer());
-            const known = detectImageType(bytes);
-            if (known) return { bytes, ...known };
-            return rasterToPng(src, fit);
-        } catch (err) {
-            console.warn('Could not download the image:', src, err);
-            return null;
-        }
+        // Có giới hạn thời gian và kích thước: host treo không được làm treo xuất file.
+        const bytes = await downloadImageBytes(src);
+        if (!bytes) return null;
+        const known = detectImageType(bytes);
+        if (known) return { bytes, ...known };
+        return rasterToPng(src, fit);
     }
 }
 

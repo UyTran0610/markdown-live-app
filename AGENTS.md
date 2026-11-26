@@ -7,7 +7,7 @@ Offline-first Markdown editor. Tauri v2 (thin Rust shell in `lib.rs`: registers 
 - `src/index.html` is the only HTML. Load order is fixed: CSS `tokens → base → layout → format-bar → dialogs → toast → toolbar → tabs → editor → preview → print`; vendor scripts `defer`, `codemirror.bundle.js` before `js/main.js`.
 - `src/js/main.js` owns every `initXxx()` and the only `DOMContentLoaded`. Modules live in `src/js/{core,editor,preview,export,io,ui,theme,dev}`.
 - Core files: `io/documents.js` (tab store, save/restore), `io/session-store.js` (IndexedDB), `editor/cm.js` (CM6 wrapper), `editor/sync.js` (`handleEditorChange`), `preview/render.js` (block renderer, lazy KaTeX/Mermaid/hljs; exports call `flushLazyRenders()` and `renderMarkdown({ force: true })`).
-- Export: `export/doc.js` (Word HTML `.doc`), `export/html.js` (`.html`), `export/docx.js` + `export/docx-build.js` + `export/docx-xml.js` + `export/docx-zip.js` (real OOXML `.docx`: DOM → model → OOXML → ZIP, written by hand, no vendor lib), `export/docx-math.js` (KaTeX MathML → OMML so formulas stay editable Word equations, not images).
+- Export: `export/doc.js` (Word HTML `.doc`), `export/html.js` (`.html`), `export/docx.js` + `export/docx-build.js` + `export/docx-xml.js` + `export/docx-zip.js` (real OOXML `.docx`: DOM → model → OOXML → ZIP, written by hand, no vendor lib), `export/docx-math.js` (KaTeX MathML → OMML so formulas stay editable Word equations, not images), `export/alert-colors.js` (one GFM-alert colour map for `.doc` and `.docx`), `export/export-context.js` (document folder + export issue reporting).
 - `src/vendor/` is offline-only: never add CDN links. Rebuild recipes: `scripts/vendor-update.js`.
 - New Tauri plugin permissions go in `src-tauri/capabilities/default.json`, not Rust.
 
@@ -15,9 +15,10 @@ Offline-first Markdown editor. Tauri v2 (thin Rust shell in `lib.rs`: registers 
 
 - Never launch the app (`npm run tauri dev` opens a window); tell the user to do it.
 - Test by opening with `?selfcheck` (correctness) or `?perf` (timings). No other test commands.
-- Version: only `node scripts/sync-version.js --set X.Y.Z` (source of truth `tauri.conf.json`); never hand-edit `Cargo.toml` or `?v=` in `index.html`. Root `package.json` is stale.
+- Version: only `node scripts/sync-version.js --set X.Y.Z` (source of truth `tauri.conf.json`); never hand-edit `Cargo.toml`, `package.json` or `?v=` in `index.html`.
 - Comments: only for non-obvious parts (the why, not the what), max 2 lines. Don't comment self-explanatory code.
 - Output: everything the code prints (`console.log`/`warn`/`error`, `console.table` headers, self-check and perf report lines) must be English, like the UI. Code comments stay Vietnamese.
+- Self-check: `npm run selfcheck` (`scripts/run-selfcheck.js`) serves `src/`, runs `?selfcheck` in a headless Edge/Chrome and exits non-zero on FAIL or SKIP. CI (`.github/workflows/ci.yml`) and the release workflow run it — keep it green.
 
 ## Invariants
 
@@ -33,4 +34,6 @@ Offline-first Markdown editor. Tauri v2 (thin Rust shell in `lib.rs`: registers 
 - **Tauri:** register `single-instance` FIRST in `lib.rs`; its callback does `unminimize()` + `show()` before `set_focus()`. Windows-only `webview2-com`/`windows-core` versions must match wry's. `data-tauri-drag-region` only on `.titlebar-drag`.
 - **fs scope:** the app only touches files the user opened (dialog, drag-drop, argv, session, Recent). There is NO static `fs:scope` in `capabilities/default.json` — nothing is reachable until the user opens that file. Scope widens at runtime via the Rust commands `allow_text_files` (existing text files only) and `allow_temp_sibling` (the `.md-live.tmp` next to an already-approved file); argv paths go through the same `has_text_ext` + `is_file` gate as `allow_text_files`. `allow_text_files` trusts the webview: any existing text file it names gets scope, so the webview (DOMPurify) is the trust boundary, not the extension list. Exports write to the path the Save dialog returned (the dialog plugin widens the scope for that path); `fs:allow-write-file` is for binary output (DOCX), `fs:allow-write-text-file` for text. Do not re-add a fixed scope list.
 - **Security:** the CSP lets scripts run only from the app itself (`script-src 'self'`, no `unsafe-inline`/`unsafe-eval`; Tauri injects the hash of the inline theme script at build time), so JS is the second line of defence: fail-closed DOMPurify, Mermaid re-sanitize, external-URL allowlist.
+- **Mermaid CSS:** a `<style>` inside the diagram SVG is CSS for the whole page. `preview/render.js` scopes every rule to the diagram id (`scopeCssToSvg`) before the SVG enters the DOM; never insert a Mermaid SVG without that step.
+- **Export:** every export step (render → images → package → save) sits inside one `try`/`catch` and reports failures with a toast; a failed export must never look like a successful one. Images fetched over the network go through `downloadImageBytes()` (6 s timeout, 8 MB cap). The app may only read text files, so local images are linked by absolute path (`file:///…`) in Word exports, never embedded.
 - **Dialogs:** hide `.dialog-overlay` and dropdown menus via `visibility` + `pointer-events`, never `display: none`. `display: none` is only for swapping views inside a dialog (`#info-about`/`#info-doc`) and for `.popup-menu`.

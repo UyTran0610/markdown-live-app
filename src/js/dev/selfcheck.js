@@ -42,8 +42,8 @@ import { buildWordHtml } from '../export/doc.js';
 import { buildDocxModel, buildDocxPackage } from '../export/docx-build.js';
 import { mathmlToOmml } from '../export/docx-math.js';
 import { createZip, crc32 } from '../export/docx-zip.js';
-import { buildDocumentRelsXml, buildDocumentXml, buildNumberingXml, buildStylesXml, CONTENT_WIDTH_TWIP } from '../export/docx-xml.js';
-import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readErrorMessage, readTextFile, sameFilePath, saveBinaryFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
+import { buildDocumentRelsXml, buildDocumentXml, buildNumberingXml, buildStylesXml, CONTENT_WIDTH_TWIP, escapeXml } from '../export/docx-xml.js';
+import { applyEol, decodeTextBytes, deriveDocumentTitle, deriveExportBaseName, detectBom, detectEol, hashText, mtimeOf, readErrorMessage, readTextFile, sameFilePath, saveBinaryFile, saveTextFile, stripBom, toLf, writeTextFile } from '../export/file-save.js';
 import { buildStandaloneHtml } from '../export/html.js';
 import { fitDocImageSize, flattenForeignObjects, isSvgImageSrc } from '../export/images.js';
 import { katexFontKey, parseKatexFontFaces } from '../export/math-fonts.js';
@@ -668,6 +668,54 @@ export async function runSelfCheck() {
                 window.__TAURI__ = realTauri;
             }
         });
+        // Xuất .doc/.html đi qua saveTextFile: BOM/EOL phải đúng, hộp thoại huỷ thì không ghi gì.
+        await section('text export writes BOM and line endings', async () => {
+            const realTauri = window.__TAURI__;
+            const target = 'C:\\selfcheck\\out.doc';
+            const tmp = target + '.md-live.tmp';
+            const calls = [];
+            const fakeFs = {
+                writeTextFile: async (path, contents) => { calls.push(['write', path, contents]); },
+                writeFile: async (path) => { calls.push(['write', path]); },
+                rename: async (from, to) => { calls.push(['rename', from, to]); },
+                remove: async (path) => { calls.push(['remove', path]); },
+                stat: async () => ({ mtime: new Date() })
+            };
+            let stubbed = false;
+            try {
+                window.__TAURI__ = {
+                    core: { invoke: async () => true },
+                    fs: fakeFs,
+                    dialog: { save: async () => target }
+                };
+                stubbed = window.__TAURI__ && window.__TAURI__.fs === fakeFs;
+            } catch (e) {
+                stubbed = false;
+            }
+            if (!stubbed) {
+                skip('stub fs to test the text write', 'window.__TAURI__ could not be assigned');
+                return;
+            }
+            try {
+                const path = await saveTextFile('a\nb', 'out', 'doc', 'application/msword', '\r\n', true);
+                assert('text export returns the chosen path', path === target);
+                const write = calls.find((c) => c[0] === 'write' && c[1] === tmp);
+                assert('text export writes through the temp file', !!write);
+                assert('text export writes the BOM exactly once',
+                    !!write && write[2].charCodeAt(0) === 0xFEFF && write[2].indexOf('\uFEFF', 1) === -1);
+                assert('text export writes the requested line endings', !!write && write[2].includes('\r\n'));
+
+                // Huỷ hộp thoại: không ghi file nào.
+                calls.length = 0;
+                window.__TAURI__.dialog.save = async () => null;
+                const cancelled = await saveTextFile('x', 'out', 'html', 'text/html');
+                assert('text export writes nothing when the dialog is cancelled',
+                    cancelled === null && calls.length === 0);
+            } finally {
+                window.__TAURI__ = realTauri;
+            }
+        });
+
         // Session cũ từng khoá tab lớn và không có cách nào mở lại -> restore luôn mở khoá.
         await section('session drops the old read-only flag', async () => {
             const ro = deserializeSession(JSON.stringify({
@@ -802,7 +850,7 @@ export async function runSelfCheck() {
         assert('word html has the Office namespace', wordHtml.includes('urn:schemas-microsoft-com:office:word'));
         assert('word html keeps the body', wordHtml.includes('<p>x</p>'));
         const fitWide = fitDocImageSize(1200, 600);
-        assert('doc caps a wide image at 650 keeping the ratio', fitWide.width === 650 && fitWide.height === 325);
+        assert('doc caps a wide image at the text column width keeping the ratio', fitWide.width === 624 && fitWide.height === 312);
         const fitSmall = fitDocImageSize(400, 200);
         assert('doc keeps a small image as-is', fitSmall.width === 400 && fitSmall.height === 200);
         const fitTall = fitDocImageSize(500, 1800);
@@ -819,6 +867,27 @@ export async function runSelfCheck() {
             const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
             assert('zip starts with a local file header', view.getUint32(0, true) === 0x04034b50);
             assert('zip ends with the central directory record', view.getUint32(zip.length - 22, true) === 0x06054b50);
+
+            // ZIP nhiều file: số entry, offset thư mục trung tâm và CRC từng entry phải đúng.
+            const two = createZip([
+                { name: 'a.txt', data: new TextEncoder().encode('hello') },
+                { name: 'b.txt', data: new TextEncoder().encode('world!') }
+            ]);
+            const dv = new DataView(two.buffer, two.byteOffset, two.byteLength);
+            assert('zip records both entries', dv.getUint16(two.length - 22 + 10, true) === 2);
+            const cdOffset = dv.getUint32(two.length - 22 + 16, true);
+            assert('zip central directory starts at the right offset', dv.getUint32(cdOffset, true) === 0x02014b50);
+            const firstCrc = crc32(new TextEncoder().encode('hello'));
+            assert('zip stores the CRC of the first entry', dv.getUint32(14, true) === firstCrc);
+            assert('zip central directory repeats the CRC', dv.getUint32(cdOffset + 16, true) === firstCrc);
+            assert('zip central directory points at the first local header', dv.getUint32(cdOffset + 42, true) === 0);
+
+            // escapeXml: ký tự điều khiển và surrogate lơ lửng làm XML hỏng -> Word báo "file hỏng".
+            assert('escapeXml escapes the XML special characters',
+                escapeXml('a & b < c > d "e"') === 'a &amp; b &lt; c &gt; d &quot;e&quot;');
+            assert('escapeXml removes control characters', escapeXml('a\u0001b\u0007c') === 'abc');
+            assert('escapeXml replaces a lone surrogate', escapeXml('\uD83D') === '\uFFFD');
+            assert('escapeXml keeps Vietnamese text', escapeXml('Tiêu đề') === 'Tiêu đề');
 
             const host = document.createElement('div');
             host.innerHTML = '<h1>Tiêu đề</h1><p><strong>Đậm</strong> và <em>nghiêng</em></p>'
@@ -1024,6 +1093,22 @@ export async function runSelfCheck() {
             assert('docx bold variables use the math bold style', !!boldOmml && boldOmml.includes('<m:sty m:val="b"/>'));
             assert('docx bold variables keep the plain letter', !!boldOmml && boldOmml.includes('>B<'));
             assert('docx avoids Mathematical Alphanumeric codepoints', !boldOmml || !boldOmml.includes('\u{1D401}'));
+
+            // Toán tử lớn và hàm: nhánh riêng, lỗi ở đây là công thức sai mà không ai thấy.
+            const sumHost = document.createElement('div');
+            sumHost.innerHTML = katex.renderToString(String.raw`\sum_{i=1}^{n} x_i`, { throwOnError: false, output: 'htmlAndMathml' });
+            const sumOmml = mathmlToOmml(sumHost.querySelector('.katex-mathml > math'));
+            assert('docx big operators become an n-ary equation', !!sumOmml && sumOmml.includes('<m:nary>'));
+            assert('docx n-ary equation keeps its limits', !!sumOmml && sumOmml.includes('<m:sub>') && sumOmml.includes('<m:sup>'));
+            const sumAddHost = document.createElement('div');
+            sumAddHost.innerHTML = katex.renderToString(String.raw`\sum_{i=1}^{n} x_i + y`, { throwOnError: false, output: 'htmlAndMathml' });
+            const sumAddOmml = mathmlToOmml(sumAddHost.querySelector('.katex-mathml > math'));
+            const tail = sumAddOmml ? (sumAddOmml.split('</m:nary>')[1] || '') : '';
+            assert('docx n-ary equation does not swallow the term after it', tail.includes('+') && tail.includes('y'));
+            const sinHost = document.createElement('div');
+            sinHost.innerHTML = katex.renderToString(String.raw`\sin(x)`, { throwOnError: false, output: 'htmlAndMathml' });
+            const sinOmml = mathmlToOmml(sinHost.querySelector('.katex-mathml > math'));
+            assert('docx keeps the name of a function', !!sinOmml && sinOmml.includes('sin'));
         });
 
         const standalone = buildStandaloneHtml('<p>x</p>', 'Tiêu đề <đẹp>');
@@ -2088,4 +2173,15 @@ export async function runSelfCheck() {
     } else {
         showToast(`Self-check: ${report}`);
     }
+    // Kết quả nằm trong DOM: CI đọc bằng trình duyệt ẩn, không cần bắt console.
+    const marker = document.createElement('div');
+    marker.id = 'selfcheck-result';
+    marker.textContent = `Self-check summary: ${report}, ${skipped.length} SKIP, ${failed.length} FAIL`;
+    document.body.appendChild(marker);
+    failed.forEach((line) => {
+        const item = document.createElement('div');
+        item.className = 'selfcheck-failure';
+        item.textContent = line;
+        marker.appendChild(item);
+    });
 }

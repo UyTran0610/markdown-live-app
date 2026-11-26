@@ -93,7 +93,9 @@ export async function loadSession() {
         activeId: meta.activeId,
         tabs,
         recent: Array.isArray(meta.recent) ? meta.recent : [],
-        defaultEol: meta.defaultEol === '\r\n' ? '\r\n' : '\n'
+        defaultEol: meta.defaultEol === '\r\n' ? '\r\n' : '\n',
+        // Số bản nháp Untitled quá lớn đã bị bỏ: lần sau báo người dùng.
+        droppedDrafts: Number.isFinite(meta.droppedDrafts) ? meta.droppedDrafts : 0
     };
 }
 
@@ -111,7 +113,8 @@ export function writeSession(snapshot, { durability = 'default' } = {}) {
             activeId: snapshot.activeId,
             order: snapshot.tabs.map((tab) => tab.id),
             recent: snapshot.recent || [],
-            defaultEol: snapshot.defaultEol === '\r\n' ? '\r\n' : '\n'
+            defaultEol: snapshot.defaultEol === '\r\n' ? '\r\n' : '\n',
+            droppedDrafts: snapshot.droppedDrafts || 0
         }, META_KEY);
 
         const liveIds = new Set(snapshot.tabs.map((tab) => tab.id));

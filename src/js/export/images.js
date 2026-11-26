@@ -1,5 +1,137 @@
 // js/export/images.js — Xử lý ảnh khi xuất DOC: SVG -> PNG, kích thước ảnh, Mermaid -> PNG.
 
+import { CONTENT_WIDTH_TWIP } from './docx-xml.js';
+
+// Nhận diện ảnh theo chữ ký byte: Word chỉ ăn PNG/JPEG/GIF/BMP.
+export function detectImageType(bytes) {
+    if (bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+        return { ext: 'png', mime: 'image/png' };
+    }
+    if (bytes.length > 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+        return { ext: 'jpeg', mime: 'image/jpeg' };
+    }
+    if (bytes.length > 4 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+        return { ext: 'gif', mime: 'image/gif' };
+    }
+    if (bytes.length > 2 && bytes[0] === 0x42 && bytes[1] === 0x4D) {
+        return { ext: 'bmp', mime: 'image/bmp' };
+    }
+    return null;
+}
+
+// Tải ảnh từ mạng: có giới hạn thời gian và kích thước, một host treo không làm treo app.
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 6000;
+const IMAGE_DOWNLOAD_MAX_BYTES = 8 * 1024 * 1024;
+
+export async function downloadImageBytes(src, { timeoutMs = IMAGE_DOWNLOAD_TIMEOUT_MS, maxBytes = IMAGE_DOWNLOAD_MAX_BYTES } = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(src, { signal: controller.signal });
+        if (!res.ok) return null;
+        const declared = Number(res.headers.get('content-length') || 0);
+        if (declared && declared > maxBytes) return null;
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > maxBytes) return null;
+        return new Uint8Array(buf);
+    } catch (err) {
+        console.warn('Could not download the image:', src, err);
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+// bytes -> data URL (dùng FileReader để không tự viết base64).
+function bytesToDataUrl(bytes, mime) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not encode the image'));
+        reader.readAsDataURL(new Blob([bytes], { type: mime }));
+    });
+}
+
+// Nhúng ảnh từ mạng thành data URL: file .html mang theo ảnh, mở ở máy khác không cần mạng.
+// SVG từ mạng cũng được nhúng (đổi sang PNG, vì file HTML không mang theo file .svg).
+// Trả { inlined, failed }.
+export async function inlineRemoteImages(origRoot, clone) {
+    const origImgs = origRoot.querySelectorAll('img');
+    const cloneImgs = clone.querySelectorAll('img');
+    let inlined = 0;
+    let failed = 0;
+    for (let i = 0; i < cloneImgs.length; i++) {
+        const img = cloneImgs[i];
+        const orig = origImgs[i];
+        const raw = (orig && orig.getAttribute('src')) || img.getAttribute('src') || '';
+        if (!/^https?:/i.test(raw)) continue;
+        if (isSvgImageSrc(raw)) {
+            const size = orig ? getDocImageSize(orig) : { width: 0, height: 0 };
+            const fit = fitDocImageSize(size.width || 400, size.height || 300);
+            try {
+                img.setAttribute('src', await svgImageToPngDataUrl(raw, fit.width, fit.height));
+                img.removeAttribute('srcset');
+                inlined++;
+            } catch (err) {
+                failed++;
+                console.warn('Could not embed the SVG image:', raw, err);
+            }
+            continue;
+        }
+        const bytes = await downloadImageBytes(raw);
+        if (!bytes) {
+            failed++;
+            continue;
+        }
+        const known = detectImageType(bytes);
+        if (!known) {
+            failed++;
+            continue;
+        }
+        img.setAttribute('src', await bytesToDataUrl(bytes, known.mime));
+        img.removeAttribute('srcset');
+        inlined++;
+    }
+    return { inlined, failed };
+}
+
+// SVG nằm trực tiếp trong tài liệu (không phải Mermaid, không phải icon): đổi sang PNG,
+// vì Word không nhúng SVG tốt và nội dung text trong SVG sẽ thành chữ rác trong file Word.
+// Gọi SAU prepareDocImages: thay SVG bằng <img> làm danh sách ảnh của clone lệch với preview.
+// Trả số SVG không chuyển được.
+export async function convertInlineSvgsToPng(origRoot, clone, { withStyle = false } = {}) {
+    const pick = (root) => [...root.querySelectorAll('svg')]
+        .filter((el) => !el.classList.contains('lucide') && !el.closest('pre.mermaid'));
+    const origSvgs = pick(origRoot);
+    const cloneSvgs = pick(clone);
+    let failed = 0;
+    for (let i = 0; i < cloneSvgs.length; i++) {
+        const orig = origSvgs[i];
+        if (!orig) continue;
+        try {
+            const { dataUrl, width, height } = await svgToPngDataUrl(orig);
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            img.alt = orig.getAttribute('aria-label') || '';
+            const fit = fitDocImageSize(width, height);
+            if (fit.width > 0 && fit.height > 0) {
+                img.setAttribute('width', fit.width);
+                img.setAttribute('height', fit.height);
+                if (withStyle) {
+                    img.style.width = fit.width + 'px';
+                    img.style.height = fit.height + 'px';
+                }
+            }
+            cloneSvgs[i].replaceWith(img);
+        } catch (err) {
+            failed++;
+            cloneSvgs[i].remove();
+            console.warn('Could not convert an inline SVG to PNG:', err);
+        }
+    }
+    return failed;
+}
+
 // <foreignObject> (nhãn HTML của Mermaid) -> <text> thuần SVG vì canvas không vẽ được.
 // ponytail: mất đậm/nghiêng, chỉ giữ chữ/màu/cỡ; nâng cấp sau: dựng text theo toạ độ từng span.
 export function flattenForeignObjects(svgClone, fallbackColor, fallbackFontSize) {
@@ -65,8 +197,10 @@ export async function svgToPngDataUrl(svg, scale = 2) {
     return { dataUrl: canvas.toDataURL('image/png'), width: w, height: h };
 }
 
-// Word bỏ qua max-width nên PNG 2x sẽ tràn lề: thu ảnh lớn về 650x900 theo tỉ lệ, kèm width/height.
-const DOC_IMG_MAX_WIDTH_PX = 650;
+// Word bỏ qua max-width nên PNG 2x sẽ tràn lề: thu ảnh về đúng bề rộng khung nội dung.
+// DOCX dùng A4 (CONTENT_WIDTH_TWIP -> 642 px), DOC dùng khuyến mặc định của Word (6.5in = 624 px).
+// Lấy số nhỏ hơn để ảnh không tràn lề trong cả hai.
+const DOC_IMG_MAX_WIDTH_PX = Math.min(624, Math.floor(CONTENT_WIDTH_TWIP / 1440 * 96));
 
 const DOC_IMG_MAX_HEIGHT_PX = 900;
 
@@ -144,10 +278,13 @@ export async function svgImageToPngDataUrl(src, w, h, scale = 2) {
 
 // Gom ảnh của Preview về kích thước hiển thị và đổi SVG sang PNG.
 // Clone chưa vào DOM nên đo kích thước từ ảnh gốc trong Preview theo chỉ số.
+// Vì vậy danh sách ảnh của clone phải khớp Preview: đừng thêm <img> vào clone trước bước này.
 // withStyle: DOC (HTML) cần style để trình duyệt giữ đúng khung; DOCX chỉ cần thuộc tính.
+// Trả số ảnh KHÔNG chuyển được (SVG tải lỗi) để người dùng được báo.
 export async function prepareDocImages(origRoot, clone, { withStyle = false } = {}) {
     const origImgs = origRoot.querySelectorAll('img');
     const cloneImgs = clone.querySelectorAll('img');
+    let failed = 0;
     for (let i = 0; i < cloneImgs.length; i++) {
         const img = cloneImgs[i];
         const orig = origImgs[i];
@@ -162,6 +299,7 @@ export async function prepareDocImages(origRoot, clone, { withStyle = false } = 
                 img.src = await svgImageToPngDataUrl(src, fit.width, fit.height);
                 img.removeAttribute('srcset');
             } catch (e) {
+                failed++;
                 console.warn('Could not convert the SVG image to PNG, keeping the original URL:', src, e);
             }
         }
@@ -172,16 +310,20 @@ export async function prepareDocImages(origRoot, clone, { withStyle = false } = 
             img.style.height = fit.height + 'px';
         }
     }
+    return failed;
 }
 
 // Mermaid -> PNG; lỗi thì giữ nguyên khối code để không mất nội dung.
+// Trả số biểu đồ KHÔNG vẽ được để báo cho người dùng.
 export async function convertMermaidToImages(origRoot, clone, { withStyle = false } = {}) {
     // Ánh xạ theo chính node pre (không theo chỉ số svg): mermaid lỗi làm lệch chỉ số và xuất nhầm ảnh.
     const cloneMers = clone.querySelectorAll('pre.mermaid');
     const origPres = origRoot.querySelectorAll('pre.mermaid');
+    let failed = 0;
     for (let i = 0; i < cloneMers.length; i++) {
         const svg = origPres[i] && origPres[i].querySelector('svg');
         if (!svg) {
+            failed++;
             console.warn('Mermaid diagram has no SVG yet, skipping image conversion:', i);
             continue;
         }
@@ -202,7 +344,9 @@ export async function convertMermaidToImages(origRoot, clone, { withStyle = fals
             }
             cloneMers[i].replaceWith(img);
         } catch (e) {
+            failed++;
             console.warn('Could not convert the Mermaid diagram to an image, keeping the source code:', e);
         }
     }
+    return failed;
 }

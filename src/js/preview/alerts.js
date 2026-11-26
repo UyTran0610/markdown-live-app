@@ -27,7 +27,8 @@ function getAlertTitle(type) {
 // root: DocumentFragment lúc dựng cache block (sau sanitize) hoặc previewOutput khi gọi trực tiếp.
 export function processGFMAlerts(root = previewOutput) {
     root.querySelectorAll('blockquote').forEach((bq) => {
-        const firstP = bq.querySelector('p');
+        // Chỉ đoạn văn trực tiếp của quote này: quote lồng nhau thì p đầu tiên thuộc quote trong.
+        const firstP = bq.querySelector(':scope > p');
         if (firstP) {
             const htmlContent = firstP.innerHTML.trim();
             const match = htmlContent.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?\s*/i);

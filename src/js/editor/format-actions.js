@@ -24,6 +24,7 @@ function lineChange(lineFrom, oldLine, newLine) {
 
 export function applyHeadingLevel(level) {
     const v = getView();
+    if (!v || v.state.readOnly) return;
     const { state } = v;
     const sel = state.selection.main;
     const firstLine = state.doc.lineAt(sel.from).number;
@@ -49,6 +50,7 @@ export function applyHeadingLevel(level) {
 
 export function applyListStyle(style) {
     const v = getView();
+    if (!v || v.state.readOnly) return;
     const { state } = v;
     const sel = state.selection.main;
     const firstLine = state.doc.lineAt(sel.from).number;

@@ -1,11 +1,13 @@
 {
   "name": "markdown-live",
   "private": true,
-  "version": "0.1.0",
+  "version": "3.1.1",
   "type": "module",
   "scripts": {
     "tauri": "tauri",
-    "vendor": "node scripts/vendor-update.js"
+    "vendor": "node scripts/vendor-update.js",
+    "selfcheck": "node scripts/run-selfcheck.js",
+    "serve": "node scripts/serve-static.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
@@ -13,15 +15,20 @@
   "dependencies": {
     "@tauri-apps/plugin-clipboard-manager": "^2.3.3"
   },
-  "description": "<div align=\"center\">",
-  "main": "index.js",
+  "description": "Real-time bidirectional Markdown editor (Offline-first)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/UyTran0610/markdown-live-app.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "markdown",
+    "editor",
+    "offline",
+    "tauri",
+    "windows"
+  ],
+  "author": "Uy Tran",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/UyTran0610/markdown-live-app/issues"
   },

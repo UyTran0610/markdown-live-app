@@ -247,6 +247,12 @@ export async function runSelfCheck() {
         assert('bom strips the leading marker', stripBom('\uFEFF# A') === '# A');
         assert('bom keeps a file without BOM unchanged', stripBom('# A') === '# A');
         assert('bom removed makes the first line a heading again', deriveDocumentTitle(stripBom('\uFEFF# A\nx')) === 'A');
+        // Regex heading phải tuyến tính: `(.+?)[ \t]*$` quay lui vuông, 40k space = 1,5s treo app.
+        const longSpaces = ' '.repeat(40000);
+        const titleStart = performance.now();
+        deriveDocumentTitle('# x' + longSpaces + 'y');
+        assert('heading title parsing stays fast on a long space run', performance.now() - titleStart < 250);
+        assert('heading title drops trailing spaces', deriveDocumentTitle('# Tiêu đề   ') === 'Tiêu đề');
         // Cùng một file không được mở thành hai tab (hai tab ghi đè nhau).
         assert('Windows path ignores case and slash direction', sameFilePath('C:\\Docs\\A.md', 'c:/docs/a.md') === true);
         assert('paths in different folders stay different files', sameFilePath('/x/a.md', '/y/a.md') === false);
@@ -292,6 +298,23 @@ export async function runSelfCheck() {
         assert('ghost threshold is 100k characters', GHOST_DRAG_MIN_CHARS === 100000);
         assert('ghost bar mid-range -> offset by half the width', ghostOffsetPx(50, 1000) === 499);
         assert('ghost bar at left edge -> negative half-thickness offset', ghostOffsetPx(0, 1000) === -1);
+
+        // Kéo thanh chia rồi mất focus (Alt+Tab): khoá "resizing" phải được gỡ, nếu không cả app chết với chuột.
+        await section('divider drag releases the resizing lock when the window loses focus', async () => {
+            const resizer = document.getElementById('pane-resizer');
+            const hadEditor = document.body.classList.contains('view-editor');
+            const hadPreview = document.body.classList.contains('view-preview');
+            document.body.classList.remove('view-editor', 'view-preview');
+            try {
+                resizer.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: 100, clientY: 100 }));
+                assert('divider drag locks the panes', document.body.classList.contains('resizing'));
+                window.dispatchEvent(new Event('blur'));
+                assert('losing focus during a divider drag releases the lock', !document.body.classList.contains('resizing'));
+            } finally {
+                if (hadEditor) document.body.classList.add('view-editor');
+                if (hadPreview) document.body.classList.add('view-preview');
+            }
+        });
 
         // Render preview phải giãn debounce theo độ dài: tài liệu lớn render chậm hơn nhiều,
         // chạy giữa lúc gõ sẽ cướp main thread.
@@ -988,6 +1011,13 @@ export async function runSelfCheck() {
             const nestedModel = await buildDocxModel(nested, 'Lồng');
             const outer = nestedModel.blocks.find((b) => b.type === 'table');
             assert('docx keeps the outer table rows apart from the nested table', outer.rows.length === 1);
+
+            // Bảng không có ô nào: <w:tbl> không dòng là OOXML sai, Word từ chối mở cả file.
+            const emptyTable = document.createElement('div');
+            emptyTable.innerHTML = '<table><tr></tr></table>';
+            const emptyXml = buildDocumentXml(await buildDocxModel(emptyTable, 'Rỗng'));
+            assert('docx turns a table without cells into a paragraph, not a row-less table',
+                !emptyXml.includes('<w:tbl>') && emptyXml.includes('<w:p>'));
         });
 
         // Danh sách: đủ 9 cấp để list lồng sâu không trỏ tới ilvl chưa định nghĩa.

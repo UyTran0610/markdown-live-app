@@ -4,7 +4,8 @@ import { showToast } from '../core/toast.js';
 import { slugifyText } from '../core/utils.js';
 
 // Heading cấp 1: cần ít nhất một space/tab, KHÔNG dùng \s để tránh ăn xuống dòng (`#\nfoo` không phải heading).
-const HEADING_RE = /^ {0,3}#[ \t]+(.+?)[ \t]*$/;
+// `(.+)$` + trim() thay cho `(.+?)[ \t]*$`: cặp lười + `[ \t]*` quay lui vuông (40k space = 1,5s).
+const HEADING_RE = /^ {0,3}#[ \t]+(.+)$/;
 
 // Fence ``` hoặc ~~~, thụt tối đa 3 space, tối thiểu 3 ký tự.
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;

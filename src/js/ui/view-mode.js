@@ -270,6 +270,9 @@ export function initViewMode() {
 
     window.addEventListener('pointercancel', endResizerDrag);
 
+    // Mất focus là lúc buộc bỏ kéo: thả chuột ngoài cửa sổ không có pointerup, khoá "resizing" treo.
+    window.addEventListener('blur', endResizerDrag);
+
     // Chỉ nhớ chế độ xem, không nhớ vị trí splitter (luôn mở 50/50). Script dùng defer.
     (function initViewModel() {
         let saved = null;

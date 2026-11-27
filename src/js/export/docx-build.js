@@ -190,7 +190,10 @@ class DocxBuilder {
             return;
         }
         if (tag === 'TABLE') {
-            out.push(await this.table(el));
+            const table = await this.table(el);
+            // Bảng không có ô nào: <w:tbl> không dòng là OOXML sai, Word từ chối mở cả file.
+            if (table.rows.length) out.push(table);
+            else out.push(this.paragraph([], { ...ctx.para }));
             return;
         }
         if (tag === 'HR') {

@@ -25,9 +25,27 @@ const TYPES = {
     '.ttf': 'font/ttf'
 };
 
-export function startStaticServer(port = 8765) {
+export function startStaticServer(port = 8765, { onSelfCheck } = {}) {
     const server = http.createServer((req, res) => {
         const url = decodeURIComponent((req.url || '/').split('?')[0]);
+
+        // Kết quả self-check gửi về đây: trình duyệt ẩn không đợi được app chạy xong.
+        if (req.method === 'POST' && url === '/__selfcheck') {
+            let body = '';
+            req.on('data', (chunk) => { body += chunk; });
+            req.on('end', () => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end('{"ok":true}');
+                if (!onSelfCheck) return;
+                try {
+                    onSelfCheck(JSON.parse(body));
+                } catch (err) {
+                    onSelfCheck(null);
+                }
+            });
+            return;
+        }
+
         const rel = url === '/' ? 'index.html' : url.replace(/^\/+/, '');
         const file = path.resolve(ROOT, rel);
         // Không phục vụ ra ngoài src/.

@@ -161,6 +161,20 @@ function withTimeout(promise, ms = 4000) {
     ]);
 }
 
+// Gửi kết quả cho runner (scripts/run-selfcheck.js). Trình duyệt ẩn chụp DOM trước khi
+// app chạy xong nên runner không đọc được DOM; POST là kênh chắc chắn tới.
+function postSelfCheckResult(summary, failures) {
+    try {
+        fetch('/__selfcheck', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ summary, failures })
+        }).catch(() => {});
+    } catch (err) {
+        // Không có runner (mở app bằng tay): bỏ qua.
+    }
+}
+
 export async function runSelfCheck() {
     const results = [];
     const assert = (name, cond) => results.push(`${cond ? 'PASS' : 'FAIL'} - ${name}`);
@@ -2173,10 +2187,11 @@ export async function runSelfCheck() {
     } else {
         showToast(`Self-check: ${report}`);
     }
-    // Kết quả nằm trong DOM: CI đọc bằng trình duyệt ẩn, không cần bắt console.
+    // Kết quả nằm trong DOM (để mở bằng tay thấy) và được POST cho runner của CI.
+    const summary = `Self-check summary: ${report}, ${skipped.length} SKIP, ${failed.length} FAIL`;
     const marker = document.createElement('div');
     marker.id = 'selfcheck-result';
-    marker.textContent = `Self-check summary: ${report}, ${skipped.length} SKIP, ${failed.length} FAIL`;
+    marker.textContent = summary;
     document.body.appendChild(marker);
     failed.forEach((line) => {
         const item = document.createElement('div');
@@ -2184,4 +2199,5 @@ export async function runSelfCheck() {
         item.textContent = line;
         marker.appendChild(item);
     });
+    postSelfCheckResult(summary, failed);
 }

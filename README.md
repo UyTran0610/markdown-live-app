@@ -156,7 +156,7 @@ Open DevTools (`F12`) **before** loading the page: the harness starts on load an
 npm run selfcheck        # node scripts/run-selfcheck.js
 ```
 
-It serves `src/`, opens `index.html?selfcheck` in a headless Edge / Chrome, reads the result from the page and exits non-zero when an assertion fails or is skipped. The same command runs in `.github/workflows/ci.yml` and in the release workflow, so a broken session store or export pipeline fails the build instead of shipping.
+It serves `src/`, opens `index.html?selfcheck` in a headless Edge / Chrome, waits for the page to POST its result back to the runner, and exits non-zero when an assertion fails or is skipped. The same command runs in `.github/workflows/ci.yml` and in the release workflow, so a broken session store or export pipeline fails the build instead of shipping.
 
 > [!TIP]
 > Prefer the browser for the self-check. The harness swaps `window.__TAURI__` for a fake filesystem so it can test the save / close data-safety paths, and that stub can only be installed where no real Tauri global exists. Inside the app those sections are reported as `SKIP` instead of `PASS`.

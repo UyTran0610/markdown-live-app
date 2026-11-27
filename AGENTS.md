@@ -18,7 +18,7 @@ Offline-first Markdown editor. Tauri v2 (thin Rust shell in `lib.rs`: registers 
 - Version: only `node scripts/sync-version.js --set X.Y.Z` (source of truth `tauri.conf.json`); never hand-edit `Cargo.toml`, `package.json` or `?v=` in `index.html`.
 - Comments: only for non-obvious parts (the why, not the what), max 2 lines. Don't comment self-explanatory code.
 - Output: everything the code prints (`console.log`/`warn`/`error`, `console.table` headers, self-check and perf report lines) must be English, like the UI. Code comments stay Vietnamese.
-- Self-check: `npm run selfcheck` (`scripts/run-selfcheck.js`) serves `src/`, runs `?selfcheck` in a headless Edge/Chrome and exits non-zero on FAIL or SKIP. CI (`.github/workflows/ci.yml`) and the release workflow run it — keep it green.
+- Self-check: `npm run selfcheck` (`scripts/run-selfcheck.js`) serves `src/`, runs `?selfcheck` in a headless Edge/Chrome and exits non-zero on FAIL or SKIP. CI (`.github/workflows/ci.yml`) and the release workflow run it — keep it green. The page POSTs its result to `/__selfcheck` on the runner's server: `--dump-dom` snapshots the page before the async self-check finishes, so the runner waits for the POST instead of reading the DOM.
 
 ## Invariants
 
